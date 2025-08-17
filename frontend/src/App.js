@@ -5,7 +5,9 @@ import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
-import ProtectedRoute from './components/ProtectedRoutes';
+import PhotoUpload from './pages/PhotoUpload';
+import UserPreferences from './pages/UserPreferences';
+import ProtectedRoute from './utils/ProtectedRoutes';
 
 function App() {
   return (
@@ -20,6 +22,22 @@ function App() {
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/upload" 
+            element={
+              <ProtectedRoute>
+                <PhotoUpload />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/preferences" 
+            element={
+              <ProtectedRoute>
+                <UserPreferences />
               </ProtectedRoute>
             } 
           />
