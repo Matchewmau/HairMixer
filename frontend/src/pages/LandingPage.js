@@ -14,18 +14,18 @@ const LandingPage = () => {
             Upload your photo and discover the perfect hairstyle for you.
           </p>
           
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
             <Link 
-              to="/login"
+              to="/upload"
               className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-lg"
             >
-              Login
+              Start Analyzing
             </Link>
             <Link 
-              to="/signup"
+              to="/login"
               className="bg-transparent hover:bg-purple-600 text-purple-600 hover:text-white font-bold py-3 px-8 rounded-lg border-2 border-purple-600 transition duration-300 ease-in-out transform hover:scale-105"
             >
-              Sign Up
+              Login
             </Link>
           </div>
           
