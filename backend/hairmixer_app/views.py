@@ -20,6 +20,7 @@ import logging
 import traceback  # Add this
 import hashlib
 import json
+import uuid
 
 # Initialize logger FIRST before any imports that might use it
 logger = logging.getLogger(__name__)
@@ -36,48 +37,54 @@ from .serializers import (
     HairstyleCategorySerializer
 )
 
-# Import ML components conditionally to prevent startup issues
-try:
-    from .ml.preprocess import read_image, to_model_input, detect_face, validate_image_quality
-    ML_PREPROCESS_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"ML preprocessing not available: {e}")
-    ML_PREPROCESS_AVAILABLE = False
+# Track what's already imported to prevent duplicates
+_ML_IMPORTS_DONE = False
 
-try:
-    from .ml.model import load_model, predict_face_shape, analyze_facial_features
-    ML_MODEL_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"ML model not available: {e}")
-    ML_MODEL_AVAILABLE = False
+if not _ML_IMPORTS_DONE:
+    # Import ML components conditionally to prevent startup issues
+    try:
+        from .ml.preprocess import read_image, to_model_input, detect_face, validate_image_quality
+        ML_PREPROCESS_AVAILABLE = True
+    except ImportError as e:
+        logger.warning(f"ML preprocessing not available: {e}")
+        ML_PREPROCESS_AVAILABLE = False
 
-try:
-    from .logic.recommendation_engine import EnhancedRecommendationEngine
-    RECOMMENDATION_ENGINE_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"Recommendation engine not available: {e}")
-    RECOMMENDATION_ENGINE_AVAILABLE = False
+    try:
+        from .ml.model import load_model, predict_face_shape, analyze_facial_features
+        ML_MODEL_AVAILABLE = True
+    except ImportError as e:
+        logger.warning(f"ML model not available: {e}")
+        ML_MODEL_AVAILABLE = False
 
-try:
-    from .overlay import AdvancedOverlayProcessor
-    OVERLAY_PROCESSOR_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"Overlay processor not available: {e}")
-    OVERLAY_PROCESSOR_AVAILABLE = False
+    try:
+        from .logic.recommendation_engine import EnhancedRecommendationEngine
+        RECOMMENDATION_ENGINE_AVAILABLE = True
+    except ImportError as e:
+        logger.warning(f"Recommendation engine not available: {e}")
+        RECOMMENDATION_ENGINE_AVAILABLE = False
 
-try:
-    from .services.analytics import AnalyticsService
-    ANALYTICS_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"Analytics service not available: {e}")
-    ANALYTICS_AVAILABLE = False
+    try:
+        from .overlay import AdvancedOverlayProcessor
+        OVERLAY_PROCESSOR_AVAILABLE = True
+    except ImportError as e:
+        logger.warning(f"Overlay processor not available: {e}")
+        OVERLAY_PROCESSOR_AVAILABLE = False
 
-try:
-    from .services.cache_manager import CacheManager
-    CACHE_MANAGER_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"Cache manager not available: {e}")
-    CACHE_MANAGER_AVAILABLE = False
+    try:
+        from .services.analytics import AnalyticsService
+        ANALYTICS_AVAILABLE = True
+    except ImportError as e:
+        logger.warning(f"Analytics service not available: {e}")
+        ANALYTICS_AVAILABLE = False
+
+    try:
+        from .services.cache_manager import CacheManager
+        CACHE_MANAGER_AVAILABLE = True
+    except ImportError as e:
+        logger.warning(f"Cache manager not available: {e}")
+        CACHE_MANAGER_AVAILABLE = False
+
+    _ML_IMPORTS_DONE = True
 
 # Custom throttle classes
 class ImageUploadThrottle(UserRateThrottle):
@@ -257,47 +264,163 @@ def user_profile(request):
 # Enhanced Hair Analysis Views
 class UploadImageView(APIView):
     parser_classes = (MultiPartParser, FormParser)
-    permission_classes = [AllowAny]  # Add this line
-    throttle_classes = [ImageUploadThrottle]
+    permission_classes = [AllowAny]
     
     def post(self, request):
         try:
-            serializer = UploadedImageSerializer(data=request.data)
-            if serializer.is_valid():
-                with transaction.atomic():
-                    # Save the image
-                    instance = serializer.save(
-                        user=request.user if request.user.is_authenticated else None
-                    )
+            if 'image' not in request.FILES:
+                return Response(
+                    {"error": "No image provided"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            image_file = request.FILES['image']
+            
+            # Validate file
+            if not image_file.content_type.startswith('image/'):
+                return Response(
+                    {"error": "Invalid file type"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if image_file.size > 10 * 1024 * 1024:  # 10MB limit
+                return Response(
+                    {"error": "File too large"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Create upload record
+            uploaded = UploadedImage.objects.create(
+                image=image_file,
+                user=request.user if request.user.is_authenticated else None,
+                original_filename=image_file.name,
+                processing_status='processing'
+            )
+            
+            # Process image immediately for better UX
+            img_path = Path(settings.MEDIA_ROOT) / uploaded.image.name
+            
+            try:
+                # Import the preprocessing functions
+                from .ml.preprocess import read_image, validate_image_quality
+                from .ml.face_analyzer import analyze_face_comprehensive
+                
+                logger.info(f"Starting face analysis for image: {img_path}")
+                
+                # Read and validate image
+                img_array = read_image(img_path)
+                if img_array is None:
+                    logger.error("Failed to read image array")
+                    uploaded.processing_status = 'failed'
+                    uploaded.error_message = 'Could not read image file'
+                    uploaded.save()
+                    return Response({
+                        'success': False,
+                        'error': 'Could not process image file'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                logger.info(f"Image loaded successfully: shape={img_array.shape}")
+                
+                # Validate image quality
+                quality_check = validate_image_quality(img_array)
+                logger.info(f"Image quality check: {quality_check}")
+                
+                # Perform face analysis with detailed logging
+                logger.info("Starting comprehensive face analysis...")
+                face_analysis = analyze_face_comprehensive(img_path)
+                logger.info(f"Face analysis result: {face_analysis}")
+                
+                # Check if face was actually detected
+                face_detected = face_analysis.get('face_detected', False)
+                logger.info(f"Face detected: {face_detected}")
+                
+                if not face_detected:
+                    error_msg = face_analysis.get('error', 'No face detected')
+                    logger.warning(f"Face detection failed: {error_msg}")
                     
-                    # Process image asynchronously (or immediately for demo)
-                    self.process_image(instance)
-                    
-                    # Log analytics event
-                    analytics_service.track_event(
-                        user=request.user if request.user.is_authenticated else None,
-                        event_type='image_uploaded',
-                        event_data={
-                            'image_id': str(instance.id),
-                            'file_size': instance.file_size,
-                            'dimensions': f"{instance.image_width}x{instance.image_height}"
-                        },
-                        request=request
-                    )
+                    uploaded.processing_status = 'no_face'
+                    uploaded.face_detected = False
+                    uploaded.error_message = error_msg
+                    uploaded.save()
                     
                     return Response({
-                        "image_id": instance.id,
-                        "image_url": instance.image.url,
-                        "face_detected": instance.face_detected,
-                        "face_count": instance.face_count,
-                        "processing_status": instance.processing_status
+                        'success': False,
+                        'image_id': str(uploaded.id),
+                        'face_detected': False,
+                        'error': 'Could not detect a face in this image',
+                        'detailed_error': error_msg,
+                        'suggestions': [
+                            'Make sure your face is clearly visible',
+                            'Ensure good lighting',
+                            'Face the camera directly',
+                            'Remove sunglasses, hats, or face coverings',
+                            'Try taking the photo from a different angle'
+                        ],
+                        'processing_status': 'no_face',
+                        'quality_check': quality_check
                     })
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-            
+                
+                # Face detected successfully
+                uploaded.processing_status = 'completed'
+                uploaded.face_detected = True
+                uploaded.face_shape = face_analysis['face_shape']['shape']
+                uploaded.face_shape_confidence = face_analysis['face_shape']['confidence']
+                uploaded.quality_score = quality_check.get('quality_score', 0)
+                uploaded.analysis_data = {
+                    'face_analysis': face_analysis,
+                    'quality_check': quality_check
+                }
+                uploaded.save()
+                
+                # Prepare successful response
+                response_data = {
+                    'success': True,
+                    'message': 'Image uploaded and analyzed successfully',
+                    'image_id': str(uploaded.id),
+                    'face_detected': True,
+                    'face_shape': {
+                        'shape': face_analysis['face_shape']['shape'],
+                        'confidence': face_analysis['face_shape']['confidence'],
+                        'method': face_analysis['face_shape'].get('method', 'geometric')
+                    },
+                    'confidence': face_analysis.get('confidence', face_analysis['face_shape']['confidence']),
+                    'quality_score': quality_check.get('quality_score', 0),
+                    'quality_metrics': face_analysis.get('quality_metrics', {}),
+                    'is_good_quality': quality_check.get('is_valid', False),
+                    'processing_status': 'completed',
+                    'facial_features': face_analysis.get('facial_features', {}),
+                    'detection_method': face_analysis.get('detection_method', 'unknown'),
+                    # Add face shape description
+                    'face_shape_description': self.get_face_shape_description(face_analysis['face_shape']['shape'])
+                }
+                
+                logger.info(f"Face analysis completed successfully: {face_analysis['face_shape']['shape']} "
+                           f"(confidence: {face_analysis['face_shape']['confidence']:.3f})")
+                
+                return Response(response_data)
+                
+            except Exception as e:
+                logger.error(f"Error processing uploaded image: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                
+                uploaded.processing_status = 'failed'
+                uploaded.error_message = str(e)
+                uploaded.save()
+                
+                return Response({
+                    'success': False,
+                    'image_id': str(uploaded.id),
+                    'error': 'Failed to process image',
+                    'detailed_error': str(e),
+                    'face_detected': False,
+                    'processing_status': 'failed'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
         except Exception as e:
             logger.error(f"Error uploading image: {str(e)}")
             return Response(
-                {"error": "Failed to upload image", "details": str(e)}, 
+                {"error": "Failed to upload image"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
@@ -336,6 +459,18 @@ class UploadImageView(APIView):
             image_instance.processing_status = 'failed'
             image_instance.error_message = str(e)
             image_instance.save()
+
+    def get_face_shape_description(self, face_shape):
+        """Get description for detected face shape"""
+        descriptions = {
+            'oval': 'Balanced proportions - most hairstyles suit you!',
+            'round': 'Soft, curved features - try angular cuts and long layers',
+            'square': 'Strong jawline - soft waves and layers work great',
+            'heart': 'Wider forehead - styles with volume at the jaw are perfect',
+            'diamond': 'Prominent cheekbones - textured styles balance your features',
+            'oblong': 'Longer face - styles with width and volume are ideal'
+        }
+        return descriptions.get(face_shape, 'Unique face shape with many styling options!')
 
 class SetPreferencesView(APIView):
     parser_classes = (JSONParser,)
@@ -734,6 +869,67 @@ def health_check(request):
         'analytics_available': ANALYTICS_AVAILABLE,
         'cache_available': CACHE_MANAGER_AVAILABLE,
     })
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def api_root(request):
+    """
+    API Root - Shows all available endpoints
+    """
+    base_url = request.build_absolute_uri('/api/')
+    
+    endpoints = {
+        "message": "Welcome to HairMixer API",
+        "version": "1.0",
+        "status": "online",
+        "endpoints": {
+            "Authentication": {
+                "signup": f"{base_url}auth/signup/",
+                "login": f"{base_url}auth/login/",
+                "logout": f"{base_url}auth/logout/",
+                "refresh_token": f"{base_url}auth/refresh/",
+                "user_profile": f"{base_url}auth/profile/"
+            },
+            "Core Features": {
+                "upload_image": f"{base_url}upload/",
+                "set_preferences": f"{base_url}preferences/",
+                "get_recommendations": f"{base_url}recommend/",
+                "create_overlay": f"{base_url}overlay/",
+                "submit_feedback": f"{base_url}feedback/"
+            },
+            "Hairstyles": {
+                "list_all": f"{base_url}hairstyles/",
+                "featured": f"{base_url}hairstyles/featured/",
+                "trending": f"{base_url}hairstyles/trending/",
+                "categories": f"{base_url}hairstyles/categories/",
+                "detail": f"{base_url}hairstyles/<style_id>/"
+            },
+            "Search & Filter": {
+                "search": f"{base_url}search/",
+                "face_shapes": f"{base_url}filter/face-shapes/",
+                "occasions": f"{base_url}filter/occasions/"
+            },
+            "User Features": {
+                "recommendations_history": f"{base_url}user/recommendations/",
+                "favorites": f"{base_url}user/favorites/",
+                "history": f"{base_url}user/history/"
+            },
+            "System": {
+                "health_check": f"{base_url}health/",
+                "analytics": f"{base_url}analytics/event/"
+            }
+        },
+        "documentation": "Visit /api/ for interactive API documentation",
+        "system_status": {
+            "ml_available": ML_MODEL_AVAILABLE,
+            "preprocess_available": ML_PREPROCESS_AVAILABLE,
+            "recommendation_available": RECOMMENDATION_ENGINE_AVAILABLE,
+            "overlay_available": OVERLAY_PROCESSOR_AVAILABLE,
+            "analytics_available": ANALYTICS_AVAILABLE
+        }
+    }
+    
+    return Response(endpoints)
 
 # Add these missing views at the end of your views.py file:
 
@@ -1199,3 +1395,111 @@ class HairstyleCategoriesView(APIView):
                 {"error": "Failed to fetch categories"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def debug_face_detection(request):
+    """Debug endpoint to test face detection components"""
+    try:
+        from .ml.face_analyzer import FacialFeatureAnalyzer
+        
+        analyzer = FacialFeatureAnalyzer()
+        
+        debug_info = {
+            'detector_type': analyzer.detector_type,
+            'mediapipe_available': analyzer.detector_type == 'mediapipe',
+            'facenet_available': analyzer.detector_type == 'facenet',
+            'face_detector_initialized': analyzer.face_detector is not None,
+            'face_mesh_initialized': analyzer.face_mesh is not None,
+            'device': str(analyzer.device),
+        }
+        
+        # Test with a sample if image provided
+        if 'image' in request.FILES:
+            image_file = request.FILES['image']
+            
+            # Save temporarily
+            temp_path = f"/tmp/debug_face_{uuid.uuid4()}.jpg"
+            with open(temp_path, 'wb') as f:
+                for chunk in image_file.chunks():
+                    f.write(chunk)
+            
+            # Test detection
+            result, error = analyzer.detect_and_analyze_face(temp_path)
+            
+            debug_info['detection_result'] = {
+                'success': result is not None,
+                'error': error,
+                'face_detected': result.get('face_detected', False) if result else False,
+                'detection_method': result.get('detection_method', 'none') if result else 'none',
+                'confidence': result.get('confidence', 0) if result else 0,
+            }
+            
+            # Cleanup
+            import os
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+        
+        return Response({'debug_info': debug_info})
+        
+    except Exception as e:
+        return Response({'error': str(e), 'traceback': traceback.format_exc()})
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def debug_resnet_features(request):
+    """Debug endpoint to verify ResNet50 feature extraction"""
+    try:
+        if 'image' not in request.FILES:
+            return Response({'error': 'No image provided'})
+        
+        from .ml.face_analyzer import FacialFeatureAnalyzer
+        
+        # Save temp image
+        image_file = request.FILES['image']
+        temp_path = f"/tmp/debug_resnet_{uuid.uuid4()}.jpg"
+        with open(temp_path, 'wb') as f:
+            for chunk in image_file.chunks():
+                f.write(chunk)
+        
+        # Initialize analyzer
+        analyzer = FacialFeatureAnalyzer()
+        
+        # Check if ResNet50 is loaded
+        debug_info = {
+            'resnet_available': hasattr(analyzer, 'feature_extractor') and analyzer.feature_extractor is not None,
+            'classifier_type': getattr(analyzer, 'shape_classifier', 'None'),
+            'device': str(analyzer.device),
+        }
+        
+        # Test face analysis
+        result, error = analyzer.detect_and_analyze_face(temp_path)
+        
+        if result:
+            debug_info['face_detected'] = True
+            debug_info['face_shape_result'] = result.get('face_shape', {})
+            debug_info['detection_method'] = result.get('detection_method', 'unknown')
+            face_shape_info = result.get('face_shape', {})
+            debug_info['used_resnet'] = face_shape_info.get('method') == 'resnet50_enhanced_geometric'
+            debug_info['feature_quality'] = face_shape_info.get('feature_quality', 'N/A')
+        else:
+            debug_info['face_detected'] = False
+            debug_info['error'] = error
+        
+        # Cleanup
+        import os
+        try:
+            os.unlink(temp_path)
+        except:
+            pass
+        
+        return Response({'debug_info': debug_info})
+        
+    except Exception as e:
+        import traceback
+        return Response({
+            'error': str(e), 
+            'traceback': traceback.format_exc()
+        })
