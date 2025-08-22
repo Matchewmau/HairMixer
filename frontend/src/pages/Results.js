@@ -54,17 +54,22 @@ const Results = () => {
               <div className="text-center">
                 <div className="bg-blue-100 rounded-lg p-4">
                   <h3 className="font-medium text-gray-900">Face Shape</h3>
-                  <p className="text-blue-600 font-semibold">
-                    {uploadResponse.face_shape?.shape || 'Analyzing...'}
+                  <p className="text-blue-600 font-semibold text-lg capitalize">
+                    {uploadResponse.face_shape?.shape || 'Unknown'}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {uploadResponse.detection_method && `via ${uploadResponse.detection_method}`}
                   </p>
                 </div>
               </div>
               <div className="text-center">
                 <div className="bg-green-100 rounded-lg p-4">
                   <h3 className="font-medium text-gray-900">Confidence</h3>
-                  <p className="text-green-600 font-semibold">
+                  <p className="text-green-600 font-semibold text-lg">
                     {uploadResponse.face_shape?.confidence ? 
                       `${Math.round(uploadResponse.face_shape.confidence * 100)}%` : 
+                      uploadResponse.confidence ?
+                      `${Math.round(uploadResponse.confidence * 100)}%` :
                       'N/A'}
                   </p>
                 </div>
@@ -72,14 +77,38 @@ const Results = () => {
               <div className="text-center">
                 <div className="bg-purple-100 rounded-lg p-4">
                   <h3 className="font-medium text-gray-900">Quality Score</h3>
-                  <p className="text-purple-600 font-semibold">
+                  <p className="text-purple-600 font-semibold text-lg">
                     {uploadResponse.quality_score ? 
                       `${Math.round(uploadResponse.quality_score * 10)}/10` : 
+                      uploadResponse.quality_metrics?.overall_quality ?
+                      `${Math.round(uploadResponse.quality_metrics.overall_quality * 10)}/10` :
                       'N/A'}
                   </p>
                 </div>
               </div>
             </div>
+            
+            {/* Show face shape characteristics if available */}
+            {uploadResponse.face_shape?.shape && (
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                <h4 className="font-medium text-gray-900 mb-2">
+                  {uploadResponse.face_shape.shape.charAt(0).toUpperCase() + uploadResponse.face_shape.shape.slice(1)} Face Shape Characteristics:
+                </h4>
+                <div className="text-sm text-gray-700">
+                  <p className="mb-2">
+                    <strong>Best suited for:</strong> Most hairstyles work well with your face shape!
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                      Method: {uploadResponse.detection_method || 'AI Analysis'}
+                    </span>
+                    <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
+                      Confidence: {Math.round((uploadResponse.face_shape.confidence || 0) * 100)}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

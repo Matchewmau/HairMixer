@@ -7,6 +7,9 @@ from . import views
 router = DefaultRouter()
 
 urlpatterns = [
+    # API Root
+    path('', views.api_root, name='api_root'),  # Add this line
+    
     # Include router URLs
     path('', include(router.urls)),
     
@@ -49,4 +52,8 @@ urlpatterns = [
     
     # Health check
     path('health/', views.health_check, name='health_check'),
+    
+    #debug face detection
+    path('debug/face-detection/', views.debug_face_detection, name='debug_face_detection'),
+    # path('debug/resnet-features/', views.debug_resnet_features, name='debug_resnet_features'),
 ]
