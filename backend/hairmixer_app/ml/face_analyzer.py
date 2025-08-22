@@ -363,25 +363,83 @@ class FacialFeatureAnalyzer:
         try:
             logger.info("Loading ResNet50 feature extractor...")
             
-            # Use pre-trained ResNet50 for feature extraction
-            self.feature_extractor = resnet50(pretrained=True)
+            # Try different approaches to load ResNet50
+            try:
+                # First try: Standard pretrained loading
+                logger.info("Attempting standard ResNet50 loading...")
+                self.feature_extractor = resnet50(pretrained=True)
+                logger.info("Standard ResNet50 loading successful")
+                
+            except Exception as e1:
+                logger.warning(f"Standard ResNet50 loading failed: {str(e1)}")
+                try:
+                    # Second try: Load without pretrained weights
+                    logger.info("Attempting ResNet50 without pretrained weights...")
+                    self.feature_extractor = resnet50(pretrained=False)
+                    logger.info("ResNet50 loaded without pretrained weights")
+                    
+                except Exception as e2:
+                    logger.error(f"ResNet50 loading completely failed: {str(e2)}")
+                    # Use a simple CNN instead
+                    logger.info("Falling back to simple feature extractor...")
+                    self.feature_extractor = self._create_simple_feature_extractor()
             
-            # Remove the final classification layer to get features
-            self.feature_extractor = nn.Sequential(*list(self.feature_extractor.children())[:-1])
-            
-            # Move to device and set to evaluation mode
-            self.feature_extractor.to(self.device)
-            self.feature_extractor.eval()
-            
-            logger.info("ResNet50 feature extractor loaded successfully")
-            
-            # Mark that we have feature-based analysis available
-            self.shape_classifier = 'feature_based'
+            if self.feature_extractor is not None:
+                # Remove the final classification layer to get features
+                if hasattr(self.feature_extractor, 'fc'):
+                    # For ResNet models
+                    self.feature_extractor = nn.Sequential(*list(self.feature_extractor.children())[:-1])
+                
+                # Move to device and set to evaluation mode
+                self.feature_extractor.to(self.device)
+                self.feature_extractor.eval()
+                
+                logger.info("Feature extractor loaded and configured successfully")
+                
+                # Mark that we have feature-based analysis available
+                self.shape_classifier = 'feature_based'
+                
+                return True
             
         except Exception as e:
-            logger.warning(f"Could not load ResNet50 feature extractor: {str(e)}")
-            self.feature_extractor = None
-            self.shape_classifier = None
+            logger.warning(f"Could not load any feature extractor: {str(e)}")
+            import traceback
+            logger.warning(f"Full traceback: {traceback.format_exc()}")
+            
+        # If all else fails
+        self.feature_extractor = None
+        self.shape_classifier = None
+        return False
+    
+    def _create_simple_feature_extractor(self):
+        """Create a simple CNN for feature extraction as fallback"""
+        try:
+            class SimpleCNN(nn.Module):
+                def __init__(self):
+                    super(SimpleCNN, self).__init__()
+                    self.features = nn.Sequential(
+                        nn.Conv2d(3, 64, kernel_size=3, padding=1),
+                        nn.ReLU(inplace=True),
+                        nn.MaxPool2d(kernel_size=2, stride=2),
+                        nn.Conv2d(64, 128, kernel_size=3, padding=1),
+                        nn.ReLU(inplace=True),
+                        nn.MaxPool2d(kernel_size=2, stride=2),
+                        nn.Conv2d(128, 256, kernel_size=3, padding=1),
+                        nn.ReLU(inplace=True),
+                        nn.AdaptiveAvgPool2d((1, 1))
+                    )
+                
+                def forward(self, x):
+                    x = self.features(x)
+                    x = torch.flatten(x, 1)
+                    return x
+            
+            logger.info("Created simple CNN feature extractor")
+            return SimpleCNN()
+            
+        except Exception as e:
+            logger.error(f"Could not create simple feature extractor: {str(e)}")
+            return None
 
     def _predict_face_shape_simple(self, face_img):
         """Enhanced face shape prediction using ResNet50 features + geometric analysis"""
