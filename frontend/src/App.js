@@ -8,6 +8,8 @@ import Dashboard from './pages/Dashboard';
 import PhotoUpload from './pages/PhotoUpload';
 import UserPreferences from './pages/UserPreferences';
 import Results from './pages/Results';
+import UserProfile from './pages/UserProfile';
+import Discover from './pages/Discover';
 import ProtectedRoute from './utils/ProtectedRoutes';
 
 function App() {
@@ -18,6 +20,7 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/discover" element={<Discover />} />
           <Route path="/upload" element={<PhotoUpload />} />
           <Route path="/preferences" element={<UserPreferences />} />
           <Route path="/results" element={<Results />} />
@@ -26,6 +29,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/profile" 
+            element={
+              <ProtectedRoute>
+                <UserProfile />
               </ProtectedRoute>
             } 
           />

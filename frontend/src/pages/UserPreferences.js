@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import APIService from '../services/api';
+import AuthService from '../services/AuthService';
+import Navbar from '../components/Navbar';
 
 const UserPreferences = () => {
   const navigate = useNavigate();
@@ -21,6 +23,7 @@ const UserPreferences = () => {
   const [faceShapes, setFaceShapes] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
     if (!uploadResponse) {
@@ -29,7 +32,28 @@ const UserPreferences = () => {
     }
     
     loadFilterOptions();
+    checkAuth();
   }, [uploadResponse, navigate]);
+
+  const checkAuth = async () => {
+    try {
+      const currentUser = await AuthService.getCurrentUser();
+      setUser(currentUser);
+    } catch (error) {
+      console.error('Authentication check failed:', error);
+      setUser(null);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await AuthService.logout();
+      setUser(null);
+      navigate('/');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
 
   const loadFilterOptions = async () => {
     try {
@@ -134,22 +158,22 @@ const UserPreferences = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-600"></div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-800 to-blue-900 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-400"></div>
       </div>
     );
   }
 
   if (!uploadResponse) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-800 to-blue-900 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          <h2 className="text-2xl font-semibold text-white mb-6">
             No image found
           </h2>
           <button
             onClick={() => navigate('/upload')}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+            className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-8 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg"
           >
             Upload Photo
           </button>
@@ -159,32 +183,41 @@ const UserPreferences = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header with image preview */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">
-            Tell us about your preferences
-          </h1>
-          {previewUrl && (
-            <div className="flex justify-center mb-4">
-              <img
-                src={previewUrl}
-                alt="Your photo"
-                className="h-32 w-32 object-cover rounded-full border-4 border-white shadow-lg"
-              />
-            </div>
-          )}
-          <p className="text-lg text-gray-600">
-            Help us recommend the perfect hairstyles for you
-          </p>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-800 to-blue-900">
+      <Navbar 
+        transparent={true} 
+        user={user} 
+        onLogout={handleLogout}
+        showBackButton={true}
+        backPath="/upload"
+      />
+      
+      <div className="pt-20 pb-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto">
+          {/* Header with image preview */}
+          <div className="text-center mb-12">
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-6">
+              Tell us about your preferences
+            </h1>
+            {previewUrl && (
+              <div className="flex justify-center mb-6">
+                <img
+                  src={previewUrl}
+                  alt="Your photo"
+                  className="h-40 w-40 object-cover rounded-full border-4 border-purple-400/30 shadow-2xl"
+                />
+              </div>
+            )}
+            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+              Help us recommend the perfect hairstyles for you
+            </p>
+          </div>
 
-        {/* Preferences Form */}
-        <div className="bg-white rounded-lg shadow-lg p-8 space-y-8">
+          {/* Preferences Form */}
+          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-8 md:p-12 space-y-10 shadow-xl">
           {/* Hair Type */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
+            <h3 className="text-2xl font-bold text-white mb-6">
               What's your current hair type?
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -192,10 +225,10 @@ const UserPreferences = () => {
                 <button
                   key={type}
                   onClick={() => handlePreferenceChange('hair_type', type)}
-                  className={`p-4 rounded-lg border-2 transition-all ${
+                  className={`p-6 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
                     preferences.hair_type === type
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-200 hover:border-gray-300'
+                      ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
+                      : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
                   }`}
                 >
                   <div className="font-medium">{type.charAt(0).toUpperCase() + type.slice(1)}</div>
@@ -206,7 +239,7 @@ const UserPreferences = () => {
 
           {/* Hair Length */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
+            <h3 className="text-2xl font-bold text-white mb-6">
               What length are you considering?
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -214,13 +247,13 @@ const UserPreferences = () => {
                 <button
                   key={length}
                   onClick={() => handlePreferenceChange('hair_length', length)}
-                  className={`p-4 rounded-lg border-2 transition-all ${
+                  className={`p-6 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
                     preferences.hair_length === length
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-200 hover:border-gray-300'
+                      ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
+                      : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
                   }`}
                 >
-                  <div className="font-medium">{length.charAt(0).toUpperCase() + length.slice(1)}</div>
+                  <div className="font-medium">{length.charAt(0).toUpperCase() + length.slice(1).replace('-', ' ')}</div>
                 </button>
               ))}
             </div>
@@ -228,7 +261,7 @@ const UserPreferences = () => {
 
           {/* Lifestyle */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
+            <h3 className="text-2xl font-bold text-white mb-6">
               What's your lifestyle like?
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -236,10 +269,10 @@ const UserPreferences = () => {
                 <button
                   key={lifestyle}
                   onClick={() => handlePreferenceChange('lifestyle', lifestyle)}
-                  className={`p-4 rounded-lg border-2 transition-all ${
+                  className={`p-6 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
                     preferences.lifestyle === lifestyle
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-200 hover:border-gray-300'
+                      ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
+                      : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
                   }`}
                 >
                   <div className="font-medium">{lifestyle.charAt(0).toUpperCase() + lifestyle.slice(1)}</div>
@@ -250,7 +283,7 @@ const UserPreferences = () => {
 
           {/* Maintenance */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
+            <h3 className="text-2xl font-bold text-white mb-6">
               How much maintenance do you prefer?
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -258,10 +291,10 @@ const UserPreferences = () => {
                 <button
                   key={maintenance}
                   onClick={() => handlePreferenceChange('maintenance', maintenance)}
-                  className={`p-4 rounded-lg border-2 transition-all ${
+                  className={`p-6 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
                     preferences.maintenance === maintenance
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-200 hover:border-gray-300'
+                      ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
+                      : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
                   }`}
                 >
                   <div className="font-medium">{maintenance.charAt(0).toUpperCase() + maintenance.slice(1)} Maintenance</div>
@@ -272,7 +305,7 @@ const UserPreferences = () => {
 
           {/* Occasions */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
+            <h3 className="text-2xl font-bold text-white mb-6">
               What occasions do you style your hair for? (Select all that apply)
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -280,10 +313,10 @@ const UserPreferences = () => {
                 <button
                   key={occasion.value}
                   onClick={() => handlePreferenceChange('occasions', occasion.value)}
-                  className={`p-4 rounded-lg border-2 transition-all ${
+                  className={`p-6 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
                     preferences.occasions.includes(occasion.value)
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-200 hover:border-gray-300'
+                      ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
+                      : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
                   }`}
                 >
                   <div className="font-medium">{occasion.label}</div>
@@ -293,18 +326,19 @@ const UserPreferences = () => {
           </div>
 
           {/* Submit Button */}
-          <div className="text-center pt-8">
+          <div className="text-center pt-12">
             <button
               onClick={handleSubmit}
               disabled={!isFormValid() || isSubmitting}
-              className={`px-8 py-3 rounded-lg font-medium text-lg transition-all ${
+              className={`px-12 py-4 rounded-xl font-bold text-xl transition-all duration-300 transform ${
                 !isFormValid() || isSubmitting
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-105'
+                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white hover:scale-105 shadow-lg hover:shadow-purple-500/25'
               }`}
             >
               {isSubmitting ? 'Getting Recommendations...' : 'Get My Recommendations'}
             </button>
+          </div>
           </div>
         </div>
       </div>

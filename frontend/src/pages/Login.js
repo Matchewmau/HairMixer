@@ -71,7 +71,16 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
-        <div className="bg-white rounded-lg shadow-2xl p-8">
+        <div className="bg-white rounded-lg shadow-2xl p-8 relative">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="absolute top-4 left-4 p-2 text-gray-500 hover:text-gray-700 focus:outline-none focus:text-gray-700 transition duration-200"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
           <div className="text-center">
             <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h2>
             <p className="text-gray-600 mb-8">Sign in to your HairMixer account</p>
@@ -85,7 +94,7 @@ const Login = () => {
             )}
             
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2 text-left">
                 Email Address
               </label>
               <input
@@ -103,7 +112,7 @@ const Login = () => {
             </div>
             
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2 text-left">
                 Password
               </label>
               <input
