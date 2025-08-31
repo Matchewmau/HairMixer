@@ -30,14 +30,14 @@ const DiscoverSection = () => {
   ];
 
   return (
-    <section className="py-16 bg-gray-50">
+    <section className="bg-transparent">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
-        <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+        <div className="text-center mb-16">
+          <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
             Discover Your Next Look
           </h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-300 max-w-3xl mx-auto">
             Explore our curated collection of hairstyles designed to match every occasion and personality
           </p>
         </div>
@@ -57,8 +57,8 @@ const DiscoverSection = () => {
         </div>
 
         {/* View All Button */}
-        <div className="text-center mt-12">
-          <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-lg">
+        <div className="text-center mt-16">
+          <button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold py-4 px-10 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-lg hover:shadow-purple-500/25">
             View All Styles
           </button>
         </div>
