@@ -10,12 +10,13 @@ logger = logging.getLogger(__name__)
 
 # Face shape categories with confidence mapping
 FACE_SHAPES = {
-    0: "oval",
-    1: "round", 
-    2: "square",
-    3: "heart",
-    4: "diamond",
-    5: "oblong"
+    0: "diamond",
+    1: "heart", 
+    2: "oblong",
+    3: "oval",
+    4: "round",
+    5: "square",
+    6: "triangle"  # Your 7th face shape class
 }
 
 FACE_SHAPE_CHARACTERISTICS = {

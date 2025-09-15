@@ -13,6 +13,15 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 import uuid
 
+# Import the MobileNetV3 classifier
+try:
+    from .mobilenet_classifier import mobile_net_loader
+    MOBILENET_AVAILABLE = True
+    print("✅ MobileNetV3 classifier available")
+except ImportError as e:
+    MOBILENET_AVAILABLE = False
+    print(f"⚠️ MobileNetV3 classifier not available: {e}")
+
 # At the top of face_analyzer.py, add a module-level flag
 _MEDIAPIPE_INITIALIZED = False
 _FACENET_INITIALIZED = False
@@ -359,8 +368,20 @@ class FacialFeatureAnalyzer:
             return None, f"OpenCV error: {str(e)}"
 
     def _load_shape_classifier(self):
-        """Load ResNet50 for feature extraction and enhanced geometric analysis"""
+        """Load MobileNetV3 or fallback to ResNet50 for feature extraction"""
         try:
+            # First try to load the MobileNetV3 model
+            if MOBILENET_AVAILABLE:
+                logger.info("Attempting to load MobileNetV3 face shape classifier...")
+                if mobile_net_loader.load_model():
+                    self.shape_classifier = 'mobilenet_v3'
+                    self.feature_extractor = mobile_net_loader
+                    logger.info("MobileNetV3 face shape classifier loaded successfully")
+                    return True
+                else:
+                    logger.warning("MobileNetV3 model loading failed, falling back to ResNet50")
+            
+            # Fallback to ResNet50 feature extraction
             logger.info("Loading ResNet50 feature extractor...")
             
             # Try different approaches to load ResNet50
@@ -442,15 +463,30 @@ class FacialFeatureAnalyzer:
             return None
 
     def _predict_face_shape_simple(self, face_img):
-        """Enhanced face shape prediction using ResNet50 features + geometric analysis"""
+        """Enhanced face shape prediction using MobileNetV3 or ResNet50 features + geometric analysis"""
         try:
             # First get basic geometric analysis
             geometric_result = self._geometric_face_shape_analysis(face_img)
             
+            # Check if MobileNetV3 is available and loaded
+            if (MOBILENET_AVAILABLE and 
+                hasattr(self, 'shape_classifier') and 
+                self.shape_classifier == 'mobilenet_v3'):
+                
+                try:
+                    # Use MobileNetV3 for direct prediction
+                    mobilenet_result = self._predict_with_mobilenet(face_img)
+                    logger.info(f"MobileNetV3 prediction: {mobilenet_result['shape']} "
+                               f"(confidence: {mobilenet_result['confidence']:.3f})")
+                    return mobilenet_result
+                    
+                except Exception as e:
+                    logger.warning(f"MobileNetV3 prediction failed: {str(e)}, using geometric only")
+            
             # If ResNet50 feature extractor is available, enhance the prediction
-            if (hasattr(self, 'feature_extractor') and 
-                self.feature_extractor is not None and 
-                self.shape_classifier == 'feature_based'):
+            elif (hasattr(self, 'feature_extractor') and 
+                  self.feature_extractor is not None and 
+                  self.shape_classifier == 'feature_based'):
                 
                 try:
                     # Extract deep features using ResNet50
@@ -461,7 +497,6 @@ class FacialFeatureAnalyzer:
                     
                 except Exception as e:
                     logger.warning(f"ResNet50 feature extraction failed: {str(e)}, using geometric only")
-                    return geometric_result
             
             # Fallback to geometric analysis only
             return geometric_result
@@ -469,6 +504,48 @@ class FacialFeatureAnalyzer:
         except Exception as e:
             logger.error(f"Face shape prediction error: {str(e)}")
             return {'shape': 'oval', 'confidence': 0.5, 'method': 'fallback'}
+
+    def _predict_with_mobilenet(self, face_img):
+        """Predict face shape using trained MobileNetV3 model"""
+        try:
+            # Prepare image for MobileNetV3 (same preprocessing as training)
+            face_pil = Image.fromarray(face_img)
+            
+            # Apply standard ImageNet preprocessing (adjust if your training used different preprocessing)
+            face_tensor = self.transform(face_pil).unsqueeze(0)
+            
+            # Get prediction from MobileNetV3
+            prediction_result = self.feature_extractor.predict(face_tensor)
+            
+            if prediction_result is None:
+                raise ValueError("MobileNetV3 prediction returned None")
+            
+            # Map class index to face shape name
+            predicted_class = prediction_result['predicted_class']
+            confidence = prediction_result['confidence']
+            probabilities = prediction_result['probabilities']
+            
+            # Get face shape name from FACE_SHAPES mapping
+            from .model import FACE_SHAPES
+            face_shape = FACE_SHAPES.get(predicted_class, 'oval')
+            
+            # Create probability dictionary for all classes
+            all_probabilities = {}
+            for i, prob in enumerate(probabilities):
+                shape_name = FACE_SHAPES.get(i, f'class_{i}')
+                all_probabilities[shape_name] = float(prob)
+            
+            return {
+                'shape': face_shape,
+                'confidence': confidence,
+                'method': 'mobilenet_v3',
+                'all_probabilities': all_probabilities,
+                'raw_prediction': prediction_result
+            }
+            
+        except Exception as e:
+            logger.error(f"MobileNetV3 prediction error: {str(e)}")
+            raise
 
     def _predict_with_resnet_features(self, face_img, geometric_result):
         """Predict face shape using ResNet50 features to enhance geometric analysis"""
@@ -869,66 +946,6 @@ class FacialFeatureAnalyzer:
             logger.error(f"FaceNet detection error: {str(e)}")
             return None, f"FaceNet error: {str(e)}"
 
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def debug_resnet_features(request):
-    """Debug endpoint to verify ResNet50 feature extraction"""
-    try:
-        if 'image' not in request.FILES:
-            return Response({'error': 'No image provided'})
-        
-        from .ml.face_analyzer import FacialFeatureAnalyzer
-        
-        # Save temp image
-        image_file = request.FILES['image']
-        temp_path = f"/tmp/debug_resnet_{uuid.uuid4()}.jpg"
-        with open(temp_path, 'wb') as f:
-            for chunk in image_file.chunks():
-                f.write(chunk)
-        
-        # Initialize analyzer
-        analyzer = FacialFeatureAnalyzer()
-        
-        # Check if ResNet50 is loaded
-        debug_info = {
-            'resnet_available': hasattr(analyzer, 'feature_extractor') and analyzer.feature_extractor is not None,
-            'classifier_type': getattr(analyzer, 'shape_classifier', 'None'),
-            'device': str(analyzer.device),
-        }
-        
-        # Test face analysis
-        result, error = analyzer.detect_and_analyze_face(temp_path)
-        
-        if result:
-            debug_info['face_detected'] = True
-            debug_info['face_shape_result'] = result.get('face_shape', {})
-            debug_info['detection_method'] = result.get('detection_method', 'unknown')
-            
-            # Check if ResNet50 method was used
-            face_shape_info = result.get('face_shape', {})
-            debug_info['used_resnet'] = face_shape_info.get('method') == 'resnet50_enhanced_geometric'
-            debug_info['feature_quality'] = face_shape_info.get('feature_quality', 'N/A')
-            
-        else:
-            debug_info['face_detected'] = False
-            debug_info['error'] = error
-        
-        # Cleanup
-        import os
-        try:
-            os.unlink(temp_path)
-        except:
-            pass
-        
-        return Response({'debug_info': debug_info})
-        
-    except Exception as e:
-        import traceback
-        return Response({
-            'error': str(e), 
-            'traceback': traceback.format_exc()
-        })
-
     def _calculate_quality_metrics_simple(self, face_img):
         """Simple quality metrics calculation for face images"""
         try:
@@ -990,30 +1007,66 @@ def debug_resnet_features(request):
                 'error': str(e)
             }
 
-    def _fallback_quality_metrics(self, face_img):
-        """Fallback quality metrics calculation"""
-        if face_img is None or face_img.size == 0:
-            return {'quality_score': 0.0, 'brightness': 0.0, 'contrast': 0.0}
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def debug_resnet_features(request):
+    """Debug endpoint to verify ResNet50 feature extraction"""
+    try:
+        if 'image' not in request.FILES:
+            return Response({'error': 'No image provided'})
         
-        try:
-            gray = cv2.cvtColor(face_img, cv2.COLOR_RGB2GRAY)
-            brightness = float(np.mean(gray))
-            contrast = float(np.std(gray))
-            quality_score = min(brightness / 255.0 + contrast / 100.0, 1.0)
+        from .ml.face_analyzer import FacialFeatureAnalyzer
+        
+        # Save temp image
+        image_file = request.FILES['image']
+        temp_path = f"/tmp/debug_resnet_{uuid.uuid4()}.jpg"
+        with open(temp_path, 'wb') as f:
+            for chunk in image_file.chunks():
+                f.write(chunk)
+        
+        # Initialize analyzer
+        analyzer = FacialFeatureAnalyzer()
+        
+        # Check if ResNet50 is loaded
+        debug_info = {
+            'resnet_available': hasattr(analyzer, 'feature_extractor') and analyzer.feature_extractor is not None,
+            'classifier_type': getattr(analyzer, 'shape_classifier', 'None'),
+            'device': str(analyzer.device),
+        }
+        
+        # Test face analysis
+        result, error = analyzer.detect_and_analyze_face(temp_path)
+        
+        if result:
+            debug_info['face_detected'] = True
+            debug_info['face_shape_result'] = result.get('face_shape', {})
+            debug_info['detection_method'] = result.get('detection_method', 'unknown')
             
-            return {
-                'overall_quality': quality_score,
-                'brightness_score': brightness / 255.0,
-                'contrast_score': min(contrast / 50.0, 1.0),
-                'is_good_quality': quality_score > 0.5
-            }
+            # Check if ResNet50 method was used
+            face_shape_info = result.get('face_shape', {})
+            debug_info['used_resnet'] = face_shape_info.get('method') == 'resnet50_enhanced_geometric'
+            debug_info['feature_quality'] = face_shape_info.get('feature_quality', 'N/A')
+            
+        else:
+            debug_info['face_detected'] = False
+            debug_info['error'] = error
+        
+        # Cleanup
+        import os
+        try:
+            os.unlink(temp_path)
         except:
-            return {
-                'overall_quality': 0.5, 
-                'brightness_score': 0.5, 
-                'contrast_score': 0.5,
-                'is_good_quality': True
-            }
+            pass
+        
+        return Response({'debug_info': debug_info})
+        
+    except Exception as e:
+        import traceback
+        return Response({
+            'error': str(e), 
+            'traceback': traceback.format_exc()
+        })
 
 
 def analyze_face_comprehensive(image_path):
