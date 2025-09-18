@@ -1,9 +1,5 @@
 import logging
-import math
-from typing import List, Dict, Any
-from django.db.models import Avg, Count, Q
-from django.utils import timezone
-from datetime import timedelta
+from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 

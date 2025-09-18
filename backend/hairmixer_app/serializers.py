@@ -6,7 +6,7 @@ import json
 from .models import (
     CustomUser, UserProfile, UploadedImage, UserPreference, 
     Hairstyle, HairstyleCategory, RecommendationLog, Feedback,
-    AnalyticsEvent, CachedRecommendation
+    AnalyticsEvent
 )
 
 class UserSerializer(serializers.ModelSerializer):

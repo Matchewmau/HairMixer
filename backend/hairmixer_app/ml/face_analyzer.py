@@ -5,9 +5,7 @@ from torchvision.models import resnet50
 import cv2
 import numpy as np
 import logging
-from pathlib import Path
 from PIL import Image
-from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -715,8 +713,7 @@ class FacialFeatureAnalyzer:
     def _refine_classification_with_features(self, base_shape, base_confidence, aspect_ratio, measurements, feature_stats):
         """Refine face shape classification using feature insights"""
         try:
-            feature_complexity = feature_stats.get('complexity', 0.5)
-            feature_diversity = feature_stats.get('diversity', 0.5)
+            # Readiness for future use: feature_stats may include 'complexity' and 'diversity'
             
             # Feature-informed refinements
             refinements = {

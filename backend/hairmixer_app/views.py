@@ -1,7 +1,6 @@
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.db.models import Q, Avg, Count
-from django.core.cache import cache
 from django.utils import timezone
 from django.conf import settings
 from rest_framework import status
@@ -18,8 +17,6 @@ from pathlib import Path
 from datetime import timedelta
 import logging
 import traceback  # Add this
-import hashlib
-import json
 import uuid
 
 # Initialize logger FIRST before any imports that might use it
@@ -27,12 +24,10 @@ logger = logging.getLogger(__name__)
 
 from .models import (
     CustomUser, UserProfile, UploadedImage, UserPreference, 
-    Hairstyle, HairstyleCategory, RecommendationLog, Feedback,
-    AnalyticsEvent, CachedRecommendation
+    Hairstyle, HairstyleCategory, RecommendationLog, Feedback
 )
 from .serializers import (
-    UserSerializer, UserRegistrationSerializer, UploadedImageSerializer, 
-    UserPreferenceSerializer, HairstyleSerializer, FeedbackSerializer,
+    UserSerializer, UserRegistrationSerializer, HairstyleSerializer, FeedbackSerializer,
     RecommendationLogSerializer, AnalyticsEventSerializer,
     HairstyleCategorySerializer
 )
@@ -43,14 +38,14 @@ _ML_IMPORTS_DONE = False
 if not _ML_IMPORTS_DONE:
     # Import ML components conditionally to prevent startup issues
     try:
-        from .ml.preprocess import read_image, to_model_input, detect_face, validate_image_quality
+        from .ml.preprocess import read_image, detect_face, validate_image_quality
         ML_PREPROCESS_AVAILABLE = True
     except ImportError as e:
         logger.warning(f"ML preprocessing not available: {e}")
         ML_PREPROCESS_AVAILABLE = False
 
     try:
-        from .ml.model import load_model, predict_face_shape, analyze_facial_features
+        from .ml.model import load_model
         ML_MODEL_AVAILABLE = True
     except ImportError as e:
         logger.warning(f"ML model not available: {e}")
@@ -756,11 +751,11 @@ class OverlayView(APIView):
 
             # Generate overlay
             if overlay_type == "advanced":
-                result_path = overlay_processor.create_advanced_overlay(
+                overlay_processor.create_advanced_overlay(
                     user_img_path, style_img_path, out_abs
                 )
             else:
-                result_path = overlay_processor.create_basic_overlay(
+                overlay_processor.create_basic_overlay(
                     user_img_path, style_img_path, out_abs
                 )
             

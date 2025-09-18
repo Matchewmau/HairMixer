@@ -1,46 +1,30 @@
 #!/usr/bin/env python3
 
-print("Testing imports step by step...")
+from importlib.util import find_spec
+
+print("Testing module availability step by step...")
+
+def check_module(name: str, label: str = None):
+    label = label or name
+    try:
+        available = find_spec(name) is not None
+        if available:
+            print(f"✅ {label} available")
+        else:
+            print(f"❌ {label} NOT available")
+    except Exception as e:
+        print(f"❌ {label} check failed: {e}")
 
 # Test 1: Basic Django
-try:
-    import django
-    print("✅ Django imported successfully")
-except ImportError as e:
-    print(f"❌ Django import failed: {e}")
+check_module("django", "Django")
 
 # Test 2: Basic ML libraries
-try:
-    import cv2
-    print("✅ OpenCV imported successfully")
-except ImportError as e:
-    print(f"❌ OpenCV import failed: {e}")
-
-try:
-    import numpy
-    print("✅ NumPy imported successfully")
-except ImportError as e:
-    print(f"❌ NumPy import failed: {e}")
+check_module("cv2", "OpenCV (cv2)")
+check_module("numpy", "NumPy")
 
 # Test 3: App components
-try:
-    import sys
-    sys.path.append('.')
-    from hairmixer_app.ml.preprocess import read_image
-    print("✅ Preprocess module imported successfully")
-except Exception as e:
-    print(f"❌ Preprocess import failed: {e}")
-
-try:
-    from hairmixer_app.ml.model import load_model
-    print("✅ Model module imported successfully")
-except Exception as e:
-    print(f"❌ Model import failed: {e}")
-
-try:
-    from hairmixer_app import views
-    print("✅ Views imported successfully")
-except Exception as e:
-    print(f"❌ Views import failed: {e}")
+check_module("hairmixer_app.ml.preprocess", "Preprocess module")
+check_module("hairmixer_app.ml.model", "Model module")
+check_module("hairmixer_app.views", "Views module")
 
 print("\nDiagnostic completed!")

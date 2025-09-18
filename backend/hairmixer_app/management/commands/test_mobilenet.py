@@ -1,8 +1,6 @@
 from django.core.management.base import BaseCommand
-from django.conf import settings
 from pathlib import Path
 import logging
-import sys
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +20,7 @@ class Command(BaseCommand):
             help='Path to test image',
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *_args, **options):
         try:
             from hairmixer_app.ml.mobilenet_classifier import mobile_net_loader
             from hairmixer_app.ml.face_analyzer import FacialFeatureAnalyzer
