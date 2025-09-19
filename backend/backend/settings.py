@@ -13,9 +13,14 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 from pathlib import Path
 from datetime import timedelta
 import os
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from .env if present (project root or backend folder)
+load_dotenv(dotenv_path=BASE_DIR / '.env')
+load_dotenv(dotenv_path=BASE_DIR.parent / '.env')
 
 
 # Quick-start development settings - unsuitable for production
@@ -248,3 +253,31 @@ SECURE_HSTS_SECONDS = 0 if DEBUG else int(os.getenv('SECURE_HSTS_SECONDS', '3153
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 SECURE_HSTS_PRELOAD = not DEBUG
 X_FRAME_OPTIONS = 'DENY'
+
+# ==========================
+# Overlay / Gemini AI config
+# ==========================
+# When enabled and credentials are present, the "advanced" overlay path will
+# use Gemini Web API to perform hair editing via prompt, otherwise it falls back to basic overlay.
+OVERLAY_AI_ENABLED = os.getenv('OVERLAY_AI_ENABLED', 'true').lower() == 'true'
+# Accept multiple env var names for convenience/compatibility
+GEMINI_SECURE_1PSID = (
+    os.getenv('GEMINI_SECURE_1PSID')
+    or os.getenv('SECURE_1PSID')
+    or os.getenv('Secure_1PSID')
+    or ''
+)
+GEMINI_SECURE_1PSIDTS = (
+    os.getenv('GEMINI_SECURE_1PSIDTS')
+    or os.getenv('SECURE_1PSIDTS')
+    or os.getenv('Secure_1PSIDTS')
+    or ''
+)
+# Model string as per gemini_webapi.constants.Model (e.g., G_2_5_FLASH)
+GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'G_2_5_FLASH')
+GEMINI_TIMEOUT = int(os.getenv('GEMINI_TIMEOUT', '120'))
+
+# Basic overlay tuning
+OVERLAY_BASIC_WIDTH_RATIO = float(os.getenv('OVERLAY_BASIC_WIDTH_RATIO', '0.75'))
+OVERLAY_Y_OFFSET_RATIO = float(os.getenv('OVERLAY_Y_OFFSET_RATIO', '0.03'))
+OVERLAY_BLUR_RADIUS = float(os.getenv('OVERLAY_BLUR_RADIUS', '0.8'))
