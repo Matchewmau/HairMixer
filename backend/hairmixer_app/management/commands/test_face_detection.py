@@ -9,7 +9,7 @@ import glob
 class Command(BaseCommand):
     help = 'Test face detection directly using Django environment'
 
-    def handle(self, *args, **options):
+    def handle(self, *_args, **options):
         self.stdout.write("🔍 Testing face detection directly in Django environment...")
         
         # Find test image

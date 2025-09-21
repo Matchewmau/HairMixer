@@ -1,10 +1,6 @@
 import logging
 import random
-import numpy as np
-from pathlib import Path
-from django.conf import settings
 import threading
-import time
 
 logger = logging.getLogger(__name__)
 

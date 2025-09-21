@@ -27,7 +27,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Also set up Django logging
-from django.conf import settings
 import logging as django_logging
 django_logging.getLogger('hairmixer_app.ml.face_analyzer').setLevel(logging.INFO)
 

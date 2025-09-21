@@ -1,7 +1,5 @@
 import cv2
 import numpy as np
-from django.conf import settings
-from pathlib import Path
 import logging
 from PIL import Image as PILImage
 

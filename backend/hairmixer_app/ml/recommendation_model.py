@@ -1,8 +1,6 @@
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
-import joblib
 import logging
 
 logger = logging.getLogger(__name__)
@@ -17,7 +15,7 @@ class MLRecommendationEngine:
         
     def prepare_training_data(self):
         """Prepare training data from user feedback and interactions"""
-        from ..models import Feedback, RecommendationLog, Hairstyle
+        from ..models import Feedback
         
         # Get feedback data
         feedbacks = Feedback.objects.select_related(

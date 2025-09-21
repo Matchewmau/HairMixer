@@ -1,10 +1,7 @@
-from PIL import Image, ImageDraw, ImageFilter, ImageEnhance
-import cv2
-import numpy as np
+from PIL import Image, ImageFilter
 import logging
 from pathlib import Path
 import requests
-from django.core.files.temp import NamedTemporaryFile
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +39,6 @@ class AdvancedOverlayProcessor:
             # Apply blend modes for more natural appearance
             hairstyle_blurred = hairstyle_resized.filter(ImageFilter.GaussianBlur(radius=0.8))
             
-            # Adjust opacity based on hairstyle characteristics
-            opacity = 0.85
             hairstyle_with_opacity = Image.new("RGBA", hairstyle_blurred.size)
             hairstyle_with_opacity.paste(hairstyle_blurred, (0, 0))
             

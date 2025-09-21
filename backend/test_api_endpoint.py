@@ -3,7 +3,6 @@
 Test the face detection API endpoint
 """
 import requests
-import json
 from pathlib import Path
 
 def test_api_endpoint():

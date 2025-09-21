@@ -16,6 +16,10 @@ const Results = () => {
 
   const checkAuth = async () => {
     try {
+      if (!AuthService.getAccessToken()) {
+        setUser(null);
+        return;
+      }
       const currentUser = await AuthService.getCurrentUser();
       setUser(currentUser);
     } catch (error) {

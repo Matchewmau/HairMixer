@@ -6,8 +6,17 @@ import json
 from .models import (
     CustomUser, UserProfile, UploadedImage, UserPreference, 
     Hairstyle, HairstyleCategory, RecommendationLog, Feedback,
-    AnalyticsEvent, CachedRecommendation
+    AnalyticsEvent
 )
+
+class RecommendRequestSerializer(serializers.Serializer):
+    image_id = serializers.UUIDField()
+    preference_id = serializers.UUIDField()
+
+class OverlayRequestSerializer(serializers.Serializer):
+    image_id = serializers.UUIDField()
+    hairstyle_id = serializers.UUIDField()
+    overlay_type = serializers.ChoiceField(choices=[('basic', 'basic'), ('advanced', 'advanced')], default='basic')
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:

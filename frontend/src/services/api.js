@@ -1,4 +1,6 @@
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
+import AuthService from './AuthService';
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
 
 class APIService {
   constructor() {
@@ -9,25 +11,33 @@ class APIService {
     const url = `${this.baseURL}${endpoint}`;
     
     const config = {
+      method: options.method || 'GET',
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
       },
-      ...options,
+      body: options.body,
     };
 
-    // Add auth token if available
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-
     try {
-      const response = await fetch(url, config);
+      // Use AuthService for authenticated calls with auto-refresh; fall back for public endpoints
+      const hasAuth = !!AuthService.getAccessToken();
+      const response = hasAuth
+        ? await AuthService.apiCall(url, config)
+        : await fetch(url, config);
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || errorData.error || `HTTP ${response.status}`);
+        let errorData = {};
+        try {
+          errorData = await response.json();
+        } catch (_) {
+          // ignore
+        }
+        const msg = errorData.message || errorData.detail || errorData.error || `HTTP ${response.status}`;
+        const error = new Error(msg);
+        error.status = response.status;
+        error.data = errorData;
+        throw error;
       }
       
       return await response.json();
@@ -71,24 +81,27 @@ class APIService {
     const formData = new FormData();
     formData.append('image', imageFile);
     
-    const token = localStorage.getItem('access_token');
-    const headers = {};
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-    
-    const response = await fetch(`${this.baseURL}/upload/`, {
+    const headers = {}; // Do not set content-type for FormData
+    const token = AuthService.getAccessToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const resp = await fetch(`${this.baseURL}/upload/`, {
       method: 'POST',
-      headers: headers,
+      headers,
       body: formData,
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || errorData.error || `HTTP ${response.status}`);
+    if (!resp.ok) {
+      let errorData = {};
+      try { errorData = await resp.json(); } catch (_) {}
+      const msg = errorData.message || errorData.error || `HTTP ${resp.status}`;
+      const error = new Error(msg);
+      error.status = resp.status;
+      error.data = errorData;
+      throw error;
     }
 
-    return await response.json();
+    return await resp.json();
   }
 
   // Preferences
@@ -146,7 +159,7 @@ class APIService {
   }
 
   async logout() {
-    const refreshToken = localStorage.getItem('refresh_token');
+    const refreshToken = AuthService.getRefreshToken() || localStorage.getItem('refresh_token');
     return this.request('/auth/logout/', {
       method: 'POST',
       body: JSON.stringify({ refresh_token: refreshToken }),

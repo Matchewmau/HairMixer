@@ -1,8 +1,7 @@
 import cv2
 import numpy as np
-from PIL import Image, ImageDraw, ImageEnhance
+from PIL import Image
 import logging
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +36,7 @@ class AdvancedImageProcessor:
             logger.error(f"Error in realistic overlay: {str(e)}")
             raise
     
-    def _create_simple_overlay(self, user_img, style_img, landmarks):
+    def _create_simple_overlay(self, user_img, style_img, _landmarks):
         """Create simple overlay as fallback"""
         try:
             # Convert to PIL for easier manipulation
@@ -65,7 +64,7 @@ class AdvancedImageProcessor:
             logger.error(f"Error in simple overlay: {str(e)}")
             raise
     
-    def _create_face_mask(self, img, landmarks):
+    def _create_face_mask(self, img, _landmarks):
         """Create face mask (placeholder)"""
         h, w = img.shape[:2]
         mask = np.zeros((h, w), dtype=np.uint8)
@@ -83,14 +82,14 @@ class AdvancedImageProcessor:
         mask[:h//2, :] = 255  # Top half as hair region
         return mask
     
-    def _match_hair_color(self, style_img, user_img, face_mask):
+    def _match_hair_color(self, style_img, _user_img, _face_mask):
         """Basic color matching"""
         return style_img  # For now, return original
     
-    def _transform_hair_to_face(self, hair_img, landmarks, hair_mask):
+    def _transform_hair_to_face(self, hair_img, _landmarks, _hair_mask):
         """Transform hair to match face"""
         return hair_img  # For now, return original
     
-    def _blend_with_lighting(self, user_img, hair_img, face_mask):
+    def _blend_with_lighting(self, user_img, hair_img, _face_mask):
         """Blend with lighting consistency"""
         return cv2.addWeighted(user_img, 0.6, hair_img, 0.4, 0)

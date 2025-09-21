@@ -1,7 +1,6 @@
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.db.models import Q, Avg, Count
-from django.core.cache import cache
 from django.utils import timezone
 from django.conf import settings
 from rest_framework import status
@@ -18,8 +17,6 @@ from pathlib import Path
 from datetime import timedelta
 import logging
 import traceback  # Add this
-import hashlib
-import json
 import uuid
 
 # Initialize logger FIRST before any imports that might use it
@@ -27,15 +24,18 @@ logger = logging.getLogger(__name__)
 
 from .models import (
     CustomUser, UserProfile, UploadedImage, UserPreference, 
-    Hairstyle, HairstyleCategory, RecommendationLog, Feedback,
-    AnalyticsEvent, CachedRecommendation
+    Hairstyle, HairstyleCategory, RecommendationLog, Feedback
 )
 from .serializers import (
-    UserSerializer, UserRegistrationSerializer, UploadedImageSerializer, 
-    UserPreferenceSerializer, HairstyleSerializer, FeedbackSerializer,
+    UserSerializer, UserRegistrationSerializer, HairstyleSerializer, FeedbackSerializer,
     RecommendationLogSerializer, AnalyticsEventSerializer,
-    HairstyleCategorySerializer
+    HairstyleCategorySerializer, UserPreferenceSerializer, UploadedImageSerializer,
+    RecommendRequestSerializer, OverlayRequestSerializer
 )
+from .exceptions import ProcessingError, ResourceNotFound
+from .services.image_service import ImageService
+from .services.recommendation_service import RecommendationService
+from .services.overlay_service import OverlayService
 
 # Track what's already imported to prevent duplicates
 _ML_IMPORTS_DONE = False
@@ -43,14 +43,14 @@ _ML_IMPORTS_DONE = False
 if not _ML_IMPORTS_DONE:
     # Import ML components conditionally to prevent startup issues
     try:
-        from .ml.preprocess import read_image, to_model_input, detect_face, validate_image_quality
+        from .ml.preprocess import read_image, detect_face, validate_image_quality
         ML_PREPROCESS_AVAILABLE = True
     except ImportError as e:
         logger.warning(f"ML preprocessing not available: {e}")
         ML_PREPROCESS_AVAILABLE = False
 
     try:
-        from .ml.model import load_model, predict_face_shape, analyze_facial_features
+        from .ml.model import load_model
         ML_MODEL_AVAILABLE = True
     except ImportError as e:
         logger.warning(f"ML model not available: {e}")
@@ -99,6 +99,9 @@ recommendation_engine = EnhancedRecommendationEngine() if RECOMMENDATION_ENGINE_
 overlay_processor = AdvancedOverlayProcessor() if OVERLAY_PROCESSOR_AVAILABLE else None
 analytics_service = AnalyticsService() if ANALYTICS_AVAILABLE else None
 cache_manager = CacheManager() if CACHE_MANAGER_AVAILABLE else None
+image_service = ImageService()
+recommendation_service = RecommendationService()
+overlay_service = OverlayService()
 
 def get_model():
     """Lazy loading of ML model"""
@@ -220,6 +223,7 @@ def login(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def logout(request):
     try:
         refresh_token = request.data.get('refresh_token')
@@ -247,6 +251,7 @@ def logout(request):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def user_profile(request):
     try:
         user_data = UserSerializer(request.user).data
@@ -265,6 +270,9 @@ def user_profile(request):
 class UploadImageView(APIView):
     parser_classes = (MultiPartParser, FormParser)
     permission_classes = [AllowAny]
+    # Disable authentication to avoid 401 when frontend sends no/invalid token
+    authentication_classes = []
+    throttle_classes = [ImageUploadThrottle]
     
     def post(self, request):
         try:
@@ -289,133 +297,36 @@ class UploadImageView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Create upload record
-            uploaded = UploadedImage.objects.create(
-                image=image_file,
-                user=request.user if request.user.is_authenticated else None,
-                original_filename=image_file.name,
+            # Create upload record with serializer for validation/metadata
+            serializer = UploadedImageSerializer(data={"image": image_file})
+            serializer.is_valid(raise_exception=True)
+            # Save with user only if authenticated; otherwise keep it null
+            uploaded = serializer.save(
+                user=request.user if request.user and request.user.is_authenticated else None,
                 processing_status='processing'
             )
             
             # Process image immediately for better UX
-            img_path = Path(settings.MEDIA_ROOT) / uploaded.image.name
-            
-            try:
-                # Import the preprocessing functions
-                from .ml.preprocess import read_image, validate_image_quality
-                from .ml.face_analyzer import analyze_face_comprehensive
-                
-                logger.info(f"Starting face analysis for image: {img_path}")
-                
-                # Read and validate image
-                img_array = read_image(img_path)
-                if img_array is None:
-                    logger.error("Failed to read image array")
-                    uploaded.processing_status = 'failed'
-                    uploaded.error_message = 'Could not read image file'
-                    uploaded.save()
-                    return Response({
-                        'success': False,
-                        'error': 'Could not process image file'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                
-                logger.info(f"Image loaded successfully: shape={img_array.shape}")
-                
-                # Validate image quality
-                quality_check = validate_image_quality(img_array)
-                logger.info(f"Image quality check: {quality_check}")
-                
-                # Perform face analysis with detailed logging
-                logger.info("Starting comprehensive face analysis...")
-                face_analysis = analyze_face_comprehensive(img_path)
-                logger.info(f"Face analysis result: {face_analysis}")
-                
-                # Check if face was actually detected
-                face_detected = face_analysis.get('face_detected', False)
-                logger.info(f"Face detected: {face_detected}")
-                
-                if not face_detected:
-                    error_msg = face_analysis.get('error', 'No face detected')
-                    logger.warning(f"Face detection failed: {error_msg}")
-                    
-                    uploaded.processing_status = 'no_face'
-                    uploaded.face_detected = False
-                    uploaded.error_message = error_msg
-                    uploaded.save()
-                    
-                    return Response({
-                        'success': False,
-                        'image_id': str(uploaded.id),
-                        'face_detected': False,
-                        'error': 'Could not detect a face in this image',
-                        'detailed_error': error_msg,
-                        'suggestions': [
-                            'Make sure your face is clearly visible',
-                            'Ensure good lighting',
-                            'Face the camera directly',
-                            'Remove sunglasses, hats, or face coverings',
-                            'Try taking the photo from a different angle'
-                        ],
-                        'processing_status': 'no_face',
-                        'quality_check': quality_check
-                    })
-                
-                # Face detected successfully
-                uploaded.processing_status = 'completed'
-                uploaded.face_detected = True
-                uploaded.face_shape = face_analysis['face_shape']['shape']
-                uploaded.face_shape_confidence = face_analysis['face_shape']['confidence']
-                uploaded.quality_score = quality_check.get('quality_score', 0)
-                uploaded.analysis_data = {
-                    'face_analysis': face_analysis,
-                    'quality_check': quality_check
-                }
-                uploaded.save()
-                
-                # Prepare successful response
-                response_data = {
-                    'success': True,
-                    'message': 'Image uploaded and analyzed successfully',
-                    'image_id': str(uploaded.id),
-                    'face_detected': True,
-                    'face_shape': {
-                        'shape': face_analysis['face_shape']['shape'],
-                        'confidence': face_analysis['face_shape']['confidence'],
-                        'method': face_analysis['face_shape'].get('method', 'geometric')
-                    },
-                    'confidence': face_analysis.get('confidence', face_analysis['face_shape']['confidence']),
-                    'quality_score': quality_check.get('quality_score', 0),
-                    'quality_metrics': face_analysis.get('quality_metrics', {}),
-                    'is_good_quality': quality_check.get('is_valid', False),
-                    'processing_status': 'completed',
-                    'facial_features': face_analysis.get('facial_features', {}),
-                    'detection_method': face_analysis.get('detection_method', 'unknown'),
-                    # Add face shape description
-                    'face_shape_description': self.get_face_shape_description(face_analysis['face_shape']['shape'])
-                }
-                
-                logger.info(f"Face analysis completed successfully: {face_analysis['face_shape']['shape']} "
-                           f"(confidence: {face_analysis['face_shape']['confidence']:.3f})")
-                
-                return Response(response_data)
-                
-            except Exception as e:
-                logger.error(f"Error processing uploaded image: {str(e)}")
-                import traceback
-                traceback.print_exc()
-                
-                uploaded.processing_status = 'failed'
-                uploaded.error_message = str(e)
-                uploaded.save()
-                
-                return Response({
+            success, payload = ImageService.analyze_uploaded_image(uploaded)
+            if not success:
+                payload.update({
                     'success': False,
                     'image_id': str(uploaded.id),
-                    'error': 'Failed to process image',
-                    'detailed_error': str(e),
-                    'face_detected': False,
-                    'processing_status': 'failed'
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    'suggestions': [
+                        'Make sure your face is clearly visible',
+                        'Ensure good lighting',
+                        'Face the camera directly',
+                        'Remove sunglasses, hats, or face coverings',
+                        'Try taking the photo from a different angle'
+                    ]
+                })
+                return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+            payload.update({
+                'message': 'Image uploaded and analyzed successfully',
+                'face_shape_description': self.get_face_shape_description(payload.get('face_shape', {}).get('shape'))
+            })
+            return Response(payload)
                 
         except Exception as e:
             logger.error(f"Error uploading image: {str(e)}")
@@ -474,7 +385,7 @@ class UploadImageView(APIView):
 
 class SetPreferencesView(APIView):
     parser_classes = (JSONParser,)
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def post(self, request):
         try:
@@ -556,9 +467,17 @@ class SetPreferencesView(APIView):
                         status=status.HTTP_400_BAD_REQUEST
                     )
             
-            # Validate lifestyle if provided
+            # Normalize and validate lifestyle if provided against model choices
             if preference_data.get('lifestyle'):
-                valid_lifestyles = ['active', 'professional', 'creative', 'casual', 'moderate', 'relaxed']
+                # Map UI values to model choices
+                lifestyle_map = {
+                    'moderate': 'casual',
+                    'relaxed': 'casual',
+                }
+                if preference_data['lifestyle'] in lifestyle_map:
+                    preference_data['lifestyle'] = lifestyle_map[preference_data['lifestyle']]
+
+                valid_lifestyles = [choice[0] for choice in UserPreference.LIFESTYLE_CHOICES]
                 if preference_data['lifestyle'] not in valid_lifestyles:
                     error_msg = f"Invalid lifestyle '{preference_data['lifestyle']}'. Must be one of: {valid_lifestyles}"
                     logger.error(f"Validation error: {error_msg}")
@@ -567,9 +486,9 @@ class SetPreferencesView(APIView):
                         status=status.HTTP_400_BAD_REQUEST
                     )
             
-            # Validate occasions if provided
+            # Validate occasions if provided (align with model choices)
             if preference_data.get('occasions'):
-                valid_occasions = ['casual', 'formal', 'party', 'business', 'wedding', 'date', 'work']
+                valid_occasions = [choice[0] for choice in UserPreference.OCCASION_CHOICES]
                 invalid_occasions = [occ for occ in preference_data['occasions'] if occ not in valid_occasions]
                 if invalid_occasions:
                     error_msg = f"Invalid occasions {invalid_occasions}. Must be from: {valid_occasions}"
@@ -579,19 +498,19 @@ class SetPreferencesView(APIView):
                         status=status.HTTP_400_BAD_REQUEST
                     )
             
-            # Create preference record
-            preference = UserPreference.objects.create(
-                user=request.user if request.user.is_authenticated else None,
-                **preference_data
-            )
-            
+            serializer = UserPreferenceSerializer(data=preference_data)
+            if not serializer.is_valid():
+                logger.error(f"Preference validation errors: {serializer.errors}")
+                return Response({"error": "Invalid preferences", "details": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+            preference = serializer.save(user=request.user)
+
             logger.info(f"Created user preference {preference.id} with data: {preference_data}")
-            
+
             return Response({
                 'success': True,
                 'preference_id': str(preference.id),
                 'message': 'Preferences saved successfully',
-                'preferences': preference_data
+                'preferences': serializer.data
             })
             
         except Exception as e:
@@ -604,15 +523,17 @@ class SetPreferencesView(APIView):
 
 class RecommendView(APIView):
     parser_classes = (JSONParser,)
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     throttle_classes = [RecommendationThrottle]
     
     def post(self, request):
         start_time = timezone.now()
         
         try:
-            image_id = request.data.get("image_id")
-            pref_id = request.data.get("preference_id")
+            req_ser = RecommendRequestSerializer(data=request.data)
+            req_ser.is_valid(raise_exception=True)
+            image_id = req_ser.validated_data["image_id"]
+            pref_id = req_ser.validated_data["preference_id"]
             
             logger.info(f"Recommendation request - image_id: {image_id}, pref_id: {pref_id}")
             
@@ -637,75 +558,7 @@ class RecommendView(APIView):
                     status=status.HTTP_404_NOT_FOUND
                 )
             
-            # For now, return sample recommendations since ML components might not be fully loaded
-            processing_time = (timezone.now() - start_time).total_seconds()
-            
-            # Create a simple recommendation log
-            log = RecommendationLog.objects.create(
-                user=request.user if request.user.is_authenticated else None,
-                uploaded=uploaded,
-                preference=prefs,
-                face_shape='oval',  # Default for now
-                face_shape_confidence=0.8,
-                detected_features={},
-                candidates=[],
-                recommendation_scores={},
-                status='completed',
-                processing_time=processing_time,
-                model_version='v1.0'
-            )
-            
-            # Return sample recommendations
-            sample_recommendations = [
-                {
-                    'id': '1',
-                    'name': 'Classic Bob',
-                    'description': 'A timeless bob cut that suits most face shapes',
-                    'image_url': None,
-                    'category': 'Classic',
-                    'difficulty': 'Easy',
-                    'estimated_time': 30,
-                    'maintenance': 'Medium',
-                    'tags': ['classic', 'versatile'],
-                    'match_score': 0.85
-                },
-                {
-                    'id': '2', 
-                    'name': 'Beach Waves',
-                    'description': 'Relaxed, casual waves with natural texture',
-                    'image_url': None,
-                    'category': 'Casual',
-                    'difficulty': 'Easy',
-                    'estimated_time': 15,
-                    'maintenance': 'Low',
-                    'tags': ['casual', 'natural'],
-                    'match_score': 0.78
-                },
-                {
-                    'id': '3',
-                    'name': 'Layered Cut',
-                    'description': 'Versatile layered cut for medium-length hair',
-                    'image_url': None,
-                    'category': 'Versatile',
-                    'difficulty': 'Medium',
-                    'estimated_time': 35,
-                    'maintenance': 'Medium',
-                    'tags': ['layered', 'versatile'],
-                    'match_score': 0.72
-                }
-            ]
-            
-            response_data = {
-                "recommendation_id": str(log.id),
-                "face_shape": "oval",
-                "face_shape_confidence": 0.8,
-                "detected_features": {},
-                "recommended_styles": sample_recommendations,
-                "candidates": sample_recommendations,
-                "processing_time": f"{processing_time:.2f}s",
-                "total_styles_analyzed": len(sample_recommendations)
-            }
-            
+            response_data = recommendation_service.generate(uploaded, prefs, user=request.user)
             return Response(response_data)
             
         except Exception as e:
@@ -718,13 +571,15 @@ class RecommendView(APIView):
 
 class OverlayView(APIView):
     parser_classes = (JSONParser,)
-    permission_classes = [AllowAny]  # Add this line
+    permission_classes = [IsAuthenticated]
     
     def post(self, request):
         try:
-            image_id = request.data.get("image_id")
-            style_id = request.data.get("hairstyle_id")
-            overlay_type = request.data.get("overlay_type", "basic")  # basic, advanced
+            req_ser = OverlayRequestSerializer(data=request.data)
+            req_ser.is_valid(raise_exception=True)
+            image_id = req_ser.validated_data["image_id"]
+            style_id = req_ser.validated_data["hairstyle_id"]
+            overlay_type = req_ser.validated_data["overlay_type"]
             
             if not image_id or not style_id:
                 return Response(
@@ -735,35 +590,8 @@ class OverlayView(APIView):
             uploaded = get_object_or_404(UploadedImage, id=image_id)
             style = get_object_or_404(Hairstyle, id=style_id)
 
-            user_img_path = Path(settings.MEDIA_ROOT) / uploaded.image.name
-            
-            # Check if hairstyle has an image
-            if style.image:
-                style_img_path = Path(settings.MEDIA_ROOT) / style.image.name
-            elif style.image_url:
-                # Download image from URL (implement this)
-                style_img_path = overlay_processor.download_style_image(style.image_url, style.id)
-            else:
-                return Response(
-                    {"error": "Hairstyle image not available"}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            overlay_url = overlay_service.generate(uploaded, style, overlay_type)
 
-            # Create output path
-            out_rel = f"overlays/{image_id}_{style_id}_{overlay_type}.png"
-            out_abs = Path(settings.MEDIA_ROOT) / out_rel
-            out_abs.parent.mkdir(parents=True, exist_ok=True)
-
-            # Generate overlay
-            if overlay_type == "advanced":
-                result_path = overlay_processor.create_advanced_overlay(
-                    user_img_path, style_img_path, out_abs
-                )
-            else:
-                result_path = overlay_processor.create_basic_overlay(
-                    user_img_path, style_img_path, out_abs
-                )
-            
             # Log analytics event
             analytics_service.track_event(
                 user=request.user if request.user.is_authenticated else None,
@@ -777,7 +605,7 @@ class OverlayView(APIView):
             )
             
             return Response({
-                "overlay_url": f"{settings.MEDIA_URL}{out_rel}",
+                "overlay_url": overlay_url,
                 "overlay_type": overlay_type
             })
             
@@ -832,7 +660,7 @@ class FeedbackView(APIView):
 
 class AnalyticsEventView(APIView):
     parser_classes = (JSONParser,)
-    permission_classes = [AllowAny]  # Add this line
+    permission_classes = [IsAuthenticated]
     
     def post(self, request):
         """Track custom analytics events from frontend"""

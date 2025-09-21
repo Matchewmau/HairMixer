@@ -65,7 +65,7 @@ except Exception as e:
 
 # Test 3: Model module
 try:
-    from hairmixer_app.ml.model import load_model, predict_face_shape
+    from hairmixer_app.ml.model import load_model
     print("✅ Model module available")
     
     # Try to load model

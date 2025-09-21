@@ -37,6 +37,10 @@ const UserPreferences = () => {
 
   const checkAuth = async () => {
     try {
+      if (!AuthService.getAccessToken()) {
+        setUser(null);
+        return;
+      }
       const currentUser = await AuthService.getCurrentUser();
       setUser(currentUser);
     } catch (error) {
@@ -79,10 +83,11 @@ const UserPreferences = () => {
     try {
       console.log('Submitting preferences:', preferences);
       
-      // Ensure hair_length uses underscore not dash
+      // Ensure hair_length uses underscore not dash and map lifestyle UI -> model
       const cleanedPreferences = {
         ...preferences,
-        hair_length: preferences.hair_length === 'extra-long' ? 'extra_long' : preferences.hair_length
+        hair_length: preferences.hair_length === 'extra-long' ? 'extra_long' : preferences.hair_length,
+        lifestyle: preferences.lifestyle === 'moderate' || preferences.lifestyle === 'relaxed' ? 'casual' : preferences.lifestyle,
       };
       
       console.log('Cleaned preferences:', cleanedPreferences);
