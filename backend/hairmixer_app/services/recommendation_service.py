@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, Any
 from django.utils import timezone
-from ..models import UploadedImage, UserPreference, RecommendationLog
+from ..models import UploadedImage, UserPreference, RecommendationLog, Hairstyle
 from .cache_manager import CacheManager
 
 logger = logging.getLogger(__name__)
@@ -21,24 +21,51 @@ class RecommendationService:
             cached['from_cache'] = True
             return cached
 
-        # Placeholder logic while ML is being integrated
-        sample_recommendations = [
-            {
-                'id': '1', 'name': 'Classic Bob', 'description': 'A timeless bob cut that suits most face shapes',
-                'image_url': None, 'category': 'Classic', 'difficulty': 'Easy', 'estimated_time': 30,
-                'maintenance': 'Medium', 'tags': ['classic', 'versatile'], 'match_score': 0.85
-            },
-            {
-                'id': '2', 'name': 'Beach Waves', 'description': 'Relaxed, casual waves with natural texture',
-                'image_url': None, 'category': 'Casual', 'difficulty': 'Easy', 'estimated_time': 15,
-                'maintenance': 'Low', 'tags': ['casual', 'natural'], 'match_score': 0.78
-            },
-            {
-                'id': '3', 'name': 'Layered Cut', 'description': 'Versatile layered cut for medium-length hair',
-                'image_url': None, 'category': 'Versatile', 'difficulty': 'Medium', 'estimated_time': 35,
-                'maintenance': 'Medium', 'tags': ['layered', 'versatile'], 'match_score': 0.72
-            }
-        ]
+        # Select actual hairstyles from DB for valid UUIDs; fallback to placeholders if empty
+        styles = list(Hairstyle.objects.filter(is_active=True).order_by('-trend_score', '-popularity_score', 'name')[:9])
+        if styles:
+            sample_recommendations = []
+            for hs in styles:
+                # Prefer stored image; else external image_url
+                image_url = None
+                try:
+                    if hs.image:
+                        image_url = hs.image.url  # relative is fine; frontend resolves
+                    elif hs.image_url:
+                        image_url = hs.image_url
+                except Exception:
+                    image_url = hs.image_url or None
+
+                sample_recommendations.append({
+                    'id': str(hs.id),
+                    'name': hs.name,
+                    'description': hs.description or '',
+                    'image_url': image_url,
+                    'category': hs.category.name if hs.category else '',
+                    'difficulty': hs.difficulty or 'Medium',
+                    'estimated_time': hs.estimated_time or 30,
+                    'maintenance': hs.maintenance or 'Medium',
+                    'tags': hs.tags or [],
+                    'match_score': 0.8,  # placeholder scoring until ML is integrated
+                })
+        else:
+            sample_recommendations = [
+                {
+                    'id': None, 'name': 'Classic Bob', 'description': 'A timeless bob cut that suits most face shapes',
+                    'image_url': None, 'category': 'Classic', 'difficulty': 'Easy', 'estimated_time': 30,
+                    'maintenance': 'Medium', 'tags': ['classic', 'versatile'], 'match_score': 0.85
+                },
+                {
+                    'id': None, 'name': 'Beach Waves', 'description': 'Relaxed, casual waves with natural texture',
+                    'image_url': None, 'category': 'Casual', 'difficulty': 'Easy', 'estimated_time': 15,
+                    'maintenance': 'Low', 'tags': ['casual', 'natural'], 'match_score': 0.78
+                },
+                {
+                    'id': None, 'name': 'Layered Cut', 'description': 'Versatile layered cut for medium-length hair',
+                    'image_url': None, 'category': 'Versatile', 'difficulty': 'Medium', 'estimated_time': 35,
+                    'maintenance': 'Medium', 'tags': ['layered', 'versatile'], 'match_score': 0.72
+                }
+            ]
 
         processing_time = (timezone.now() - start_time).total_seconds()
 

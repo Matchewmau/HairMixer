@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.exceptions import ValidationError
 from django.contrib.auth import authenticate
 from django.contrib.auth.hashers import make_password
 from pathlib import Path
@@ -609,6 +610,9 @@ class OverlayView(APIView):
                 "overlay_type": overlay_type
             })
             
+        except ValidationError as e:
+            # Return proper 400 for serializer validation issues (e.g., invalid UUID)
+            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"Error creating overlay: {str(e)}")
             return Response(

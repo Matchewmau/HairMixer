@@ -26,7 +26,8 @@ class OverlayService:
         out_abs.parent.mkdir(parents=True, exist_ok=True)
 
         if overlay_type == "advanced":
-            self.processor.create_advanced_overlay(user_img_path, style_img_path, out_abs)
+            style_name = getattr(style, 'name', None)
+            self.processor.create_advanced_overlay(user_img_path, style_img_path, out_abs, style_name=style_name)
         else:
             self.processor.create_basic_overlay(user_img_path, style_img_path, out_abs)
 

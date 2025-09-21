@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import AuthService from '../services/AuthService';
+import apiService from '../services/api';
 import Navbar from '../components/Navbar';
 
 const Results = () => {
@@ -9,6 +10,11 @@ const Results = () => {
   const { preferences, imageFile, previewUrl, uploadResponse, recommendations } = location.state || {};
   
   const [user, setUser] = useState(null);
+  const [overlayLoadingId, setOverlayLoadingId] = useState(null);
+  const [overlayType, setOverlayType] = useState('basic');
+  const [overlayUrl, setOverlayUrl] = useState(null);
+  const [showOverlayModal, setShowOverlayModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     checkAuth();
@@ -35,6 +41,43 @@ const Results = () => {
       navigate('/');
     } catch (error) {
       console.error('Logout failed:', error);
+    }
+  };
+
+  const resolveMediaUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    const serverOrigin = apiService.baseURL.replace(/\/api\/?$/, '');
+    return `${serverOrigin}${url}`;
+  };
+
+  const handleGenerateOverlay = async (style, type = 'basic') => {
+    try {
+      setErrorMsg('');
+      if (!user) {
+        // Require authentication for overlay
+        navigate('/login', { state: { from: '/results' } });
+        return;
+      }
+      if (!uploadResponse?.image_id) {
+        setErrorMsg('Missing uploaded image reference. Please re-upload your photo.');
+        return;
+      }
+      if (!style?.id) {
+        setErrorMsg('This style is not selectable yet. Please choose a style from the catalog (with a valid ID).');
+        return;
+      }
+      setOverlayType(type);
+      setOverlayLoadingId(style.id);
+      const resp = await apiService.generateOverlay(uploadResponse.image_id, style.id, type);
+      const fullUrl = resolveMediaUrl(resp.overlay_url);
+      setOverlayUrl(fullUrl);
+      setShowOverlayModal(true);
+    } catch (e) {
+      console.error('Overlay generation failed:', e);
+      setErrorMsg(e?.message || 'Failed to generate overlay');
+    } finally {
+      setOverlayLoadingId(null);
     }
   };
 
@@ -182,9 +225,25 @@ const Results = () => {
                         {style.difficulty || 'Medium'} Difficulty
                       </span>
                     </div>
-                    <button className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white py-3 px-4 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg">
-                      Try This Style
-                    </button>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => handleGenerateOverlay(style, 'basic')}
+                        disabled={overlayLoadingId === style.id}
+                        className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white py-3 px-4 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg disabled:opacity-60"
+                      >
+                        {overlayLoadingId === style.id && overlayType === 'basic' ? 'Generating…' : 'Preview (Basic)'}
+                      </button>
+                      <button
+                        onClick={() => handleGenerateOverlay(style, 'advanced')}
+                        disabled={overlayLoadingId === style.id}
+                        className="bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white py-3 px-4 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg disabled:opacity-60"
+                      >
+                        {overlayLoadingId === style.id && overlayType === 'advanced' ? 'Generating…' : 'Preview (Advanced)'}
+                      </button>
+                    </div>
+                    {errorMsg && overlayLoadingId === null && (
+                      <p className="text-red-400 text-sm mt-3">{errorMsg}</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -239,6 +298,42 @@ const Results = () => {
           </div>
         </div>
       </div>
+
+      {/* Overlay Modal */}
+      {showOverlayModal && overlayUrl && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl max-w-3xl w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white text-xl font-semibold">Overlay Preview ({overlayType})</h3>
+              <button
+                onClick={() => setShowOverlayModal(false)}
+                className="text-gray-400 hover:text-white"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="w-full max-h-[70vh] overflow-auto flex items-center justify-center bg-gray-800 rounded-xl p-2">
+              <img src={overlayUrl} alt="Overlay" className="max-w-full max-h-[68vh] rounded-lg" />
+            </div>
+            <div className="flex justify-end gap-3 mt-4">
+              <a
+                href={overlayUrl}
+                download
+                className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg"
+              >
+                Download
+              </a>
+              <button
+                onClick={() => setShowOverlayModal(false)}
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-4 py-2 rounded-lg"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
