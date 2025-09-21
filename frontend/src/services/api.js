@@ -33,8 +33,9 @@ class APIService {
         } catch (_) {
           // ignore
         }
-        const msg = errorData.message || errorData.detail || errorData.error || `HTTP ${response.status}`;
-        const error = new Error(msg);
+        const nested = (errorData && errorData.error) || {};
+        const msg = nested.message || errorData.message || errorData.detail || (typeof errorData.error === 'string' ? errorData.error : '') || `HTTP ${response.status}`;
+        const error = new Error(msg || 'Request failed');
         error.status = response.status;
         error.data = errorData;
         throw error;

@@ -53,7 +53,9 @@ class AuthService {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Registration failed');
+        const nested = (data && data.error) || {};
+        const msg = nested.message || data.message || (typeof data.error === 'string' ? data.error : '') || 'Registration failed';
+        throw new Error(msg);
       }
 
       // Store tokens in localStorage (both camelCase and snake_case for compatibility)

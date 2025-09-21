@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 import requests
 import os
+from typing import Optional
 
 from django.conf import settings
 
@@ -75,7 +76,7 @@ class AdvancedOverlayProcessor:
             logger.error(f"Error creating basic overlay: {str(e)}")
             raise
     
-    def create_advanced_overlay(self, user_img_path, style_img_path, output_path, style_name: str | None = None):
+    def create_advanced_overlay(self, user_img_path, style_img_path, output_path, style_name: Optional[str] = None):
         """Create advanced overlay via Gemini Web API if configured; otherwise fallback to basic.
 
         Contract:
@@ -144,8 +145,15 @@ class AdvancedOverlayProcessor:
 
         except Exception as e:
             logger.error(f"Error creating advanced overlay: {str(e)}")
-            # Fallback to basic overlay on error
-            return self.create_basic_overlay(user_img_path, style_img_path, output_path)
+            # Fallback to basic overlay on error, but only if we have a style
+            # image available. If not, surface a clear input error.
+            if not style_img_path:
+                raise ValueError(
+                    "Hairstyle image not available for overlay"
+                )
+            return self.create_basic_overlay(
+                user_img_path, style_img_path, output_path
+            )
     
     def download_style_image(self, image_url, style_id):
         """Download hairstyle image from URL"""
@@ -163,5 +171,8 @@ class AdvancedOverlayProcessor:
             return temp_file
             
         except Exception as e:
-            logger.error(f"Error downloading style image from {image_url}: {str(e)}")
+            logger.error(
+                f"Error downloading style image from {image_url}: {str(e)}"
+            )
             raise
+        

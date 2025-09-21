@@ -4,7 +4,7 @@ from django.db.models import Q, Avg, Count
 from django.utils import timezone
 from django.conf import settings
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes, authentication_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -126,6 +126,7 @@ def get_client_ip(request):
 # Authentication views (enhanced)
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@authentication_classes([])
 @throttle_classes([AnonRateThrottle])
 def signup(request):
     try:
@@ -145,12 +146,13 @@ def signup(request):
                 UserProfile.objects.create(user=user)
                 
                 # Log analytics event
-                analytics_service.track_event(
-                    user=user,
-                    event_type='user_registered',
-                    event_data={'source': 'web'},
-                    request=request
-                )
+                if analytics_service:
+                    analytics_service.track_event(
+                        user=user,
+                        event_type='user_registered',
+                        event_data={'source': 'web'},
+                        request=request
+                    )
                 
                 # Generate tokens
                 refresh = RefreshToken.for_user(user)
@@ -164,8 +166,15 @@ def signup(request):
                     'access_token': str(access_token),
                     'refresh_token': str(refresh),
                 }, status=status.HTTP_201_CREATED)
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # Serializer invalid: return structured error with details
+        try:
+            logger.error(f"Signup validation failed: {serializer.errors}")
+        except Exception:
+            pass
+        return Response({
+            'message': 'Validation failed',
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
     
     except Exception as e:
         logger.error(f"Registration error: {str(e)}")
@@ -176,6 +185,7 @@ def signup(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@authentication_classes([])
 @throttle_classes([AnonRateThrottle])
 def login(request):
     try:
@@ -386,7 +396,9 @@ class UploadImageView(APIView):
 
 class SetPreferencesView(APIView):
     parser_classes = (JSONParser,)
-    permission_classes = [IsAuthenticated]
+    # Allow anonymous submissions; authenticated users will be linked automatically
+    permission_classes = [AllowAny]
+    authentication_classes = []
     
     def post(self, request):
         try:
@@ -503,7 +515,10 @@ class SetPreferencesView(APIView):
             if not serializer.is_valid():
                 logger.error(f"Preference validation errors: {serializer.errors}")
                 return Response({"error": "Invalid preferences", "details": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
-            preference = serializer.save(user=request.user)
+            # Save with user when authenticated, else anonymous record
+            preference = serializer.save(
+                user=request.user if hasattr(request, 'user') and getattr(request.user, 'is_authenticated', False) else None
+            )
 
             logger.info(f"Created user preference {preference.id} with data: {preference_data}")
 
@@ -524,7 +539,9 @@ class SetPreferencesView(APIView):
 
 class RecommendView(APIView):
     parser_classes = (JSONParser,)
-    permission_classes = [IsAuthenticated]
+    # Allow anonymous recommendations; throttle applies regardless
+    permission_classes = [AllowAny]
+    authentication_classes = []
     throttle_classes = [RecommendationThrottle]
     
     def post(self, request):
@@ -559,7 +576,9 @@ class RecommendView(APIView):
                     status=status.HTTP_404_NOT_FOUND
                 )
             
-            response_data = recommendation_service.generate(uploaded, prefs, user=request.user)
+            # Only attach user if authenticated; else pass None
+            rec_user = request.user if getattr(request.user, 'is_authenticated', False) else None
+            response_data = recommendation_service.generate(uploaded, prefs, user=rec_user)
             return Response(response_data)
             
         except Exception as e:
@@ -613,12 +632,18 @@ class OverlayView(APIView):
         except ValidationError as e:
             # Return proper 400 for serializer validation issues (e.g., invalid UUID)
             return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as e:
+            # Known input/state errors (e.g., missing hairstyle image)
+            return Response(
+                {"error": str(e)}, status=status.HTTP_400_BAD_REQUEST
+            )
         except Exception as e:
             logger.error(f"Error creating overlay: {str(e)}")
             return Response(
-                {"error": "Failed to create overlay", "details": str(e)}, 
+                {"error": "Failed to create overlay", "details": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
 
 class FeedbackView(APIView):
     parser_classes = (JSONParser,)
@@ -629,7 +654,9 @@ class FeedbackView(APIView):
             serializer = FeedbackSerializer(data=request.data)
             if serializer.is_valid():
                 fb = serializer.save(
-                    user=request.user if request.user.is_authenticated else None
+                    user=(
+                        request.user if request.user.is_authenticated else None
+                    )
                 )
                 
                 # Update hairstyle popularity
@@ -638,7 +665,9 @@ class FeedbackView(APIView):
                 
                 # Log analytics event
                 analytics_service.track_event(
-                    user=request.user if request.user.is_authenticated else None,
+                    user=(
+                        request.user if request.user.is_authenticated else None
+                    ),
                     event_type='feedback_submitted',
                     event_data={
                         'feedback_id': str(fb.id),
@@ -653,14 +682,17 @@ class FeedbackView(APIView):
                     "feedback_id": fb.id,
                     "message": "Feedback submitted successfully"
                 })
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                serializer.errors, status=status.HTTP_400_BAD_REQUEST
+            )
             
         except Exception as e:
             logger.error(f"Error saving feedback: {str(e)}")
             return Response(
-                {"error": "Failed to save feedback", "details": str(e)}, 
+                {"error": "Failed to save feedback", "details": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
 
 class AnalyticsEventView(APIView):
     parser_classes = (JSONParser,)
@@ -672,20 +704,25 @@ class AnalyticsEventView(APIView):
             serializer = AnalyticsEventSerializer(data=request.data)
             if serializer.is_valid():
                 analytics_service.track_event(
-                    user=request.user if request.user.is_authenticated else None,
+                    user=(
+                        request.user if request.user.is_authenticated else None
+                    ),
                     event_type=serializer.validated_data['event_type'],
                     event_data=serializer.validated_data.get('event_data', {}),
                     session_id=serializer.validated_data.get('session_id', ''),
                     request=request
                 )
                 return Response({"status": "event_tracked"})
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                serializer.errors, status=status.HTTP_400_BAD_REQUEST
+            )
         except Exception as e:
             logger.error(f"Error tracking analytics event: {str(e)}")
             return Response(
-                {"error": "Failed to track event"}, 
+                {"error": "Failed to track event"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -701,6 +738,7 @@ def health_check(request):
         'analytics_available': ANALYTICS_AVAILABLE,
         'cache_available': CACHE_MANAGER_AVAILABLE,
     })
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
