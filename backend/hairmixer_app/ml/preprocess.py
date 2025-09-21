@@ -1,7 +1,4 @@
-import cv2
 import numpy as np
-from django.conf import settings
-from pathlib import Path
 import logging
 from PIL import Image as PILImage
 
@@ -18,16 +15,9 @@ logger = logging.getLogger(__name__)
 def read_image(path):
     """Read image from file path with error handling"""
     try:
-        # First try with OpenCV
-        img = cv2.imread(str(path))
-        if img is not None:
-            return img
-        
-        # Fallback to PIL
-        pil_img = PILImage.open(path)
-        # Convert PIL to OpenCV format
-        img = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
-        return img
+        pil_img = PILImage.open(path).convert('RGB')
+        # Return as RGB numpy array
+        return np.array(pil_img)
         
     except Exception as e:
         logger.error(f"Error reading image {path}: {str(e)}")
@@ -46,8 +36,15 @@ def validate_image_quality(img):
             return {"is_valid": False, "error": "Image resolution too low (minimum 200x200)"}
         
         # Check if image is too blurry using Laplacian variance
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
+        # Ensure RGB; if grayscale, expand
+        if img.ndim == 2:
+            gray = img.astype(np.float32)
+        else:
+            # luminance grayscale
+            gray = np.dot(img[..., :3], [0.299, 0.587, 0.114]).astype(np.float32)
+        # Approximate sharpness using gradient variance
+        gy, gx = np.gradient(gray)
+        laplacian_var = (gx**2 + gy**2).var()
         
         if laplacian_var < 100:  # Threshold for blur detection
             return {"is_valid": False, "error": "Image appears to be too blurry"}
@@ -68,10 +65,12 @@ def validate_image_quality(img):
 def to_model_input(img, size=(224, 224)):
     """Convert image to model input format with normalization"""
     try:
-        # Convert BGR to RGB
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        # Resize to model input size
-        img_resized = cv2.resize(img_rgb, size)
+        # Ensure RGB and resize via PIL
+        if img.ndim == 2:
+            img_rgb = np.stack([img, img, img], axis=-1)
+        else:
+            img_rgb = img
+        img_resized = np.array(PILImage.fromarray(img_rgb).resize(size, PILImage.Resampling.BILINEAR))
         # Normalize pixel values to [0, 1]
         arr = img_resized.astype(np.float32) / 255.0
         
@@ -94,22 +93,16 @@ def detect_face(img):
         # Method 1: Use face_recognition if available
         if FACE_RECOGNITION_AVAILABLE:
             try:
-                img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                # face_recognition expects RGB
+                img_rgb = img if (img.ndim == 3 and img.shape[2] == 3) else np.stack([img, img, img], axis=-1)
                 face_locations = face_recognition.face_locations(img_rgb)
                 if face_locations:
                     return True, face_locations
             except Exception as e:
                 logger.warning(f"face_recognition failed: {e}")
-        
-        # Method 2: OpenCV Haar Cascade (fallback)
-        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        faces_cv = face_cascade.detectMultiScale(gray, 1.1, 4, minSize=(30, 30))
-        
-        if len(faces_cv) > 0:
-            return True, faces_cv
-        else:
-            return False, []
+
+        # No OpenCV fallback; report not detected
+        return False, []
             
     except Exception as e:
         logger.error(f"Error in face detection: {str(e)}")
@@ -119,7 +112,7 @@ def extract_face_landmarks(img):
     """Extract facial landmarks for better analysis"""
     try:
         if FACE_RECOGNITION_AVAILABLE:
-            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img_rgb = img if (img.ndim == 3 and img.shape[2] == 3) else np.stack([img, img, img], axis=-1)
             face_landmarks_list = face_recognition.face_landmarks(img_rgb)
             if face_landmarks_list:
                 return face_landmarks_list[0]  # Return first face landmarks
@@ -153,19 +146,14 @@ def crop_face_region(img, face_box, padding=0.2):
             return img[y1:y2, x1:x2]
         
         else:
-            # OpenCV format: (x, y, w, h)
+            # Generic (x, y, w, h)
             x, y, w, h = face_box
-            
-            # Add padding
             pad_w = int(w * padding)
             pad_h = int(h * padding)
-            
-            # Calculate crop coordinates
             x1 = max(0, x - pad_w)
             y1 = max(0, y - pad_h)
             x2 = min(img.shape[1], x + w + pad_w)
             y2 = min(img.shape[0], y + h + pad_h)
-            
             return img[y1:y2, x1:x2]
         
     except Exception as e:

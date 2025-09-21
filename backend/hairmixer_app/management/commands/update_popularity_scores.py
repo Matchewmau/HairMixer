@@ -4,7 +4,7 @@ from hairmixer_app.models import Hairstyle
 class Command(BaseCommand):
     help = 'Update popularity scores for all hairstyles'
     
-    def handle(self, *args, **options):
+    def handle(self, *_args, **options):
         hairstyles = Hairstyle.objects.filter(is_active=True)
         updated_count = 0
         

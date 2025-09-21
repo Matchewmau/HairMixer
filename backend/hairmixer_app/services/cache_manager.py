@@ -7,21 +7,29 @@ from django.conf import settings
 from datetime import timedelta
 from typing import Dict, Any, Optional, List
 from ..models import CachedRecommendation, UploadedImage, UserPreference
+from django.db.models import F
 
 logger = logging.getLogger(__name__)
+
 
 class CacheManager:
     """Advanced caching system for recommendations and other data"""
     
     def __init__(self):
-        self.default_timeout = getattr(settings, 'RECOMMENDATION_CACHE_TIMEOUT', 3600)  # 1 hour
+        self.default_timeout = getattr(
+            settings, 'RECOMMENDATION_CACHE_TIMEOUT', 3600
+        )  # 1 hour
         self.cache_prefix = 'hairmixer'
     
-    def get_recommendation_cache_key(self, uploaded_image: UploadedImage, preferences: UserPreference) -> str:
+    def get_recommendation_cache_key(
+        self, uploaded_image: UploadedImage, preferences: UserPreference
+    ) -> str:
         """Generate cache key for recommendations"""
         try:
             # Create hash of image and preferences
-            image_hash = hashlib.md5(f"{uploaded_image.id}_{uploaded_image.updated_at}".encode()).hexdigest()
+            image_hash = hashlib.md5(
+                f"{uploaded_image.id}_{uploaded_image.updated_at}".encode()
+            ).hexdigest()
             pref_hash = self._get_preference_hash(preferences)
             
             cache_key = f"{self.cache_prefix}_rec_{image_hash}_{pref_hash}"
@@ -43,7 +51,13 @@ class CacheManager:
         pref_json = json.dumps(pref_data, sort_keys=True)
         return hashlib.md5(pref_json.encode()).hexdigest()
     
-    def cache_recommendation(self, cache_key: str, recommendation_data: Dict, preferences: UserPreference, timeout: Optional[int] = None):
+    def cache_recommendation(
+        self,
+        cache_key: str,
+        recommendation_data: Dict,
+        preferences: UserPreference,
+        timeout: Optional[int] = None,
+    ):
         """Cache recommendation results"""
         try:
             timeout = timeout or self.default_timeout
@@ -91,7 +105,9 @@ class CacheManager:
                 )
                 
                 # Restore to memory cache
-                cache.set(cache_key, cached_rec.recommendations, self.default_timeout)
+                cache.set(
+                    cache_key, cached_rec.recommendations, self.default_timeout
+                )
                 
                 # Update hit count
                 cached_rec.hit_count += 1
@@ -114,12 +130,16 @@ class CacheManager:
         """Update hit count for cached recommendation"""
         try:
             CachedRecommendation.objects.filter(cache_key=cache_key).update(
-                hit_count=models.F('hit_count') + 1
+                hit_count=F('hit_count') + 1
             )
         except Exception as e:
             logger.error(f"Error updating cache hit count: {str(e)}")
     
-    def invalidate_recommendation_cache(self, user_id: Optional[int] = None, face_shape: Optional[str] = None):
+    def invalidate_recommendation_cache(
+        self,
+        user_id: Optional[int] = None,
+        face_shape: Optional[str] = None,
+    ):
         """Invalidate recommendation caches"""
         try:
             queryset = CachedRecommendation.objects.all()
@@ -141,11 +161,18 @@ class CacheManager:
         except Exception as e:
             logger.error(f"Error invalidating recommendation cache: {str(e)}")
     
-    def cache_hairstyles_by_category(self, category_id: str, hairstyles_data: List[Dict], timeout: Optional[int] = None):
+    def cache_hairstyles_by_category(
+        self,
+        category_id: str,
+        hairstyles_data: List[Dict],
+        timeout: Optional[int] = None,
+    ):
         """Cache hairstyles by category"""
         try:
             cache_key = f"{self.cache_prefix}_styles_cat_{category_id}"
-            timeout = timeout or (self.default_timeout * 4)  # Longer timeout for static data
+            timeout = timeout or (
+                self.default_timeout * 4
+            )  # Longer timeout for static data
             
             cache.set(cache_key, hairstyles_data, timeout)
             logger.info(f"Cached hairstyles for category: {category_id}")
@@ -153,7 +180,9 @@ class CacheManager:
         except Exception as e:
             logger.error(f"Error caching hairstyles by category: {str(e)}")
     
-    def get_cached_hairstyles_by_category(self, category_id: str) -> Optional[List[Dict]]:
+    def get_cached_hairstyles_by_category(
+        self, category_id: str
+    ) -> Optional[List[Dict]]:
         """Get cached hairstyles by category"""
         try:
             cache_key = f"{self.cache_prefix}_styles_cat_{category_id}"
@@ -162,7 +191,12 @@ class CacheManager:
             logger.error(f"Error getting cached hairstyles: {str(e)}")
             return None
     
-    def cache_user_preferences(self, user_id: int, preferences_data: Dict, timeout: Optional[int] = None):
+    def cache_user_preferences(
+        self,
+        user_id: int,
+        preferences_data: Dict,
+        timeout: Optional[int] = None,
+    ):
         """Cache user preferences"""
         try:
             cache_key = f"{self.cache_prefix}_prefs_{user_id}"
@@ -209,13 +243,20 @@ class CacheManager:
             
             # Active vs expired
             now = timezone.now()
-            active_count = CachedRecommendation.objects.filter(expires_at__gt=now).count()
-            expired_count = CachedRecommendation.objects.filter(expires_at__lte=now).count()
+            active_count = CachedRecommendation.objects.filter(
+                expires_at__gt=now
+            ).count()
+            expired_count = CachedRecommendation.objects.filter(
+                expires_at__lte=now
+            ).count()
             
             stats.update({
                 'active_entries': active_count,
                 'expired_entries': expired_count,
-                'hit_ratio': (stats['total_hits'] or 0) / (stats['total_entries'] or 1)
+                'hit_ratio': (
+                    (stats['total_hits'] or 0)
+                    / (stats['total_entries'] or 1)
+                )
             })
             
             return stats

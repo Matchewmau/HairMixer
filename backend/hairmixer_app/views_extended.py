@@ -5,8 +5,28 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.db.models import Q, Count, Avg
 from django.core.paginator import Paginator
 import logging
+from django.utils import timezone
+from datetime import timedelta
+
+from .models import (
+    Hairstyle,
+    Feedback,
+    RecommendationLog,
+)
+from .serializers import (
+    HairstyleSerializer,
+    FeedbackSerializer,
+    RecommendationLogSerializer,
+)
+from django.shortcuts import get_object_or_404
+from .services.analytics_utils import track_event_safe
+from .services.cache_manager import CacheManager
+
+cache_manager = CacheManager()
+analytics_service = None  # optional: wired by main views module when used
 
 logger = logging.getLogger(__name__)
+
 
 class FeaturedHairstylesView(APIView):
     """Get featured hairstyles"""
@@ -20,7 +40,9 @@ class FeaturedHairstylesView(APIView):
                 is_featured=True
             ).select_related('category').order_by('-trend_score')[:limit]
             
-            serializer = HairstyleSerializer(featured_styles, many=True, context={'request': request})
+            serializer = HairstyleSerializer(
+                featured_styles, many=True, context={'request': request}
+            )
             
             return Response({
                 'featured_hairstyles': serializer.data,
@@ -30,9 +52,10 @@ class FeaturedHairstylesView(APIView):
         except Exception as e:
             logger.error(f"Error fetching featured hairstyles: {str(e)}")
             return Response(
-                {"error": "Failed to fetch featured hairstyles"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Failed to fetch featured hairstyles"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 class TrendingHairstylesView(APIView):
     """Get trending hairstyles based on recent activity"""
@@ -45,19 +68,29 @@ class TrendingHairstylesView(APIView):
             trending_styles = Hairstyle.objects.filter(
                 is_active=True
             ).annotate(
-                recent_recommendations=Count('recommendationlog', filter=Q(
-                    recommendationlog__created_at__gte=timezone.now() - timedelta(days=7)
-                )),
+                recent_recommendations=Count(
+                    'recommendationlog',
+                    filter=Q(
+                        recommendationlog__created_at__gte=(
+                            timezone.now() - timedelta(days=7)
+                        )
+                    ),
+                ),
                 avg_rating=Avg('feedback__rating')
-            ).order_by('-recent_recommendations', '-avg_rating', '-popularity_score')[:limit]
+            ).order_by(
+                '-recent_recommendations', '-avg_rating', '-popularity_score'
+            )[:limit]
             
-            serializer = HairstyleSerializer(trending_styles, many=True, context={'request': request})
+            serializer = HairstyleSerializer(
+                trending_styles, many=True, context={'request': request}
+            )
             
-            analytics_service.track_event(
-                user=request.user if request.user.is_authenticated else None,
+            track_event_safe(
+                analytics_service,
+                user=(request.user if request.user.is_authenticated else None),
                 event_type='trending_viewed',
                 event_data={'count': len(serializer.data)},
-                request=request
+                request=request,
             )
             
             return Response({
@@ -68,9 +101,10 @@ class TrendingHairstylesView(APIView):
         except Exception as e:
             logger.error(f"Error fetching trending hairstyles: {str(e)}")
             return Response(
-                {"error": "Failed to fetch trending hairstyles"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Failed to fetch trending hairstyles"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 class HairstyleDetailView(APIView):
     """Get detailed information about a specific hairstyle"""
@@ -86,20 +120,30 @@ class HairstyleDetailView(APIView):
             ).order_by('-created_at')[:5]
             
             # Calculate statistics
-            feedback_stats = Feedback.objects.filter(hairstyle=style).aggregate(
+            feedback_stats = Feedback.objects.filter(
+                hairstyle=style
+            ).aggregate(
                 avg_rating=Avg('rating'),
                 total_feedback=Count('id'),
                 positive_feedback=Count('id', filter=Q(liked=True))
             )
             
-            serializer = HairstyleSerializer(style, context={'request': request})
-            feedback_serializer = FeedbackSerializer(recent_feedback, many=True)
+            serializer = HairstyleSerializer(
+                style, context={'request': request}
+            )
+            feedback_serializer = FeedbackSerializer(
+                recent_feedback, many=True
+            )
             
-            analytics_service.track_event(
-                user=request.user if request.user.is_authenticated else None,
+            track_event_safe(
+                analytics_service,
+                user=(request.user if request.user.is_authenticated else None),
                 event_type='hairstyle_viewed',
-                event_data={'style_id': str(style_id), 'style_name': style.name},
-                request=request
+                event_data={
+                    'style_id': str(style_id),
+                    'style_name': style.name,
+                },
+                request=request,
             )
             
             return Response({
@@ -112,9 +156,10 @@ class HairstyleDetailView(APIView):
         except Exception as e:
             logger.error(f"Error fetching hairstyle detail: {str(e)}")
             return Response(
-                {"error": "Failed to fetch hairstyle details"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Failed to fetch hairstyle details"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 class UserRecommendationsView(APIView):
     """Get user's recommendation history"""
@@ -133,7 +178,9 @@ class UserRecommendationsView(APIView):
             paginator = Paginator(recommendations, per_page)
             page_obj = paginator.get_page(page)
             
-            serializer = RecommendationLogSerializer(page_obj.object_list, many=True)
+            serializer = RecommendationLogSerializer(
+                page_obj.object_list, many=True
+            )
             
             return Response({
                 'recommendations': serializer.data,
@@ -150,8 +197,8 @@ class UserRecommendationsView(APIView):
         except Exception as e:
             logger.error(f"Error fetching user recommendations: {str(e)}")
             return Response(
-                {"error": "Failed to fetch recommendations"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Failed to fetch recommendations"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 class SearchView(APIView):
@@ -192,17 +239,22 @@ class SearchView(APIView):
                 queryset = queryset.filter(maintenance=maintenance)
             
             # Order by relevance
-            queryset = queryset.order_by('-trend_score', '-popularity_score', 'name')
+            queryset = queryset.order_by(
+                '-trend_score', '-popularity_score', 'name'
+            )
             
             # Paginate
             paginator = Paginator(queryset, per_page)
             page_obj = paginator.get_page(page)
             
-            serializer = HairstyleSerializer(page_obj.object_list, many=True, context={'request': request})
+            serializer = HairstyleSerializer(
+                page_obj.object_list, many=True, context={'request': request}
+            )
             
             # Track search
-            analytics_service.track_event(
-                user=request.user if request.user.is_authenticated else None,
+            track_event_safe(
+                analytics_service,
+                user=(request.user if request.user.is_authenticated else None),
                 event_type='search_performed',
                 event_data={
                     'query': query,
@@ -210,11 +262,11 @@ class SearchView(APIView):
                         'face_shape': face_shape,
                         'occasion': occasion,
                         'hair_type': hair_type,
-                        'maintenance': maintenance
+                        'maintenance': maintenance,
                     },
-                    'results_count': paginator.count
+                    'results_count': paginator.count,
                 },
-                request=request
+                request=request,
             )
             
             return Response({
@@ -239,8 +291,8 @@ class SearchView(APIView):
         except Exception as e:
             logger.error(f"Error performing search: {str(e)}")
             return Response(
-                {"error": "Search failed"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Search failed"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 class CacheStatsView(APIView):
@@ -254,8 +306,8 @@ class CacheStatsView(APIView):
         except Exception as e:
             logger.error(f"Error fetching cache stats: {str(e)}")
             return Response(
-                {"error": "Failed to fetch cache stats"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Failed to fetch cache stats"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 class CacheCleanupView(APIView):
@@ -272,8 +324,8 @@ class CacheCleanupView(APIView):
         except Exception as e:
             logger.error(f"Error cleaning cache: {str(e)}")
             return Response(
-                {"error": "Cache cleanup failed"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Cache cleanup failed"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 class SystemAnalyticsView(APIView):
@@ -288,8 +340,8 @@ class SystemAnalyticsView(APIView):
         except Exception as e:
             logger.error(f"Error fetching system analytics: {str(e)}")
             return Response(
-                {"error": "Failed to fetch analytics"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Failed to fetch analytics"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 class FaceShapesView(APIView):
