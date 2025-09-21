@@ -1,0 +1,544 @@
+openapi: 3.0.3
+info:
+  title: HairMixer API
+  version: 1.0.0
+  description: REST API for HairMixer backend.
+paths:
+  /api/:
+    get:
+      operationId: api_retrieve
+      description: API Root - Shows all available endpoints
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/admin/analytics/:
+    get:
+      operationId: api_admin_analytics_retrieve
+      description: Get system analytics (admin only)
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/cache/cleanup/:
+    post:
+      operationId: api_admin_cache_cleanup_create
+      description: Clean up expired cache entries (admin only)
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/cache/stats/:
+    get:
+      operationId: api_admin_cache_stats_retrieve
+      description: Get cache statistics (admin only)
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/event/:
+    post:
+      operationId: api_analytics_event_create
+      description: Track custom analytics events from frontend
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/login/:
+    post:
+      operationId: api_auth_login_create
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/logout/:
+    post:
+      operationId: api_auth_logout_create
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/profile/:
+    get:
+      operationId: api_auth_profile_retrieve
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/refresh/:
+    post:
+      operationId: api_auth_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/auth/signup/:
+    post:
+      operationId: api_auth_signup_create
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/debug/face-detection/:
+    post:
+      operationId: api_debug_face_detection_create
+      description: Debug endpoint to test face detection components
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/feedback/:
+    post:
+      operationId: api_feedback_create
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/filter/face-shapes/:
+    get:
+      operationId: api_filter_face_shapes_retrieve
+      description: Get available face shapes with descriptions
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/filter/occasions/:
+    get:
+      operationId: api_filter_occasions_retrieve
+      description: Get available occasions
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/hairstyles/:
+    get:
+      operationId: api_hairstyles_retrieve
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/hairstyles/{style_id}/:
+    get:
+      operationId: api_hairstyles_retrieve_2
+      description: Get detailed information about a specific hairstyle
+      parameters:
+      - in: path
+        name: style_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/hairstyles/categories/:
+    get:
+      operationId: api_hairstyles_categories_retrieve
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/hairstyles/featured/:
+    get:
+      operationId: api_hairstyles_featured_retrieve
+      description: Get featured hairstyles
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/hairstyles/trending/:
+    get:
+      operationId: api_hairstyles_trending_retrieve
+      description: Get trending hairstyles based on recent activity
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/health/:
+    get:
+      operationId: api_health_retrieve
+      description: Simple health check endpoint
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/overlay/:
+    post:
+      operationId: api_overlay_create
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OverlayRequest'
+            examples:
+              BasicOverlayRequest:
+                value:
+                  image_id: 11111111-1111-1111-1111-111111111111
+                  hairstyle_id: 22222222-2222-2222-2222-222222222222
+                  overlay_type: basic
+                summary: Basic overlay request
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverlayResponse'
+              examples:
+                SuccessfulResponse:
+                  value:
+                    overlay_url: /media/overlays/<image>_<style>_basic.png
+                    overlay_type: basic
+                  summary: Successful response
+          description: Overlay created successfully
+        '400':
+          description: Bad request / validation error
+        '401':
+          description: Authentication required
+        '500':
+          description: Server error creating overlay
+  /api/preferences/:
+    post:
+      operationId: api_preferences_create
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/recommend/:
+    post:
+      operationId: api_recommend_create
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecommendRequest'
+            examples:
+              GenerateRecommendations:
+                value:
+                  image_id: 11111111-1111-1111-1111-111111111111
+                  preference_id: 33333333-3333-3333-3333-333333333333
+                summary: Generate recommendations
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          description: Recommendations generated
+        '400':
+          description: Bad request
+        '404':
+          description: Image or preferences not found
+        '500':
+          description: Server error generating recommendations
+  /api/search/:
+    get:
+      operationId: api_search_retrieve
+      description: Search hairstyles with advanced filtering
+      parameters:
+      - in: query
+        name: face_shape
+        schema:
+          type: string
+          enum:
+          - diamond
+          - heart
+          - oblong
+          - oval
+          - round
+          - square
+      - in: query
+        name: hair_type
+        schema:
+          type: string
+          enum:
+          - coily
+          - curly
+          - straight
+          - wavy
+      - in: query
+        name: maintenance
+        schema:
+          type: string
+          enum:
+          - high
+          - low
+          - medium
+      - in: query
+        name: occasion
+        schema:
+          type: string
+          enum:
+          - business
+          - casual
+          - date
+          - formal
+          - party
+          - wedding
+          - work
+      - in: query
+        name: page
+        schema:
+          type: integer
+          default: 1
+      - in: query
+        name: per_page
+        schema:
+          type: integer
+          default: 20
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: Search text
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: Search results returned
+  /api/upload/:
+    post:
+      operationId: api_upload_create
+      tags:
+      - api
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+      security:
+      - {}
+      responses:
+        '200':
+          description: Image uploaded and analyzed successfully
+        '400':
+          description: Validation failed or no face detected
+        '500':
+          description: Server error uploading image
+  /api/user/favorites/:
+    get:
+      operationId: api_user_favorites_retrieve
+      description: Get user's favorite hairstyles (placeholder)
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/user/history/:
+    get:
+      operationId: api_user_history_retrieve
+      description: Get user's activity history (placeholder)
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/user/recommendations/:
+    get:
+      operationId: api_user_recommendations_retrieve
+      description: Get user's recommendation history
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+components:
+  schemas:
+    OverlayRequest:
+      type: object
+      properties:
+        image_id:
+          type: string
+          format: uuid
+        hairstyle_id:
+          type: string
+          format: uuid
+        overlay_type:
+          allOf:
+          - $ref: '#/components/schemas/OverlayTypeEnum'
+          default: basic
+      required:
+      - hairstyle_id
+      - image_id
+    OverlayResponse:
+      type: object
+      properties:
+        overlay_url:
+          type: string
+        overlay_type:
+          $ref: '#/components/schemas/OverlayTypeEnum'
+      required:
+      - overlay_type
+      - overlay_url
+    OverlayTypeEnum:
+      enum:
+      - basic
+      - advanced
+      type: string
+      description: |-
+        * `basic` - basic
+        * `advanced` - advanced
+    RecommendRequest:
+      type: object
+      properties:
+        image_id:
+          type: string
+          format: uuid
+        preference_id:
+          type: string
+          format: uuid
+      required:
+      - image_id
+      - preference_id
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

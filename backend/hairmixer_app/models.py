@@ -215,7 +215,7 @@ class Hairstyle(models.Model):
     
     def update_popularity(self):
         """Update popularity based on recent recommendations and feedback"""
-        from django.db.models import Count, Avg
+        from django.db.models import Avg
         recent_recommendations = self.recommendationlog_set.filter(
             created_at__gte=timezone.now() - timezone.timedelta(days=30)
         ).count()

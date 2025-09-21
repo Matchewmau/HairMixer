@@ -4,7 +4,7 @@ from hairmixer_app.services.cache_manager import CacheManager
 class Command(BaseCommand):
     help = 'Clean up expired cache entries'
     
-    def handle(self, *args, **options):
+    def handle(self, *_args, **options):
         cache_manager = CacheManager()
         cleaned_count = cache_manager.cleanup_expired_cache()
         

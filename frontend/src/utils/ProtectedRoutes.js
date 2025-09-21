@@ -9,6 +9,12 @@ const ProtectedRoute = ({ children }) => {
   useEffect(() => {
     const checkAuthentication = async () => {
       try {
+        // Fast path: no token means not authenticated, avoid API call
+        if (!AuthService.getAccessToken()) {
+          setIsAuthenticated(false);
+          return;
+        }
+
         const user = await AuthService.getCurrentUser();
         setIsAuthenticated(!!user);
       } catch (error) {

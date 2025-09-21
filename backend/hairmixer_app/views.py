@@ -1,41 +1,63 @@
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.db.models import Q, Avg, Count
-from django.core.cache import cache
 from django.utils import timezone
 from django.conf import settings
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes, throttle_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.decorators import (
+    api_view,
+    permission_classes,
+    throttle_classes,
+    authentication_classes,
+)
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.exceptions import ValidationError
 from django.contrib.auth import authenticate
 from django.contrib.auth.hashers import make_password
+from django.core.paginator import Paginator
+from django.db import connection
 from pathlib import Path
 from datetime import timedelta
 import logging
 import traceback  # Add this
-import hashlib
-import json
 import uuid
-
-# Initialize logger FIRST before any imports that might use it
-logger = logging.getLogger(__name__)
-
 from .models import (
-    CustomUser, UserProfile, UploadedImage, UserPreference, 
-    Hairstyle, HairstyleCategory, RecommendationLog, Feedback,
-    AnalyticsEvent, CachedRecommendation
+    CustomUser,
+    UserProfile,
+    UploadedImage,
+    UserPreference,
+    Hairstyle,
+    HairstyleCategory,
+    RecommendationLog,
+    Feedback,
 )
 from .serializers import (
-    UserSerializer, UserRegistrationSerializer, UploadedImageSerializer, 
-    UserPreferenceSerializer, HairstyleSerializer, FeedbackSerializer,
-    RecommendationLogSerializer, AnalyticsEventSerializer,
-    HairstyleCategorySerializer
+    UserSerializer,
+    UserRegistrationSerializer,
+    HairstyleSerializer,
+    FeedbackSerializer,
+    RecommendationLogSerializer,
+    AnalyticsEventSerializer,
+    HairstyleCategorySerializer,
+    UserPreferenceSerializer,
+    UploadedImageSerializer,
+    RecommendRequestSerializer,
+    OverlayRequestSerializer,
 )
+from .services.image_service import ImageService
+from .services.recommendation_service import (
+    RecommendationService,
+)
+from .services.overlay_service import OverlayService
+from .services.analytics_utils import track_event_safe
+
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 # Track what's already imported to prevent duplicates
 _ML_IMPORTS_DONE = False
@@ -43,14 +65,18 @@ _ML_IMPORTS_DONE = False
 if not _ML_IMPORTS_DONE:
     # Import ML components conditionally to prevent startup issues
     try:
-        from .ml.preprocess import read_image, to_model_input, detect_face, validate_image_quality
+        from .ml.preprocess import (
+            read_image,
+            detect_face,
+            validate_image_quality,
+        )
         ML_PREPROCESS_AVAILABLE = True
     except ImportError as e:
         logger.warning(f"ML preprocessing not available: {e}")
         ML_PREPROCESS_AVAILABLE = False
 
     try:
-        from .ml.model import load_model, predict_face_shape, analyze_facial_features
+        from .ml.model import load_model
         ML_MODEL_AVAILABLE = True
     except ImportError as e:
         logger.warning(f"ML model not available: {e}")
@@ -87,18 +113,41 @@ if not _ML_IMPORTS_DONE:
     _ML_IMPORTS_DONE = True
 
 # Custom throttle classes
+
+
 class ImageUploadThrottle(UserRateThrottle):
     rate = '10/hour'
+
 
 class RecommendationThrottle(UserRateThrottle):
     rate = '20/hour'
 
 # Global instances - Initialize conditionally
+
+
 MODEL = None
-recommendation_engine = EnhancedRecommendationEngine() if RECOMMENDATION_ENGINE_AVAILABLE else None
-overlay_processor = AdvancedOverlayProcessor() if OVERLAY_PROCESSOR_AVAILABLE else None
+recommendation_engine = (
+    EnhancedRecommendationEngine() if RECOMMENDATION_ENGINE_AVAILABLE else None
+)
+overlay_processor = (
+    AdvancedOverlayProcessor() if OVERLAY_PROCESSOR_AVAILABLE else None
+)
 analytics_service = AnalyticsService() if ANALYTICS_AVAILABLE else None
 cache_manager = CacheManager() if CACHE_MANAGER_AVAILABLE else None
+image_service = ImageService()
+recommendation_service = RecommendationService()
+overlay_service = OverlayService()
+
+# Admin permission helper (env-gated)
+try:
+    ADMIN_PERMISSION_CLASS = (
+        IsAuthenticated
+        if getattr(settings, 'RELAX_ADMIN_PERMS', True)
+        else IsAdminUser
+    )
+except Exception:
+    ADMIN_PERMISSION_CLASS = IsAuthenticated
+
 
 def get_model():
     """Lazy loading of ML model"""
@@ -110,6 +159,7 @@ def get_model():
             logger.error(f"Error loading model: {str(e)}")
     return MODEL
 
+
 def get_client_ip(request):
     """Get client IP address"""
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
@@ -120,8 +170,11 @@ def get_client_ip(request):
     return ip
 
 # Authentication views (enhanced)
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@authentication_classes([])
 @throttle_classes([AnonRateThrottle])
 def signup(request):
     try:
@@ -134,18 +187,21 @@ def signup(request):
                     email=serializer.validated_data['email'],
                     first_name=serializer.validated_data['firstName'],
                     last_name=serializer.validated_data['lastName'],
-                    password=make_password(serializer.validated_data['password'])
+                    password=make_password(
+                        serializer.validated_data['password']
+                    )
                 )
                 
                 # Create user profile
                 UserProfile.objects.create(user=user)
                 
                 # Log analytics event
-                analytics_service.track_event(
+                track_event_safe(
+                    analytics_service,
                     user=user,
                     event_type='user_registered',
                     event_data={'source': 'web'},
-                    request=request
+                    request=request,
                 )
                 
                 # Generate tokens
@@ -160,8 +216,15 @@ def signup(request):
                     'access_token': str(access_token),
                     'refresh_token': str(refresh),
                 }, status=status.HTTP_201_CREATED)
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # Serializer invalid: return structured error with details
+        try:
+            logger.error(f"Signup validation failed: {serializer.errors}")
+        except Exception:
+            pass
+        return Response({
+            'message': 'Validation failed',
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
     
     except Exception as e:
         logger.error(f"Registration error: {str(e)}")
@@ -170,8 +233,10 @@ def signup(request):
             'error': 'An unexpected error occurred'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+ 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@authentication_classes([])
 @throttle_classes([AnonRateThrottle])
 def login(request):
     try:
@@ -188,11 +253,12 @@ def login(request):
         
         if user:
             # Log analytics event
-            analytics_service.track_event(
+            track_event_safe(
+                analytics_service,
                 user=user,
                 event_type='user_login',
                 event_data={'source': 'web'},
-                request=request
+                request=request,
             )
             
             # Generate tokens
@@ -201,12 +267,70 @@ def login(request):
             
             user_data = UserSerializer(user).data
             
-            return Response({
+            resp_data = {
                 'message': 'Login successful',
                 'user': user_data,
                 'access_token': str(access_token),
                 'refresh_token': str(refresh),
-            }, status=status.HTTP_200_OK)
+            }
+
+            response = Response(resp_data, status=status.HTTP_200_OK)
+
+            # Optionally set HttpOnly cookies for tokens
+            try:
+                if getattr(settings, 'AUTH_COOKIES_ENABLED', False):
+                    access_name = getattr(
+                        settings, 'AUTH_COOKIE_ACCESS_NAME', 'access_token'
+                    )
+                    refresh_name = getattr(
+                        settings, 'AUTH_COOKIE_REFRESH_NAME', 'refresh_token'
+                    )
+                    domain = getattr(
+                        settings, 'AUTH_COOKIE_DOMAIN', None
+                    ) or None
+                    samesite = getattr(settings, 'AUTH_COOKIE_SAMESITE', 'Lax')
+                    secure_flag = not settings.DEBUG
+                    # Derive lifetimes from SIMPLE_JWT settings
+                    access_lifetime = settings.SIMPLE_JWT.get(
+                        'ACCESS_TOKEN_LIFETIME'
+                    )
+                    refresh_lifetime = settings.SIMPLE_JWT.get(
+                        'REFRESH_TOKEN_LIFETIME'
+                    )
+                    access_max_age = (
+                        int(access_lifetime.total_seconds())
+                        if access_lifetime else None
+                    )
+                    refresh_max_age = (
+                        int(refresh_lifetime.total_seconds())
+                        if refresh_lifetime else None
+                    )
+
+                    response.set_cookie(
+                        access_name,
+                        str(access_token),
+                        max_age=access_max_age,
+                        httponly=True,
+                        secure=secure_flag,
+                        samesite=samesite,
+                        domain=domain,
+                        path='/'
+                    )
+                    response.set_cookie(
+                        refresh_name,
+                        str(refresh),
+                        max_age=refresh_max_age,
+                        httponly=True,
+                        secure=secure_flag,
+                        samesite=samesite,
+                        domain=domain,
+                        path='/'
+                    )
+            except Exception:
+                # Cookie setting failure should not block login response
+                pass
+
+            return response
         
         return Response({
             'message': 'Invalid email or password'
@@ -214,12 +338,17 @@ def login(request):
     
     except Exception as e:
         logger.error(f"Login error: {str(e)}")
-        return Response({
-            'message': 'Login failed',
-            'error': 'An unexpected error occurred'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(
+            {
+                'message': 'Login failed',
+                'error': 'An unexpected error occurred',
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def logout(request):
     try:
         refresh_token = request.data.get('refresh_token')
@@ -229,24 +358,52 @@ def logout(request):
         
         # Log analytics event
         if request.user.is_authenticated:
-            analytics_service.track_event(
+            track_event_safe(
+                analytics_service,
                 user=request.user,
                 event_type='user_logout',
-                request=request
+                request=request,
             )
         
-        return Response({
+        response = Response({
             'message': 'Logout successful'
         }, status=status.HTTP_200_OK)
+
+        # Clear HttpOnly cookies if enabled
+        try:
+            if getattr(settings, 'AUTH_COOKIES_ENABLED', False):
+                access_name = getattr(
+                    settings, 'AUTH_COOKIE_ACCESS_NAME', 'access_token'
+                )
+                refresh_name = getattr(
+                    settings, 'AUTH_COOKIE_REFRESH_NAME', 'refresh_token'
+                )
+                domain = getattr(settings, 'AUTH_COOKIE_DOMAIN', None) or None
+                samesite = getattr(settings, 'AUTH_COOKIE_SAMESITE', 'Lax')
+                response.delete_cookie(
+                    access_name, path='/', domain=domain, samesite=samesite
+                )
+                response.delete_cookie(
+                    refresh_name, path='/', domain=domain, samesite=samesite
+                )
+        except Exception:
+            pass
+
+        return response
     
     except Exception as e:
         logger.error(f"Logout error: {str(e)}")
-        return Response({
-            'message': 'Logout failed',
-            'error': str(e)
-        }, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {
+                'message': 'Logout failed',
+                'error': str(e),
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def user_profile(request):
     try:
         user_data = UserSerializer(request.user).data
@@ -262,15 +419,59 @@ def user_profile(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # Enhanced Hair Analysis Views
+
+
 class UploadImageView(APIView):
     parser_classes = (MultiPartParser, FormParser)
     permission_classes = [AllowAny]
+    # Disable authentication to avoid 401 when frontend sends no/invalid token
+    authentication_classes = []
+    throttle_classes = [ImageUploadThrottle]
     
+    # schema annotations
+    from drf_spectacular.utils import (
+        extend_schema,
+        OpenApiResponse,
+        OpenApiExample,
+        OpenApiParameter,
+    )
+
+    @extend_schema(
+        request={
+            'multipart/form-data': {
+                'type': 'object',
+                'properties': {
+                    'image': {
+                        'type': 'string',
+                        'format': 'binary',
+                    }
+                },
+            }
+        },
+        responses={
+            200: OpenApiResponse(
+                description='Image uploaded and analyzed successfully'
+            ),
+            400: OpenApiResponse(
+                description='Validation failed or no face detected'
+            ),
+            500: OpenApiResponse(
+                description='Server error uploading image'
+            ),
+        },
+        examples=[
+            OpenApiExample(
+                'Upload image (multipart)',
+                value=None,
+                request_only=True,
+            ),
+        ],
+    )
     def post(self, request):
         try:
             if 'image' not in request.FILES:
                 return Response(
-                    {"error": "No image provided"}, 
+                    {"error": "No image provided"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
@@ -279,149 +480,61 @@ class UploadImageView(APIView):
             # Validate file
             if not image_file.content_type.startswith('image/'):
                 return Response(
-                    {"error": "Invalid file type"}, 
+                    {"error": "Invalid file type"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
             if image_file.size > 10 * 1024 * 1024:  # 10MB limit
                 return Response(
-                    {"error": "File too large"}, 
+                    {"error": "File too large"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Create upload record
-            uploaded = UploadedImage.objects.create(
-                image=image_file,
-                user=request.user if request.user.is_authenticated else None,
-                original_filename=image_file.name,
-                processing_status='processing'
+            # Create upload record with serializer for validation/metadata
+            serializer = UploadedImageSerializer(data={"image": image_file})
+            try:
+                serializer.is_valid(raise_exception=True)
+            except ValidationError as ve:
+                return Response(ve.detail, status=status.HTTP_400_BAD_REQUEST)
+            # Save with user only if authenticated; otherwise keep it null
+            uploaded = serializer.save(
+                user=(
+                    request.user
+                    if request.user and request.user.is_authenticated
+                    else None
+                ),
+                processing_status='processing',
             )
             
             # Process image immediately for better UX
-            img_path = Path(settings.MEDIA_ROOT) / uploaded.image.name
-            
-            try:
-                # Import the preprocessing functions
-                from .ml.preprocess import read_image, validate_image_quality
-                from .ml.face_analyzer import analyze_face_comprehensive
-                
-                logger.info(f"Starting face analysis for image: {img_path}")
-                
-                # Read and validate image
-                img_array = read_image(img_path)
-                if img_array is None:
-                    logger.error("Failed to read image array")
-                    uploaded.processing_status = 'failed'
-                    uploaded.error_message = 'Could not read image file'
-                    uploaded.save()
-                    return Response({
-                        'success': False,
-                        'error': 'Could not process image file'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                
-                logger.info(f"Image loaded successfully: shape={img_array.shape}")
-                
-                # Validate image quality
-                quality_check = validate_image_quality(img_array)
-                logger.info(f"Image quality check: {quality_check}")
-                
-                # Perform face analysis with detailed logging
-                logger.info("Starting comprehensive face analysis...")
-                face_analysis = analyze_face_comprehensive(img_path)
-                logger.info(f"Face analysis result: {face_analysis}")
-                
-                # Check if face was actually detected
-                face_detected = face_analysis.get('face_detected', False)
-                logger.info(f"Face detected: {face_detected}")
-                
-                if not face_detected:
-                    error_msg = face_analysis.get('error', 'No face detected')
-                    logger.warning(f"Face detection failed: {error_msg}")
-                    
-                    uploaded.processing_status = 'no_face'
-                    uploaded.face_detected = False
-                    uploaded.error_message = error_msg
-                    uploaded.save()
-                    
-                    return Response({
-                        'success': False,
-                        'image_id': str(uploaded.id),
-                        'face_detected': False,
-                        'error': 'Could not detect a face in this image',
-                        'detailed_error': error_msg,
-                        'suggestions': [
-                            'Make sure your face is clearly visible',
-                            'Ensure good lighting',
-                            'Face the camera directly',
-                            'Remove sunglasses, hats, or face coverings',
-                            'Try taking the photo from a different angle'
-                        ],
-                        'processing_status': 'no_face',
-                        'quality_check': quality_check
-                    })
-                
-                # Face detected successfully
-                uploaded.processing_status = 'completed'
-                uploaded.face_detected = True
-                uploaded.face_shape = face_analysis['face_shape']['shape']
-                uploaded.face_shape_confidence = face_analysis['face_shape']['confidence']
-                uploaded.quality_score = quality_check.get('quality_score', 0)
-                uploaded.analysis_data = {
-                    'face_analysis': face_analysis,
-                    'quality_check': quality_check
-                }
-                uploaded.save()
-                
-                # Prepare successful response
-                response_data = {
-                    'success': True,
-                    'message': 'Image uploaded and analyzed successfully',
-                    'image_id': str(uploaded.id),
-                    'face_detected': True,
-                    'face_shape': {
-                        'shape': face_analysis['face_shape']['shape'],
-                        'confidence': face_analysis['face_shape']['confidence'],
-                        'method': face_analysis['face_shape'].get('method', 'geometric')
-                    },
-                    'confidence': face_analysis.get('confidence', face_analysis['face_shape']['confidence']),
-                    'quality_score': quality_check.get('quality_score', 0),
-                    'quality_metrics': face_analysis.get('quality_metrics', {}),
-                    'is_good_quality': quality_check.get('is_valid', False),
-                    'processing_status': 'completed',
-                    'facial_features': face_analysis.get('facial_features', {}),
-                    'detection_method': face_analysis.get('detection_method', 'unknown'),
-                    # Add face shape description
-                    'face_shape_description': self.get_face_shape_description(face_analysis['face_shape']['shape'])
-                }
-                
-                logger.info(f"Face analysis completed successfully: {face_analysis['face_shape']['shape']} "
-                           f"(confidence: {face_analysis['face_shape']['confidence']:.3f})")
-                
-                return Response(response_data)
-                
-            except Exception as e:
-                logger.error(f"Error processing uploaded image: {str(e)}")
-                import traceback
-                traceback.print_exc()
-                
-                uploaded.processing_status = 'failed'
-                uploaded.error_message = str(e)
-                uploaded.save()
-                
-                return Response({
+            success, payload = ImageService.analyze_uploaded_image(uploaded)
+            if not success:
+                payload.update({
                     'success': False,
                     'image_id': str(uploaded.id),
-                    'error': 'Failed to process image',
-                    'detailed_error': str(e),
-                    'face_detected': False,
-                    'processing_status': 'failed'
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    'suggestions': [
+                        'Make sure your face is clearly visible',
+                        'Ensure good lighting',
+                        'Face the camera directly',
+                        'Remove sunglasses, hats, or face coverings',
+                        'Try taking the photo from a different angle'
+                    ]
+                })
+                return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+            payload.update({
+                'message': 'Image uploaded and analyzed successfully',
+                'face_shape_description': self.get_face_shape_description(
+                    payload.get('face_shape', {}).get('shape')
+                ),
+            })
+            return Response(payload)
                 
         except Exception as e:
             logger.error(f"Error uploading image: {str(e)}")
             return Response(
-                {"error": "Failed to upload image"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Failed to upload image"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
     
     def process_image(self, image_instance):
@@ -455,7 +568,9 @@ class UploadImageView(APIView):
             image_instance.save()
             
         except Exception as e:
-            logger.error(f"Error processing image {image_instance.id}: {str(e)}")
+            logger.error(
+                "Error processing image %s: %s", image_instance.id, e
+            )
             image_instance.processing_status = 'failed'
             image_instance.error_message = str(e)
             image_instance.save()
@@ -464,17 +579,30 @@ class UploadImageView(APIView):
         """Get description for detected face shape"""
         descriptions = {
             'oval': 'Balanced proportions - most hairstyles suit you!',
-            'round': 'Soft, curved features - try angular cuts and long layers',
+            'round': (
+                'Soft, curved features - try angular cuts '
+                'and long layers'
+            ),
             'square': 'Strong jawline - soft waves and layers work great',
-            'heart': 'Wider forehead - styles with volume at the jaw are perfect',
-            'diamond': 'Prominent cheekbones - textured styles balance your features',
-            'oblong': 'Longer face - styles with width and volume are ideal'
+            'heart': (
+                'Wider forehead - styles with volume at the jaw are perfect'
+            ),
+            'diamond': (
+                'Prominent cheekbones - textured styles balance your features'
+            ),
+            'oblong': 'Longer face - styles with width and volume are ideal',
         }
-        return descriptions.get(face_shape, 'Unique face shape with many styling options!')
+        return descriptions.get(
+            face_shape, 'Unique face shape with many styling options!'
+        )
+
 
 class SetPreferencesView(APIView):
     parser_classes = (JSONParser,)
+    # Allow anonymous submissions
+    # Authenticated users will be linked automatically
     permission_classes = [AllowAny]
+    authentication_classes = []
     
     def post(self, request):
         try:
@@ -496,7 +624,11 @@ class SetPreferencesView(APIView):
             }
             
             # Remove empty strings to avoid validation errors
-            preference_data = {k: v for k, v in preference_data.items() if v != ''}
+            preference_data = {
+                k: v
+                for k, v in preference_data.items()
+                if v != ''
+            }
             
             # Ensure occasions is a list
             if not isinstance(preference_data.get('occasions', []), list):
@@ -510,38 +642,55 @@ class SetPreferencesView(APIView):
                     missing_fields.append(field)
             
             if missing_fields:
-                error_msg = f"Required fields missing: {', '.join(missing_fields)}"
+                error_msg = (
+                    "Required fields missing: "
+                    f"{', '.join(missing_fields)}"
+                )
                 logger.error(f"Validation error: {error_msg}")
                 return Response(
-                    {"error": error_msg}, 
+                    {"error": error_msg},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
             # Validate field values against choices
             valid_hair_types = ['straight', 'wavy', 'curly', 'coily']
             if preference_data['hair_type'] not in valid_hair_types:
-                error_msg = f"Invalid hair_type '{preference_data['hair_type']}'. Must be one of: {valid_hair_types}"
+                error_msg = (
+                    "Invalid hair_type "
+                    f"'{preference_data['hair_type']}'. Must be one of: "
+                    f"{valid_hair_types}"
+                )
                 logger.error(f"Validation error: {error_msg}")
                 return Response(
-                    {"error": error_msg}, 
+                    {"error": error_msg},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            valid_hair_lengths = ['pixie', 'short', 'medium', 'long', 'extra_long']
+            valid_hair_lengths = [
+                'pixie', 'short', 'medium', 'long', 'extra_long'
+            ]
             if preference_data['hair_length'] not in valid_hair_lengths:
-                error_msg = f"Invalid hair_length '{preference_data['hair_length']}'. Must be one of: {valid_hair_lengths}"
+                error_msg = (
+                    "Invalid hair_length "
+                    f"'{preference_data['hair_length']}'. Must be one of: "
+                    f"{valid_hair_lengths}"
+                )
                 logger.error(f"Validation error: {error_msg}")
                 return Response(
-                    {"error": error_msg}, 
+                    {"error": error_msg},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
             valid_maintenance = ['low', 'medium', 'high']
             if preference_data['maintenance'] not in valid_maintenance:
-                error_msg = f"Invalid maintenance '{preference_data['maintenance']}'. Must be one of: {valid_maintenance}"
+                error_msg = (
+                    "Invalid maintenance "
+                    f"'{preference_data['maintenance']}'. Must be one of: "
+                    f"{valid_maintenance}"
+                )
                 logger.error(f"Validation error: {error_msg}")
                 return Response(
-                    {"error": error_msg}, 
+                    {"error": error_msg},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
@@ -549,77 +698,167 @@ class SetPreferencesView(APIView):
             if preference_data.get('gender'):
                 valid_genders = ['male', 'female', 'nb', 'other']
                 if preference_data['gender'] not in valid_genders:
-                    error_msg = f"Invalid gender '{preference_data['gender']}'. Must be one of: {valid_genders}"
+                    error_msg = (
+                        "Invalid gender "
+                        f"'{preference_data['gender']}'. Must be one of: "
+                        f"{valid_genders}"
+                    )
                     logger.error(f"Validation error: {error_msg}")
                     return Response(
-                        {"error": error_msg}, 
+                        {"error": error_msg},
                         status=status.HTTP_400_BAD_REQUEST
                     )
             
-            # Validate lifestyle if provided
+            # Normalize and validate lifestyle if provided
             if preference_data.get('lifestyle'):
-                valid_lifestyles = ['active', 'professional', 'creative', 'casual', 'moderate', 'relaxed']
+                # Map UI values to model choices
+                lifestyle_map = {
+                    'moderate': 'casual',
+                    'relaxed': 'casual',
+                }
+                if preference_data['lifestyle'] in lifestyle_map:
+                    preference_data['lifestyle'] = lifestyle_map[
+                        preference_data['lifestyle']
+                    ]
+                valid_lifestyles = [
+                    choice[0] for choice in UserPreference.LIFESTYLE_CHOICES
+                ]
                 if preference_data['lifestyle'] not in valid_lifestyles:
-                    error_msg = f"Invalid lifestyle '{preference_data['lifestyle']}'. Must be one of: {valid_lifestyles}"
+                    error_msg = (
+                        "Invalid lifestyle "
+                        f"'{preference_data['lifestyle']}'. Must be one of: "
+                        f"{valid_lifestyles}"
+                    )
                     logger.error(f"Validation error: {error_msg}")
                     return Response(
-                        {"error": error_msg}, 
+                        {"error": error_msg},
                         status=status.HTTP_400_BAD_REQUEST
                     )
             
-            # Validate occasions if provided
+            # Validate occasions if provided (align with model choices)
             if preference_data.get('occasions'):
-                valid_occasions = ['casual', 'formal', 'party', 'business', 'wedding', 'date', 'work']
-                invalid_occasions = [occ for occ in preference_data['occasions'] if occ not in valid_occasions]
+                valid_occasions = [
+                    choice[0] for choice in UserPreference.OCCASION_CHOICES
+                ]
+                invalid_occasions = [
+                    occ for occ in preference_data['occasions']
+                    if occ not in valid_occasions
+                ]
                 if invalid_occasions:
-                    error_msg = f"Invalid occasions {invalid_occasions}. Must be from: {valid_occasions}"
+                    error_msg = (
+                        f"Invalid occasions {invalid_occasions}. "
+                        f"Must be from: {valid_occasions}"
+                    )
                     logger.error(f"Validation error: {error_msg}")
                     return Response(
-                        {"error": error_msg}, 
+                        {"error": error_msg},
                         status=status.HTTP_400_BAD_REQUEST
                     )
             
-            # Create preference record
-            preference = UserPreference.objects.create(
-                user=request.user if request.user.is_authenticated else None,
-                **preference_data
+            serializer = UserPreferenceSerializer(data=preference_data)
+            if not serializer.is_valid():
+                logger.error(
+                    "Preference validation errors: %s", serializer.errors
+                )
+                return Response(
+                    {
+                        "error": "Invalid preferences",
+                        "details": serializer.errors,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            # Save with user when authenticated, else anonymous record
+            preference = serializer.save(
+                user=(
+                    request.user
+                    if (
+                        hasattr(request, 'user') and getattr(
+                            request.user, 'is_authenticated', False
+                        )
+                    )
+                    else None
+                )
             )
-            
-            logger.info(f"Created user preference {preference.id} with data: {preference_data}")
-            
+            logger.info(
+                "Created user preference %s with data: %s",
+                preference.id,
+                preference_data,
+            )
+
             return Response({
                 'success': True,
                 'preference_id': str(preference.id),
                 'message': 'Preferences saved successfully',
-                'preferences': preference_data
+                'preferences': serializer.data
             })
             
         except Exception as e:
             logger.error(f"Error saving preferences: {str(e)}")
             traceback.print_exc()
             return Response(
-                {"error": "Failed to save preferences", "details": str(e)}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Failed to save preferences", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 class RecommendView(APIView):
     parser_classes = (JSONParser,)
+    # Allow anonymous recommendations; throttle applies regardless
     permission_classes = [AllowAny]
+    authentication_classes = []
     throttle_classes = [RecommendationThrottle]
     
+    from drf_spectacular.utils import (
+        extend_schema,
+        OpenApiResponse,
+        OpenApiExample,
+    )
+    from .serializers import RecommendRequestSerializer
+
+    @extend_schema(
+        request=RecommendRequestSerializer,
+        responses={
+            200: OpenApiResponse(description='Recommendations generated'),
+            400: OpenApiResponse(description='Bad request'),
+            404: OpenApiResponse(
+                description='Image or preferences not found'
+            ),
+            500: OpenApiResponse(
+                description='Server error generating recommendations'
+            ),
+        },
+        examples=[
+            OpenApiExample(
+                'Generate recommendations',
+                value={
+                    'image_id': (
+                        '11111111-1111-1111-1111-111111111111'
+                    ),
+                    'preference_id': (
+                        '33333333-3333-3333-3333-333333333333'
+                    ),
+                },
+                request_only=True,
+            )
+        ],
+    )
     def post(self, request):
-        start_time = timezone.now()
-        
         try:
-            image_id = request.data.get("image_id")
-            pref_id = request.data.get("preference_id")
-            
-            logger.info(f"Recommendation request - image_id: {image_id}, pref_id: {pref_id}")
-            
+            req_ser = RecommendRequestSerializer(data=request.data)
+            req_ser.is_valid(raise_exception=True)
+            image_id = req_ser.validated_data["image_id"]
+            pref_id = req_ser.validated_data["preference_id"]
+
+            logger.info(
+                "Recommendation request - image_id: %s, pref_id: %s",
+                image_id,
+                pref_id,
+            )
+
             if not image_id or not pref_id:
                 return Response(
-                    {"error": "Both image_id and preference_id are required"}, 
-                    status=status.HTTP_400_BAD_REQUEST
+                    {"error": "Both image_id and preference_id are required"},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
             
             # Get objects with proper error handling
@@ -628,165 +867,138 @@ class RecommendView(APIView):
                 prefs = UserPreference.objects.get(id=pref_id)
             except UploadedImage.DoesNotExist:
                 return Response(
-                    {"error": "Uploaded image not found"}, 
-                    status=status.HTTP_404_NOT_FOUND
+                    {"error": "Uploaded image not found"},
+                    status=status.HTTP_404_NOT_FOUND,
                 )
             except UserPreference.DoesNotExist:
                 return Response(
-                    {"error": "User preferences not found"}, 
-                    status=status.HTTP_404_NOT_FOUND
+                    {"error": "User preferences not found"},
+                    status=status.HTTP_404_NOT_FOUND,
                 )
             
-            # For now, return sample recommendations since ML components might not be fully loaded
-            processing_time = (timezone.now() - start_time).total_seconds()
-            
-            # Create a simple recommendation log
-            log = RecommendationLog.objects.create(
-                user=request.user if request.user.is_authenticated else None,
-                uploaded=uploaded,
-                preference=prefs,
-                face_shape='oval',  # Default for now
-                face_shape_confidence=0.8,
-                detected_features={},
-                candidates=[],
-                recommendation_scores={},
-                status='completed',
-                processing_time=processing_time,
-                model_version='v1.0'
+            # Only attach user if authenticated; else pass None
+            rec_user = (
+                request.user
+                if getattr(request.user, 'is_authenticated', False)
+                else None
             )
-            
-            # Return sample recommendations
-            sample_recommendations = [
-                {
-                    'id': '1',
-                    'name': 'Classic Bob',
-                    'description': 'A timeless bob cut that suits most face shapes',
-                    'image_url': None,
-                    'category': 'Classic',
-                    'difficulty': 'Easy',
-                    'estimated_time': 30,
-                    'maintenance': 'Medium',
-                    'tags': ['classic', 'versatile'],
-                    'match_score': 0.85
-                },
-                {
-                    'id': '2', 
-                    'name': 'Beach Waves',
-                    'description': 'Relaxed, casual waves with natural texture',
-                    'image_url': None,
-                    'category': 'Casual',
-                    'difficulty': 'Easy',
-                    'estimated_time': 15,
-                    'maintenance': 'Low',
-                    'tags': ['casual', 'natural'],
-                    'match_score': 0.78
-                },
-                {
-                    'id': '3',
-                    'name': 'Layered Cut',
-                    'description': 'Versatile layered cut for medium-length hair',
-                    'image_url': None,
-                    'category': 'Versatile',
-                    'difficulty': 'Medium',
-                    'estimated_time': 35,
-                    'maintenance': 'Medium',
-                    'tags': ['layered', 'versatile'],
-                    'match_score': 0.72
-                }
-            ]
-            
-            response_data = {
-                "recommendation_id": str(log.id),
-                "face_shape": "oval",
-                "face_shape_confidence": 0.8,
-                "detected_features": {},
-                "recommended_styles": sample_recommendations,
-                "candidates": sample_recommendations,
-                "processing_time": f"{processing_time:.2f}s",
-                "total_styles_analyzed": len(sample_recommendations)
-            }
-            
+            response_data = recommendation_service.generate(
+                uploaded, prefs, user=rec_user
+            )
             return Response(response_data)
             
         except Exception as e:
             logger.error(f"Error generating recommendations: {str(e)}")
             traceback.print_exc()
             return Response(
-                {"error": "Failed to generate recommendations", "details": str(e)}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {
+                    "error": "Failed to generate recommendations",
+                    "details": str(e),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 class OverlayView(APIView):
     parser_classes = (JSONParser,)
-    permission_classes = [AllowAny]  # Add this line
+    permission_classes = [IsAuthenticated]
     
+    # Schema annotations for API docs
+    from drf_spectacular.utils import (
+        extend_schema,
+        OpenApiResponse,
+        OpenApiExample,
+    )
+    from .serializers import (
+        OverlayRequestSerializer,
+        OverlayResponseSerializer,
+    )
+
+    @extend_schema(
+        request=OverlayRequestSerializer,
+        responses={
+            200: OpenApiResponse(
+                response=OverlayResponseSerializer,
+                description='Overlay created successfully',
+            ),
+            400: OpenApiResponse(description='Bad request / validation error'),
+            401: OpenApiResponse(description='Authentication required'),
+            500: OpenApiResponse(description='Server error creating overlay'),
+        },
+        examples=[
+            OpenApiExample(
+                'Basic overlay request',
+                value={
+                    'image_id': '11111111-1111-1111-1111-111111111111',
+                    'hairstyle_id': '22222222-2222-2222-2222-222222222222',
+                    'overlay_type': 'basic',
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Successful response',
+                value={
+                    'overlay_url': '/media/overlays/<image>_<style>_basic.png',
+                    'overlay_type': 'basic',
+                },
+                response_only=True,
+            ),
+        ],
+    )
     def post(self, request):
         try:
-            image_id = request.data.get("image_id")
-            style_id = request.data.get("hairstyle_id")
-            overlay_type = request.data.get("overlay_type", "basic")  # basic, advanced
+            req_ser = OverlayRequestSerializer(data=request.data)
+            req_ser.is_valid(raise_exception=True)
+            image_id = req_ser.validated_data["image_id"]
+            style_id = req_ser.validated_data["hairstyle_id"]
+            overlay_type = req_ser.validated_data["overlay_type"]
             
             if not image_id or not style_id:
                 return Response(
-                    {"error": "Both image_id and hairstyle_id are required"}, 
-                    status=status.HTTP_400_BAD_REQUEST
+                    {"error": "Both image_id and hairstyle_id are required"},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
             
             uploaded = get_object_or_404(UploadedImage, id=image_id)
             style = get_object_or_404(Hairstyle, id=style_id)
 
-            user_img_path = Path(settings.MEDIA_ROOT) / uploaded.image.name
-            
-            # Check if hairstyle has an image
-            if style.image:
-                style_img_path = Path(settings.MEDIA_ROOT) / style.image.name
-            elif style.image_url:
-                # Download image from URL (implement this)
-                style_img_path = overlay_processor.download_style_image(style.image_url, style.id)
-            else:
-                return Response(
-                    {"error": "Hairstyle image not available"}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            overlay_url = overlay_service.generate(
+                uploaded, style, overlay_type
+            )
 
-            # Create output path
-            out_rel = f"overlays/{image_id}_{style_id}_{overlay_type}.png"
-            out_abs = Path(settings.MEDIA_ROOT) / out_rel
-            out_abs.parent.mkdir(parents=True, exist_ok=True)
-
-            # Generate overlay
-            if overlay_type == "advanced":
-                result_path = overlay_processor.create_advanced_overlay(
-                    user_img_path, style_img_path, out_abs
-                )
-            else:
-                result_path = overlay_processor.create_basic_overlay(
-                    user_img_path, style_img_path, out_abs
-                )
-            
             # Log analytics event
-            analytics_service.track_event(
-                user=request.user if request.user.is_authenticated else None,
+            track_event_safe(
+                analytics_service,
+                user=(request.user if request.user.is_authenticated else None),
                 event_type='overlay_generated',
                 event_data={
                     'image_id': str(image_id),
                     'style_id': str(style_id),
-                    'overlay_type': overlay_type
+                    'overlay_type': overlay_type,
                 },
-                request=request
+                request=request,
             )
             
             return Response({
-                "overlay_url": f"{settings.MEDIA_URL}{out_rel}",
+                "overlay_url": overlay_url,
                 "overlay_type": overlay_type
             })
             
+        except ValidationError as e:
+            # Return proper 400 for serializer validation issues
+            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as e:
+            # Known input/state errors (e.g., missing hairstyle image)
+            return Response(
+                {"error": str(e)}, status=status.HTTP_400_BAD_REQUEST
+            )
         except Exception as e:
             logger.error(f"Error creating overlay: {str(e)}")
             return Response(
-                {"error": "Failed to create overlay", "details": str(e)}, 
+                {"error": "Failed to create overlay", "details": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
 
 class FeedbackView(APIView):
     parser_classes = (JSONParser,)
@@ -797,7 +1009,9 @@ class FeedbackView(APIView):
             serializer = FeedbackSerializer(data=request.data)
             if serializer.is_valid():
                 fb = serializer.save(
-                    user=request.user if request.user.is_authenticated else None
+                    user=(
+                        request.user if request.user.is_authenticated else None
+                    )
                 )
                 
                 # Update hairstyle popularity
@@ -806,7 +1020,9 @@ class FeedbackView(APIView):
                 
                 # Log analytics event
                 analytics_service.track_event(
-                    user=request.user if request.user.is_authenticated else None,
+                    user=(
+                        request.user if request.user.is_authenticated else None
+                    ),
                     event_type='feedback_submitted',
                     event_data={
                         'feedback_id': str(fb.id),
@@ -821,18 +1037,21 @@ class FeedbackView(APIView):
                     "feedback_id": fb.id,
                     "message": "Feedback submitted successfully"
                 })
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                serializer.errors, status=status.HTTP_400_BAD_REQUEST
+            )
             
         except Exception as e:
             logger.error(f"Error saving feedback: {str(e)}")
             return Response(
-                {"error": "Failed to save feedback", "details": str(e)}, 
+                {"error": "Failed to save feedback", "details": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+
 class AnalyticsEventView(APIView):
     parser_classes = (JSONParser,)
-    permission_classes = [AllowAny]  # Add this line
+    permission_classes = [IsAuthenticated]
     
     def post(self, request):
         """Track custom analytics events from frontend"""
@@ -840,25 +1059,36 @@ class AnalyticsEventView(APIView):
             serializer = AnalyticsEventSerializer(data=request.data)
             if serializer.is_valid():
                 analytics_service.track_event(
-                    user=request.user if request.user.is_authenticated else None,
+                    user=(
+                        request.user if request.user.is_authenticated else None
+                    ),
                     event_type=serializer.validated_data['event_type'],
                     event_data=serializer.validated_data.get('event_data', {}),
                     session_id=serializer.validated_data.get('session_id', ''),
                     request=request
                 )
                 return Response({"status": "event_tracked"})
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                serializer.errors, status=status.HTTP_400_BAD_REQUEST
+            )
         except Exception as e:
             logger.error(f"Error tracking analytics event: {str(e)}")
             return Response(
-                {"error": "Failed to track event"}, 
+                {"error": "Failed to track event"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def health_check(request):
     """Simple health check endpoint"""
+    try:
+        styles = Hairstyle.objects.filter(is_active=True).count()
+        cats = HairstyleCategory.objects.filter(is_active=True).count()
+    except Exception:
+        styles = None
+        cats = None
     return Response({
         'status': 'ok',
         'message': 'HairMixer backend is running',
@@ -868,7 +1098,9 @@ def health_check(request):
         'overlay_available': OVERLAY_PROCESSOR_AVAILABLE,
         'analytics_available': ANALYTICS_AVAILABLE,
         'cache_available': CACHE_MANAGER_AVAILABLE,
+        'metrics': {'active_styles': styles, 'active_categories': cats},
     })
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -933,7 +1165,6 @@ def api_root(request):
 
 # Add these missing views at the end of your views.py file:
 
-from django.core.paginator import Paginator
 
 class FeaturedHairstylesView(APIView):
     """Get featured hairstyles"""
@@ -948,7 +1179,11 @@ class FeaturedHairstylesView(APIView):
                 is_featured=True
             ).select_related('category').order_by('-trend_score')[:limit]
             
-            serializer = HairstyleSerializer(featured_styles, many=True, context={'request': request})
+            serializer = HairstyleSerializer(
+                featured_styles,
+                many=True,
+                context={'request': request},
+            )
             
             return Response({
                 'featured_hairstyles': serializer.data,
@@ -958,9 +1193,10 @@ class FeaturedHairstylesView(APIView):
         except Exception as e:
             logger.error(f"Error fetching featured hairstyles: {str(e)}")
             return Response(
-                {"error": "Failed to fetch featured hairstyles"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Failed to fetch featured hairstyles"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 class TrendingHairstylesView(APIView):
     """Get trending hairstyles based on recent activity"""
@@ -974,21 +1210,32 @@ class TrendingHairstylesView(APIView):
             trending_styles = Hairstyle.objects.filter(
                 is_active=True
             ).annotate(
-                recent_recommendations=Count('recommendationlog', filter=Q(
-                    recommendationlog__created_at__gte=timezone.now() - timedelta(days=7)
-                )),
+                recent_recommendations=Count(
+                    'recommendationlog',
+                    filter=Q(
+                        recommendationlog__created_at__gte=(
+                            timezone.now() - timedelta(days=7)
+                        )
+                    ),
+                ),
                 avg_rating=Avg('feedback__rating')
-            ).order_by('-recent_recommendations', '-avg_rating', '-popularity_score')[:limit]
+            ).order_by(
+                '-recent_recommendations',
+                '-avg_rating',
+                '-popularity_score',
+            )[:limit]
             
-            serializer = HairstyleSerializer(trending_styles, many=True, context={'request': request})
-            
-            if analytics_service:
-                analytics_service.track_event(
-                    user=request.user if request.user.is_authenticated else None,
-                    event_type='trending_viewed',
-                    event_data={'count': len(serializer.data)},
-                    request=request
-                )
+            serializer = HairstyleSerializer(
+                trending_styles, many=True, context={'request': request}
+            )
+
+            track_event_safe(
+                analytics_service,
+                user=(request.user if request.user.is_authenticated else None),
+                event_type='trending_viewed',
+                event_data={'count': len(serializer.data)},
+                request=request,
+            )
             
             return Response({
                 'trending_hairstyles': serializer.data,
@@ -998,9 +1245,10 @@ class TrendingHairstylesView(APIView):
         except Exception as e:
             logger.error(f"Error fetching trending hairstyles: {str(e)}")
             return Response(
-                {"error": "Failed to fetch trending hairstyles"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Failed to fetch trending hairstyles"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 class HairstyleDetailView(APIView):
     """Get detailed information about a specific hairstyle"""
@@ -1008,7 +1256,11 @@ class HairstyleDetailView(APIView):
     
     def get(self, request, style_id):
         try:
-            style = get_object_or_404(Hairstyle, id=style_id, is_active=True)
+            style = get_object_or_404(
+                Hairstyle.objects.select_related('category'),
+                id=style_id,
+                is_active=True,
+            )
             
             # Get related data
             recent_feedback = Feedback.objects.filter(
@@ -1017,22 +1269,31 @@ class HairstyleDetailView(APIView):
             ).order_by('-created_at')[:5]
             
             # Calculate statistics
-            feedback_stats = Feedback.objects.filter(hairstyle=style).aggregate(
+            feedback_stats = Feedback.objects.filter(
+                hairstyle=style
+            ).aggregate(
                 avg_rating=Avg('rating'),
                 total_feedback=Count('id'),
                 positive_feedback=Count('id', filter=Q(liked=True))
             )
+
+            serializer = HairstyleSerializer(
+                style, context={'request': request}
+            )
+            feedback_serializer = FeedbackSerializer(
+                recent_feedback, many=True
+            )
             
-            serializer = HairstyleSerializer(style, context={'request': request})
-            feedback_serializer = FeedbackSerializer(recent_feedback, many=True)
-            
-            if analytics_service:
-                analytics_service.track_event(
-                    user=request.user if request.user.is_authenticated else None,
-                    event_type='hairstyle_viewed',
-                    event_data={'style_id': str(style_id), 'style_name': style.name},
-                    request=request
-                )
+            track_event_safe(
+                analytics_service,
+                user=(request.user if request.user.is_authenticated else None),
+                event_type='hairstyle_viewed',
+                event_data={
+                    'style_id': str(style_id),
+                    'style_name': style.name,
+                },
+                request=request,
+            )
             
             return Response({
                 'hairstyle': serializer.data,
@@ -1044,9 +1305,10 @@ class HairstyleDetailView(APIView):
         except Exception as e:
             logger.error(f"Error fetching hairstyle detail: {str(e)}")
             return Response(
-                {"error": "Failed to fetch hairstyle details"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Failed to fetch hairstyle details"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 class UserRecommendationsView(APIView):
     """Get user's recommendation history"""
@@ -1064,8 +1326,29 @@ class UserRecommendationsView(APIView):
             
             paginator = Paginator(recommendations, per_page)
             page_obj = paginator.get_page(page)
-            
-            serializer = RecommendationLogSerializer(page_obj.object_list, many=True)
+            # Batch-load candidate hairstyles to avoid N+1 in serializer
+            all_ids = []
+            for rec in page_obj.object_list:
+                if rec.candidates:
+                    all_ids.extend(rec.candidates)
+            unique_ids = list({str(i) for i in all_ids}) if all_ids else []
+            hairstyle_cache = {}
+            if unique_ids:
+                qs = Hairstyle.objects.filter(
+                    id__in=unique_ids,
+                    is_active=True,
+                )
+                for h in qs:
+                    hairstyle_cache[str(h.id)] = h
+
+            serializer = RecommendationLogSerializer(
+                page_obj.object_list,
+                many=True,
+                context={
+                    'request': request,
+                    'hairstyle_cache': hairstyle_cache,
+                },
+            )
             
             return Response({
                 'recommendations': serializer.data,
@@ -1082,9 +1365,10 @@ class UserRecommendationsView(APIView):
         except Exception as e:
             logger.error(f"Error fetching user recommendations: {str(e)}")
             return Response(
-                {"error": "Failed to fetch recommendations"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Failed to fetch recommendations"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 class UserFavoritesView(APIView):
     """Get user's favorite hairstyles (placeholder)"""
@@ -1096,6 +1380,7 @@ class UserFavoritesView(APIView):
             'favorites': [],
             'message': 'Favorites feature coming soon'
         })
+
 
 class UserHistoryView(APIView):
     """Get user's activity history (placeholder)"""
@@ -1112,6 +1397,58 @@ class SearchView(APIView):
     """Search hairstyles with advanced filtering"""
     permission_classes = [AllowAny]  # Add this line
     
+    from drf_spectacular.utils import (
+        extend_schema,
+        OpenApiParameter,
+        OpenApiResponse,
+    )
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                'q',
+                str,
+                OpenApiParameter.QUERY,
+                description='Search text',
+            ),
+            OpenApiParameter(
+                'face_shape',
+                str,
+                OpenApiParameter.QUERY,
+                enum=['oval', 'round', 'square', 'heart', 'diamond', 'oblong'],
+            ),
+            OpenApiParameter(
+                'occasion',
+                str,
+                OpenApiParameter.QUERY,
+                enum=[
+                    'casual', 'formal', 'party', 'business', 'wedding',
+                    'date', 'work'
+                ],
+            ),
+            OpenApiParameter(
+                'hair_type',
+                str,
+                OpenApiParameter.QUERY,
+                enum=['straight', 'wavy', 'curly', 'coily'],
+            ),
+            OpenApiParameter(
+                'maintenance',
+                str,
+                OpenApiParameter.QUERY,
+                enum=['low', 'medium', 'high'],
+            ),
+            OpenApiParameter(
+                'page', int, OpenApiParameter.QUERY, default=1
+            ),
+            OpenApiParameter(
+                'per_page', int, OpenApiParameter.QUERY, default=20
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(description='Search results returned')
+        },
+    )
     def get(self, request):
         try:
             query = request.query_params.get('q', '').strip()
@@ -1124,54 +1461,79 @@ class SearchView(APIView):
             
             # Build query
             queryset = Hairstyle.objects.filter(is_active=True)
+            engine = connection.settings_dict.get('ENGINE', '')
+            supports_json = 'postgresql' in engine
             
             # Text search
             if query:
-                queryset = queryset.filter(
-                    Q(name__icontains=query) |
-                    Q(description__icontains=query) |
-                    Q(tags__contains=[query])
-                )
+                if supports_json:
+                    queryset = queryset.filter(
+                        Q(name__icontains=query)
+                        | Q(description__icontains=query)
+                        | Q(tags__contains=[query])
+                    )
+                else:
+                    queryset = queryset.filter(
+                        Q(name__icontains=query)
+                        | Q(description__icontains=query)
+                    )
             
             # Filters
             if face_shape:
-                queryset = queryset.filter(face_shapes__contains=[face_shape])
+                if supports_json:
+                    queryset = queryset.filter(
+                        face_shapes__contains=[face_shape]
+                    )
             
             if occasion:
-                queryset = queryset.filter(occasions__contains=[occasion])
+                if supports_json:
+                    queryset = queryset.filter(
+                        occasions__contains=[occasion]
+                    )
             
             if hair_type:
-                queryset = queryset.filter(hair_types__contains=[hair_type])
+                if supports_json:
+                    queryset = queryset.filter(
+                        hair_types__contains=[hair_type]
+                    )
             
             if maintenance:
                 queryset = queryset.filter(maintenance=maintenance)
             
             # Order by relevance
-            queryset = queryset.order_by('-trend_score', '-popularity_score', 'name')
+            queryset = queryset.order_by(
+                '-trend_score', '-popularity_score', 'name'
+            )
             
             # Paginate
             paginator = Paginator(queryset, per_page)
             page_obj = paginator.get_page(page)
             
-            serializer = HairstyleSerializer(page_obj.object_list, many=True, context={'request': request})
+            serializer = HairstyleSerializer(
+                page_obj.object_list,
+                many=True,
+                context={'request': request},
+            )
             
-            # Track search
-            if analytics_service:
-                analytics_service.track_event(
-                    user=request.user if request.user.is_authenticated else None,
-                    event_type='search_performed',
-                    event_data={
-                        'query': query,
-                        'filters': {
-                            'face_shape': face_shape,
-                            'occasion': occasion,
-                            'hair_type': hair_type,
-                            'maintenance': maintenance
-                        },
-                        'results_count': paginator.count
+            # Track search (safe)
+            track_event_safe(
+                analytics_service,
+                user=(
+                    request.user if request.user.is_authenticated else None
+                ),
+                event_type='search_performed',
+                event_data={
+                    'query': query,
+                    'filters': {
+                        'face_shape': face_shape,
+                        'occasion': occasion,
+                        'hair_type': hair_type,
+                        'maintenance': maintenance,
                     },
-                    request=request
-                )
+                    'results_count': paginator.count,
+                },
+                request=request,
+            )
             
             return Response({
                 'results': serializer.data,
@@ -1195,13 +1557,14 @@ class SearchView(APIView):
         except Exception as e:
             logger.error(f"Error performing search: {str(e)}")
             return Response(
-                {"error": "Search failed"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Search failed"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 class CacheStatsView(APIView):
     """Get cache statistics (admin only)"""
-    permission_classes = [IsAuthenticated]  # Changed from IsAdminUser for testing
+    permission_classes = [ADMIN_PERMISSION_CLASS]
     
     def get(self, request):
         try:
@@ -1209,38 +1572,46 @@ class CacheStatsView(APIView):
                 stats = cache_manager.get_cache_stats()
                 return Response({'cache_stats': stats})
             else:
-                return Response({'cache_stats': {'message': 'Cache manager not available'}})
+                return Response(
+                    {'cache_stats': {'message': 'Cache manager not available'}}
+                )
         except Exception as e:
             logger.error(f"Error fetching cache stats: {str(e)}")
             return Response(
-                {"error": "Failed to fetch cache stats"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Failed to fetch cache stats"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 class CacheCleanupView(APIView):
     """Clean up expired cache entries (admin only)"""
-    permission_classes = [IsAuthenticated]  # Changed from IsAdminUser for testing
+    permission_classes = [ADMIN_PERMISSION_CLASS]
     
     def post(self, request):
         try:
             if cache_manager:
                 cleaned_count = cache_manager.cleanup_expired_cache()
-                return Response({
-                    'message': f'Cleaned up {cleaned_count} expired cache entries',
-                    'cleaned_count': cleaned_count
-                })
+                return Response(
+                    {
+                        'message': (
+                            f'Cleaned up {cleaned_count} expired cache entries'
+                        ),
+                        'cleaned_count': cleaned_count,
+                    }
+                )
             else:
                 return Response({'message': 'Cache manager not available'})
         except Exception as e:
             logger.error(f"Error cleaning cache: {str(e)}")
             return Response(
-                {"error": "Cache cleanup failed"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Cache cleanup failed"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 class SystemAnalyticsView(APIView):
     """Get system analytics (admin only)"""
-    permission_classes = [IsAuthenticated]  # Changed from IsAdminUser for testing
+    permission_classes = [ADMIN_PERMISSION_CLASS]
     
     def get(self, request):
         try:
@@ -1249,13 +1620,20 @@ class SystemAnalyticsView(APIView):
                 analytics_data = analytics_service.get_system_analytics(days)
                 return Response({'analytics': analytics_data})
             else:
-                return Response({'analytics': {'message': 'Analytics service not available'}})
+                return Response(
+                    {
+                        'analytics': {
+                            'message': 'Analytics service not available'
+                        }
+                    }
+                )
         except Exception as e:
             logger.error(f"Error fetching system analytics: {str(e)}")
             return Response(
-                {"error": "Failed to fetch analytics"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Failed to fetch analytics"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 class FaceShapesView(APIView):
     """Get available face shapes with descriptions"""
@@ -1280,9 +1658,10 @@ class FaceShapesView(APIView):
         except Exception as e:
             logger.error(f"Error fetching face shapes: {str(e)}")
             return Response(
-                {"error": "Failed to fetch face shapes"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Failed to fetch face shapes"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 class OccasionsView(APIView):
     """Get available occasions"""
@@ -1304,9 +1683,10 @@ class OccasionsView(APIView):
         except Exception as e:
             logger.error(f"Error fetching occasions: {str(e)}")
             return Response(
-                {"error": "Failed to fetch occasions"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Failed to fetch occasions"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 class ListHairstylesView(APIView):
     permission_classes = [AllowAny]  # Add this line
@@ -1318,11 +1698,15 @@ class ListHairstylesView(APIView):
             face_shape = request.query_params.get('face_shape')
             occasion = request.query_params.get('occasion')
             maintenance = request.query_params.get('maintenance')
-            featured_only = request.query_params.get('featured', '').lower() == 'true'
+            featured_only = (
+                request.query_params.get('featured', '').lower() == 'true'
+            )
             limit = min(int(request.query_params.get('limit', 50)), 100)
             
             # Build query
-            queryset = Hairstyle.objects.filter(is_active=True).select_related('category')
+            queryset = Hairstyle.objects.filter(is_active=True).select_related(
+                'category'
+            )
             
             if category:
                 queryset = queryset.filter(category__name__icontains=category)
@@ -1340,13 +1724,18 @@ class ListHairstylesView(APIView):
                 queryset = queryset.filter(is_featured=True)
             
             # Order by relevance
-            queryset = queryset.order_by('-trend_score', '-popularity_score', 'name')[:limit]
+            queryset = queryset.order_by(
+                '-trend_score', '-popularity_score', 'name'
+            )[:limit]
             
-            serializer = HairstyleSerializer(queryset, many=True, context={'request': request})
+            serializer = HairstyleSerializer(
+                queryset, many=True, context={'request': request}
+            )
             
             # Log analytics event
-            analytics_service.track_event(
-                user=request.user if request.user.is_authenticated else None,
+            track_event_safe(
+                analytics_service,
+                user=(request.user if request.user.is_authenticated else None),
                 event_type='hairstyles_browsed',
                 event_data={
                     'filters': {
@@ -1354,11 +1743,11 @@ class ListHairstylesView(APIView):
                         'face_shape': face_shape,
                         'occasion': occasion,
                         'maintenance': maintenance,
-                        'featured_only': featured_only
+                        'featured_only': featured_only,
                     },
-                    'results_count': len(serializer.data)
+                    'results_count': len(serializer.data),
                 },
-                request=request
+                request=request,
             )
             
             return Response({
@@ -1376,25 +1765,29 @@ class ListHairstylesView(APIView):
         except Exception as e:
             logger.error(f"Error fetching hairstyles: {str(e)}")
             return Response(
-                {"error": "Failed to fetch hairstyles", "details": str(e)}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Failed to fetch hairstyles", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 # Additional utility views
+
 class HairstyleCategoriesView(APIView):
     permission_classes = [AllowAny]  # Add this line
     
     def get(self, request):
         try:
-            categories = HairstyleCategory.objects.filter(is_active=True).order_by('sort_order', 'name')
+            categories = HairstyleCategory.objects.filter(
+                is_active=True
+            ).order_by('sort_order', 'name')
             serializer = HairstyleCategorySerializer(categories, many=True)
             return Response({'categories': serializer.data})
         except Exception as e:
             logger.error(f"Error fetching categories: {str(e)}")
             return Response(
-                {"error": "Failed to fetch categories"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Failed to fetch categories"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -1430,8 +1823,12 @@ def debug_face_detection(request):
             debug_info['detection_result'] = {
                 'success': result is not None,
                 'error': error,
-                'face_detected': result.get('face_detected', False) if result else False,
-                'detection_method': result.get('detection_method', 'none') if result else 'none',
+                'face_detected': (
+                    result.get('face_detected', False) if result else False
+                ),
+                'detection_method': (
+                    result.get('detection_method', 'none') if result else 'none'
+                ),
                 'confidence': result.get('confidence', 0) if result else 0,
             }
             
@@ -1439,13 +1836,14 @@ def debug_face_detection(request):
             import os
             try:
                 os.unlink(temp_path)
-            except:
+            except Exception:
                 pass
         
         return Response({'debug_info': debug_info})
         
     except Exception as e:
         return Response({'error': str(e), 'traceback': traceback.format_exc()})
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -1469,7 +1867,11 @@ def debug_resnet_features(request):
         
         # Check if ResNet50 is loaded
         debug_info = {
-            'resnet_available': hasattr(analyzer, 'feature_extractor') and analyzer.feature_extractor is not None,
+            'resnet_available': (
+                hasattr(analyzer, 'feature_extractor') and (
+                    analyzer.feature_extractor is not None
+                )
+            ),
             'classifier_type': getattr(analyzer, 'shape_classifier', 'None'),
             'device': str(analyzer.device),
         }
@@ -1480,10 +1882,16 @@ def debug_resnet_features(request):
         if result:
             debug_info['face_detected'] = True
             debug_info['face_shape_result'] = result.get('face_shape', {})
-            debug_info['detection_method'] = result.get('detection_method', 'unknown')
+            debug_info['detection_method'] = result.get(
+                'detection_method', 'unknown'
+            )
             face_shape_info = result.get('face_shape', {})
-            debug_info['used_resnet'] = face_shape_info.get('method') == 'resnet50_enhanced_geometric'
-            debug_info['feature_quality'] = face_shape_info.get('feature_quality', 'N/A')
+            debug_info['used_resnet'] = (
+                face_shape_info.get('method') == 'resnet50_enhanced_geometric'
+            )
+            debug_info['feature_quality'] = face_shape_info.get(
+                'feature_quality', 'N/A'
+            )
         else:
             debug_info['face_detected'] = False
             debug_info['error'] = error
@@ -1492,14 +1900,16 @@ def debug_resnet_features(request):
         import os
         try:
             os.unlink(temp_path)
-        except:
+        except Exception:
             pass
         
         return Response({'debug_info': debug_info})
         
     except Exception as e:
         import traceback
-        return Response({
-            'error': str(e), 
-            'traceback': traceback.format_exc()
-        })
+        return Response(
+            {
+                'error': str(e),
+                'traceback': traceback.format_exc(),
+            }
+        )

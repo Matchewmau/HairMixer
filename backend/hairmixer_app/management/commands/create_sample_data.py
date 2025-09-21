@@ -4,7 +4,7 @@ from hairmixer_app.models import Hairstyle, HairstyleCategory
 class Command(BaseCommand):
     help = 'Create sample hairstyles and categories with themes for testing'
     
-    def handle(self, *args, **options):
+    def handle(self, *_args, **options):
         # Create categories with themes
         categories_data = [
             {'name': 'Classic Styles', 'description': 'Timeless and traditional hairstyles'},
