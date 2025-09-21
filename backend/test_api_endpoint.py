@@ -29,7 +29,7 @@ def test_api_endpoint():
         
         if response.status_code == 200:
             result = response.json()
-            print("✅ API call successful!")
+            print("API call successful!")
             print(f"   - Face detected: {result.get('face_detected', False)}")
             print(f"   - Face shape: {result.get('face_shape', {}).get('shape', 'N/A')}")
             print(f"   - Confidence: {result.get('confidence', 'N/A')}")

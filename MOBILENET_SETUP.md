@@ -7,11 +7,11 @@
    backend/hairmixer_app/ml/models/mobilenetv3_small.pth
    ```
 
-2. Alternative: If you want to use a different filename or location, you can specify the path when loading.
+2. Alternative: If you want to use a different filename or location, set the path in your environment or update the loader in `mobilenet_classifier.py`.
 
 ## Step 2: Update Face Shape Mapping (if needed)
 
-The system is currently configured for 7 face shape classes. Update the FACE_SHAPES mapping in `backend/hairmixer_app/ml/model.py` to match your training labels:
+The system is currently configured for 6–7 face shape classes. Update the FACE_SHAPES mapping in `backend/hairmixer_app/ml/model.py` to match your training labels:
 
 ```python
 FACE_SHAPES = {
@@ -32,29 +32,37 @@ Your MobileNetV3-Small model should have:
 - Output: 7 classes for face shapes
 - Standard ImageNet preprocessing (mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
-If your model uses different preprocessing, update the `transform` in `face_analyzer.py`.
+If your model uses different preprocessing, update the `transform` in `face_analyzer.py` (inside `FacialFeatureAnalyzer.__init__`).
 
 ## Step 4: Test the Integration
 
-1. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
+Use one of the following quick checks on Windows PowerShell:
 
-2. Test model loading:
-   ```bash
-   python manage.py test_mobilenet
-   ```
+1) Verify the analyzer loads MobileNetV3
 
-3. Test with a specific model file:
-   ```bash
-   python manage.py test_mobilenet --model-path path/to/your/model.pth
-   ```
+```powershell
+# From repo root
+D:/CODING/Python/HairMixer/venv/Scripts/python.exe - <<'PY'
+from backend.hairmixer_app.ml.face_analyzer import FacialFeatureAnalyzer
+a = FacialFeatureAnalyzer()
+print('shape_classifier:', a.shape_classifier)
+print('feature_extractor:', type(a.feature_extractor).__name__ if a.feature_extractor else None)
+PY
+```
 
-4. Test with an image:
-   ```bash
-   python manage.py test_mobilenet --image-path path/to/test/image.jpg
-   ```
+2) Run a one-off prediction on an image
+
+```powershell
+# Replace with your test image path
+$img = 'D:/path/to/face.jpg'
+D:/CODING/Python/HairMixer/venv/Scripts/python.exe - <<'PY'
+from backend.hairmixer_app.ml.face_analyzer import analyze_face_comprehensive
+import pathlib
+result = analyze_face_comprehensive(pathlib.Path(r'''$env:IMG''') if False else r'''REPLACE''')
+print(result)
+PY
+```
+Note: The API also analyzes during `/api/upload/`.
 
 ## Step 5: Model File Format Requirements
 
@@ -89,8 +97,8 @@ torch.save({
 
 ### Integration Issues
 - Restart Django server after changes
-- Check logs for detailed error messages
-- Use the test command to isolate issues
+- Set Django logging to DEBUG to see detailed messages (see Backend README)
+- Use the shell snippets above to isolate issues
 
 ## Step 7: Production Deployment
 
@@ -113,10 +121,9 @@ self.transform = transforms.Compose([
 
 ## Model Performance Tips
 
-1. The system will automatically use MobileNetV3 if available and loaded
-2. Falls back to ResNet50 features if MobileNetV3 fails
-3. Falls back to geometric analysis if both fail
-4. Monitor logs to see which method is being used
+1. The system uses MobileNetV3-only for face shape classification.
+2. Face detection uses MediaPipe by default (MTCNN as optional fallback if installed).
+3. Monitor logs (DEBUG) to see which detector was used and the confidence.
 
 ## File Structure After Setup
 
@@ -126,10 +133,9 @@ backend/
 │   ├── ml/
 │   │   ├── models/
 │   │   │   └── mobilenetv3_face_shape_classifier.pth  # Your model here
-│   │   ├── face_analyzer.py  # Updated with MobileNetV3 support
-│   │   ├── mobilenet_classifier.py  # New model loader
+│   │   ├── face_analyzer.py              # Uses MediaPipe for detection, MobileNetV3 for shape
+│   │   ├── mobilenet_classifier.py      # MobileNetV3 model loader
 │   │   └── model.py  # Updated face shapes mapping
 │   └── management/
-│       └── commands/
-│           └── test_mobilenet.py  # Test command
+│       └── commands/               # (optional custom commands)
 ```

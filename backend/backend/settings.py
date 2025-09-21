@@ -33,6 +33,40 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'dev-insecure-key-change-me')
 DEBUG = os.getenv('DJANGO_DEBUG', 'true').lower() == 'true'
 
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+# Ensure Django test client host is allowed in DEBUG
+if DEBUG and 'testserver' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('testserver')
+
+# ==============================
+# Security / behavior toggles
+# ==============================
+# Keep defaults non-breaking; enable hardening via env when ready
+DRF_REQUIRE_AUTH = (
+    os.getenv('DRF_REQUIRE_AUTH', 'false').lower() == 'true'
+)
+RELAX_ADMIN_PERMS = (
+    os.getenv('RELAX_ADMIN_PERMS', 'true').lower() == 'true'
+)
+
+# Cookie-based auth (opt-in)
+AUTH_COOKIES_ENABLED = (
+    os.getenv('AUTH_COOKIES_ENABLED', 'false').lower() == 'true'
+)
+AUTH_COOKIE_ACCESS_NAME = os.getenv(
+    'AUTH_COOKIE_ACCESS_NAME', 'access_token'
+)
+AUTH_COOKIE_REFRESH_NAME = os.getenv(
+    'AUTH_COOKIE_REFRESH_NAME', 'refresh_token'
+)
+# empty => no domain set
+AUTH_COOKIE_DOMAIN = os.getenv('AUTH_COOKIE_DOMAIN', '')
+# Lax|Strict|None
+AUTH_COOKIE_SAMESITE = os.getenv('AUTH_COOKIE_SAMESITE', 'Lax')
+
+# SSRF protection (opt-in)
+ENABLE_SSRF_PROTECTION = (
+    os.getenv('ENABLE_SSRF_PROTECTION', 'false').lower() == 'true'
+)
 
 
 # Application definition
@@ -45,6 +79,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'drf_spectacular',
     'rest_framework_simplejwt',
     'corsheaders',
     'hairmixer_app',
@@ -60,6 +95,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Request ID/structured logging middleware (env-gated)
+    'hairmixer_app.middleware.RequestIDMiddleware',
 ]
 
 ROOT_URLCONF = 'backend.urls'
@@ -99,16 +136,28 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        'NAME': (
+            'django.contrib.auth.password_validation.'
+            'UserAttributeSimilarityValidator'
+        ),
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'NAME': (
+            'django.contrib.auth.password_validation.'
+            'MinimumLengthValidator'
+        ),
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        'NAME': (
+            'django.contrib.auth.password_validation.'
+            'CommonPasswordValidator'
+        ),
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        'NAME': (
+            'django.contrib.auth.password_validation.'
+            'NumericPasswordValidator'
+        ),
     },
 ]
 
@@ -142,7 +191,28 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = os.getenv('CORS_ALLOW_ALL', 'true').lower() == 'true'
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000').split(',')
+_CORS_ALLOWED = os.getenv(
+    'CORS_ALLOWED_ORIGINS',
+    'http://localhost:3000,http://127.0.0.1:3000'
+)
+CORS_ALLOWED_ORIGINS = _CORS_ALLOWED.split(',')
+# Allow credentials only when using cookie-based auth
+CORS_ALLOW_CREDENTIALS = AUTH_COOKIES_ENABLED
+
+# CSRF settings
+_csrf_env = os.getenv('CSRF_TRUSTED_ORIGINS', '')
+if _csrf_env:
+    CSRF_TRUSTED_ORIGINS = [
+        o.strip() for o in _csrf_env.split(',') if o.strip()
+    ]
+else:
+    # Default to common local dev origins
+    CSRF_TRUSTED_ORIGINS = [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+    ]
 
 # REST Framework settings
 REST_FRAMEWORK = {
@@ -151,7 +221,12 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',  # Change this to AllowAny as default
+        # Toggle global default permission via env; default remains AllowAny
+        (
+            'rest_framework.permissions.IsAuthenticated'
+            if DRF_REQUIRE_AUTH
+            else 'rest_framework.permissions.AllowAny'
+        ),
     ],
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
@@ -170,6 +245,7 @@ REST_FRAMEWORK = {
         'user': '1000/hour'
     },
     'EXCEPTION_HANDLER': 'hairmixer_app.exceptions.drf_exception_handler',
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
 # Custom User Model
@@ -195,7 +271,10 @@ SIMPLE_JWT = {
     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
-    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
+    'USER_AUTHENTICATION_RULE': (
+        'rest_framework_simplejwt.authentication.'
+        'default_user_authentication_rule'
+    ),
 
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type',
@@ -210,26 +289,44 @@ SIMPLE_JWT = {
 
 # Logging
 LOG_LEVEL = os.getenv('DJANGO_LOG_LEVEL', 'INFO')
+JSON_LOGS = os.getenv('DJANGO_JSON_LOGS', 'false').lower() == 'true'
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
         'standard': {
-            'format': '[{levelname}] {asctime} {name}: {message}',
-            'style': '{',
+            # Use percent-style to avoid KeyErrors on missing extras
+            'format': (
+                '[%(levelname)s] %(asctime)s %(name)s '
+                'req=%(request_id)s: %(message)s'
+            ),
+        },
+        'json': {
+            '()': 'hairmixer_app.middleware.JSONLogFormatter',
         },
     },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
-            'formatter': 'standard',
+            'formatter': 'json' if JSON_LOGS else 'standard',
+            'filters': ['request_id'],
         },
     },
+    'root': {
+        'handlers': ['console'],
+        'level': LOG_LEVEL,
+    },
     'loggers': {
-        '': {
+        'django.request': {
             'handlers': ['console'],
             'level': LOG_LEVEL,
+            'propagate': False,
         },
+    },
+    'filters': {
+        'request_id': {
+            '()': 'hairmixer_app.middleware.RequestIDFilter',
+        }
     },
 }
 
@@ -242,14 +339,24 @@ CACHES = {
 }
 
 # Recommendation cache timeout
-RECOMMENDATION_CACHE_TIMEOUT = int(os.getenv('RECOMMENDATION_CACHE_TIMEOUT', '3600'))
+RECOMMENDATION_CACHE_TIMEOUT = int(
+    os.getenv('RECOMMENDATION_CACHE_TIMEOUT', '3600')
+)
 
 # Security settings (harden in production)
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SAMESITE = os.getenv(
+    'SESSION_COOKIE_SAMESITE', AUTH_COOKIE_SAMESITE
+)
+CSRF_COOKIE_SAMESITE = os.getenv(
+    'CSRF_COOKIE_SAMESITE', AUTH_COOKIE_SAMESITE
+)
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True
-SECURE_HSTS_SECONDS = 0 if DEBUG else int(os.getenv('SECURE_HSTS_SECONDS', '31536000'))
+SECURE_HSTS_SECONDS = 0 if DEBUG else int(
+    os.getenv('SECURE_HSTS_SECONDS', '31536000')
+)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 SECURE_HSTS_PRELOAD = not DEBUG
 X_FRAME_OPTIONS = 'DENY'
@@ -257,8 +364,8 @@ X_FRAME_OPTIONS = 'DENY'
 # ==========================
 # Overlay / Gemini AI config
 # ==========================
-# When enabled and credentials are present, the "advanced" overlay path will
-# use Gemini Web API to perform hair editing via prompt, otherwise it falls back to basic overlay.
+# When enabled and credentials are present, the "advanced" overlay path
+# uses Gemini Web API for hair editing; otherwise it falls back to basic.
 OVERLAY_AI_ENABLED = os.getenv('OVERLAY_AI_ENABLED', 'true').lower() == 'true'
 # Accept multiple env var names for convenience/compatibility
 GEMINI_SECURE_1PSID = (
@@ -278,6 +385,16 @@ GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'G_2_5_FLASH')
 GEMINI_TIMEOUT = int(os.getenv('GEMINI_TIMEOUT', '120'))
 
 # Basic overlay tuning
-OVERLAY_BASIC_WIDTH_RATIO = float(os.getenv('OVERLAY_BASIC_WIDTH_RATIO', '0.75'))
+OVERLAY_BASIC_WIDTH_RATIO = float(
+    os.getenv('OVERLAY_BASIC_WIDTH_RATIO', '0.75')
+)
 OVERLAY_Y_OFFSET_RATIO = float(os.getenv('OVERLAY_Y_OFFSET_RATIO', '0.03'))
 OVERLAY_BLUR_RADIUS = float(os.getenv('OVERLAY_BLUR_RADIUS', '0.8'))
+
+# API Schema / Docs (drf-spectacular)
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'HairMixer API',
+    'DESCRIPTION': 'REST API for HairMixer backend.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}

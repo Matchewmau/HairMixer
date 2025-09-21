@@ -2,6 +2,10 @@ class AuthService {
   constructor() {
     // Unify default base URL with APIService; allow override via env
     this.baseURL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
+    // Feature flag: enable HttpOnly cookie-based auth
+    this.useCookieAuth = (
+      String(process.env.REACT_APP_USE_COOKIE_AUTH || 'false').toLowerCase() === 'true'
+    );
   }
 
   async login(credentials) {
@@ -11,6 +15,7 @@ class AuthService {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: this.useCookieAuth ? 'include' : 'same-origin',
         body: JSON.stringify(credentials),
       });
 
@@ -20,14 +25,17 @@ class AuthService {
         throw new Error(data.message || 'Login failed');
       }
 
-      // Store tokens in localStorage (both camelCase and snake_case for compatibility)
-      if (data.access_token) {
-        localStorage.setItem('accessToken', data.access_token);
-        localStorage.setItem('access_token', data.access_token);
-      }
-      if (data.refresh_token) {
-        localStorage.setItem('refreshToken', data.refresh_token);
-        localStorage.setItem('refresh_token', data.refresh_token);
+      // Cookie mode: do not persist tokens client-side
+      if (!this.useCookieAuth) {
+        // Store tokens in localStorage (both camelCase and snake_case)
+        if (data.access_token) {
+          localStorage.setItem('accessToken', data.access_token);
+          localStorage.setItem('access_token', data.access_token);
+        }
+        if (data.refresh_token) {
+          localStorage.setItem('refreshToken', data.refresh_token);
+          localStorage.setItem('refresh_token', data.refresh_token);
+        }
       }
       if (data.user) {
         localStorage.setItem('user', JSON.stringify(data.user));
@@ -47,6 +55,7 @@ class AuthService {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: this.useCookieAuth ? 'include' : 'same-origin',
         body: JSON.stringify(userData),
       });
 
@@ -58,14 +67,15 @@ class AuthService {
         throw new Error(msg);
       }
 
-      // Store tokens in localStorage (both camelCase and snake_case for compatibility)
-      if (data.access_token) {
-        localStorage.setItem('accessToken', data.access_token);
-        localStorage.setItem('access_token', data.access_token);
-      }
-      if (data.refresh_token) {
-        localStorage.setItem('refreshToken', data.refresh_token);
-        localStorage.setItem('refresh_token', data.refresh_token);
+      if (!this.useCookieAuth) {
+        if (data.access_token) {
+          localStorage.setItem('accessToken', data.access_token);
+          localStorage.setItem('access_token', data.access_token);
+        }
+        if (data.refresh_token) {
+          localStorage.setItem('refreshToken', data.refresh_token);
+          localStorage.setItem('refresh_token', data.refresh_token);
+        }
       }
       if (data.user) {
         localStorage.setItem('user', JSON.stringify(data.user));
@@ -89,6 +99,7 @@ class AuthService {
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           'Content-Type': 'application/json',
         },
+        credentials: this.useCookieAuth ? 'include' : 'same-origin',
         body: JSON.stringify({ refresh_token: refreshToken }),
       });
     } catch (error) {
@@ -108,9 +119,8 @@ class AuthService {
       const token = this.getAccessToken();
       const storedUser = localStorage.getItem('user');
 
-      if (!token) {
-        return null;
-      }
+      // In cookie mode, token may be absent; rely on server session
+      if (!this.useCookieAuth && !token) return null;
 
       if (storedUser) {
         return JSON.parse(storedUser);
@@ -118,9 +128,8 @@ class AuthService {
 
       // If no stored user, fetch from API
       const response = await fetch(`${this.baseURL}/auth/profile/`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: this.useCookieAuth ? {} : { 'Authorization': `Bearer ${token}` },
+        credentials: this.useCookieAuth ? 'include' : 'same-origin',
       });
 
       if (!response.ok) {
@@ -149,11 +158,20 @@ class AuthService {
   }
 
   isAuthenticated() {
+    if (this.useCookieAuth) {
+      // Heuristic: if we have a cached user, treat as authenticated
+      const u = localStorage.getItem('user');
+      return !!u;
+    }
     return !!this.getAccessToken();
   }
 
   async refreshAccessToken() {
     try {
+      if (this.useCookieAuth) {
+        // Cookie mode: rely on server session; no client-side refresh
+        throw new Error('Cookie-based auth does not support client refresh');
+      }
       const refreshToken = this.getRefreshToken();
       
       if (!refreshToken) {
@@ -198,7 +216,7 @@ class AuthService {
       'Content-Type': 'application/json',
       ...options.headers,
     };
-    if (token) {
+    if (!this.useCookieAuth && token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
@@ -206,16 +224,18 @@ class AuthService {
       const response = await fetch(url, {
         ...options,
         headers,
+        credentials: this.useCookieAuth ? 'include' : (options.credentials || 'same-origin'),
       });
 
       // If token expired, try to refresh
-      if (response.status === 401 && this.getRefreshToken()) {
+      if (!this.useCookieAuth && response.status === 401 && this.getRefreshToken()) {
         token = await this.refreshAccessToken();
         headers.Authorization = `Bearer ${token}`;
         
         return fetch(url, {
           ...options,
           headers,
+          credentials: options.credentials || 'same-origin',
         });
       }
 
@@ -227,4 +247,5 @@ class AuthService {
   }
 }
 
-export default new AuthService();
+const authService = new AuthService();
+export default authService;

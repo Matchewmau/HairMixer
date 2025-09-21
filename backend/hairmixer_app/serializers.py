@@ -8,6 +8,7 @@ from .models import (
     Hairstyle, HairstyleCategory, RecommendationLog, Feedback,
     AnalyticsEvent
 )
+from drf_spectacular.utils import extend_schema_field
 
 class RecommendRequestSerializer(serializers.Serializer):
     image_id = serializers.UUIDField()
@@ -16,7 +17,16 @@ class RecommendRequestSerializer(serializers.Serializer):
 class OverlayRequestSerializer(serializers.Serializer):
     image_id = serializers.UUIDField()
     hairstyle_id = serializers.UUIDField()
-    overlay_type = serializers.ChoiceField(choices=[('basic', 'basic'), ('advanced', 'advanced')], default='basic')
+    overlay_type = serializers.ChoiceField(
+        choices=[('basic', 'basic'), ('advanced', 'advanced')],
+        default='basic',
+    )
+
+class OverlayResponseSerializer(serializers.Serializer):
+    overlay_url = serializers.CharField()
+    overlay_type = serializers.ChoiceField(
+        choices=[('basic', 'basic'), ('advanced', 'advanced')]
+    )
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -129,8 +139,9 @@ class UserPreferenceSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["user", "version", "preference_hash"]
     
-    def get_preference_hash(self, obj):
-        """Generate a hash of preferences for caching"""
+    # inform drf-spectacular about the field type
+    @extend_schema_field(str)
+    def get_preference_hash(self, obj):  # type: ignore[override]
         pref_data = {
             'occasions': sorted(obj.occasions or []),
             'hair_type': obj.hair_type,
@@ -138,7 +149,9 @@ class UserPreferenceSerializer(serializers.ModelSerializer):
             'lifestyle': obj.lifestyle,
             'maintenance': obj.maintenance,
         }
-        return hashlib.md5(json.dumps(pref_data, sort_keys=True).encode()).hexdigest()
+        return hashlib.md5(
+            json.dumps(pref_data, sort_keys=True).encode()
+        ).hexdigest()
     
     def validate_occasions(self, value):
         if not value or len(value) == 0:
@@ -206,8 +219,23 @@ class RecommendationLogSerializer(serializers.ModelSerializer):
     
     def get_candidates_details(self, obj):
         if obj.candidates:
-            hairstyles = Hairstyle.objects.filter(id__in=obj.candidates, is_active=True)
-            return HairstyleSerializer(hairstyles, many=True, context=self.context).data
+            cache = (self.context or {}).get('hairstyle_cache')
+            if cache:
+                items = []
+                for cid in obj.candidates:
+                    key = str(cid)
+                    h = cache.get(key)
+                    if h:
+                        items.append(h)
+                return HairstyleSerializer(
+                    items, many=True, context=self.context
+                ).data
+            hairstyles = Hairstyle.objects.filter(
+                id__in=obj.candidates, is_active=True
+            )
+            return HairstyleSerializer(
+                hairstyles, many=True, context=self.context
+            ).data
         return []
     
     def get_face_shape_display(self, obj):

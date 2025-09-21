@@ -16,6 +16,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
 django.setup()
 
 from hairmixer_app.ml.face_analyzer import FacialFeatureAnalyzer
+import numpy as np
 import logging
 
 # Set up logging
@@ -58,23 +59,28 @@ def test_face_detection():
         # Test face detection
         print("\n🎯 Running face detection...")
         
-        # Add more detailed logging
-        import cv2
-        test_img = cv2.imread(str(test_image_path))
-        print(f"📊 Image loaded successfully: {test_img is not None}")
-        if test_img is not None:
-            print(f"📊 Image shape: {test_img.shape}")
-            print(f"📊 Image data type: {test_img.dtype}")
+        # Add more detailed logging without OpenCV
+        from PIL import Image as PILImage
+        try:
+            with PILImage.open(str(test_image_path)) as _pimg:
+                _arr = np.array(_pimg.convert('RGB'))
+                print("📊 Image loaded successfully: True")
+                print(f"📊 Image shape: {_arr.shape}")
+                print(f"📊 Image data type: {_arr.dtype}")
+        except Exception as _e:
+            print(f"📊 Image loaded successfully: False ({_e})")
         
         result, error = analyzer.detect_and_analyze_face(str(test_image_path))
-        
-        print(f"\n📋 Results:")
+
+        print("\n📋 Results:")
         if result:
             print("✅ Face detection successful!")
             print(f"   - Face detected: {result.get('face_detected', False)}")
             print(f"   - Confidence: {result.get('confidence', 'N/A')}")
             print(f"   - Face shape: {result.get('face_shape', 'N/A')}")
-            print(f"   - Detection method: {result.get('detection_method', 'N/A')}")
+            print(
+                f"   - Detection method: {result.get('detection_method', 'N/A')}"
+            )
             print(f"   - Face box: {result.get('face_box', 'N/A')}")
             if 'quality_metrics' in result:
                 print(f"   - Quality metrics: {result['quality_metrics']}")
@@ -84,13 +90,15 @@ def test_face_detection():
             print("❌ Face detection failed!")
             print(f"   - Error: {error}")
         
-        # Test another image if available
+    # Test another image if available
         test_image2 = "uploads/2025/08/7d9a66a024b2b8d2d48106672eb9579b.jpg"
         test_image_path2 = backend_dir / test_image2
         
         if test_image_path2.exists():
             print(f"\n🔍 Testing second image: {test_image2}")
-            result2, error2 = analyzer.detect_and_analyze_face(str(test_image_path2))
+            result2, error2 = analyzer.detect_and_analyze_face(
+                str(test_image_path2)
+            )
             
             if result2:
                 print("✅ Second image detection successful!")

@@ -4,6 +4,9 @@ from typing import Union
 from django.conf import settings
 from ..overlay import AdvancedOverlayProcessor, _GEMINI_AVAILABLE
 from ..models import UploadedImage, Hairstyle
+from urllib.parse import urlparse
+import ipaddress
+import socket
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +15,12 @@ class OverlayService:
     def __init__(self):
         self.processor = AdvancedOverlayProcessor()
 
-    def generate(self, uploaded: UploadedImage, style: Hairstyle, overlay_type: str = "basic") -> str:
+    def generate(
+        self,
+        uploaded: UploadedImage,
+        style: Hairstyle,
+        overlay_type: str = "basic",
+    ) -> str:
         user_img_path = Path(settings.MEDIA_ROOT) / uploaded.image.name
 
     # Only require a hairstyle visual when we actually need to
@@ -21,6 +29,34 @@ class OverlayService:
         if style.image:
             style_img_path = Path(settings.MEDIA_ROOT) / style.image.name
         elif style.image_url:
+            url_ok = True
+            try:
+                if getattr(settings, 'ENABLE_SSRF_PROTECTION', False):
+                    parsed = urlparse(style.image_url)
+                    if (
+                        parsed.scheme not in ('http', 'https')
+                        or not parsed.hostname
+                    ):
+                        url_ok = False
+                    else:
+                        infos = socket.getaddrinfo(parsed.hostname, None)
+                        for info in infos:
+                            ip = ipaddress.ip_address(info[4][0])
+                            if (
+                                ip.is_private
+                                or ip.is_loopback
+                                or ip.is_reserved
+                                or ip.is_link_local
+                                or ip.is_multicast
+                            ):
+                                url_ok = False
+                                break
+            except Exception:
+                url_ok = False
+
+            if not url_ok:
+                raise ValueError("Invalid or non-public hairstyle image URL")
+
             style_img_path = self.processor.download_style_image(
                 style.image_url, style.id
             )
