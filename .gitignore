@@ -3,11 +3,21 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-*.db
-*.sqlite3
 *.log
 *.pot
 *.pyc
+*.coverage
+.coverage*
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.hypothesis/
+coverage.xml
+htmlcov/
+*.sqlite3
+*.db
+*.sarif
 
 # Django
 *.mo
@@ -17,32 +27,63 @@ local_settings.py
 db.sqlite3
 media/
 staticfiles/
+static/
+backend/db.sqlite3
+backend/media/
+backend/staticfiles/
+backend/static/
 
-# Virtual environment
+# Virtual environments
 venv/
 env/
 .venv/
 ENV/
+venv311/
+.venv311/
+env311/
+.python-version
 
-# React / Node.js
+# Node.js
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
-yarn.lock
+# keep lockfiles to ensure reproducible builds
+!package-lock.json
+!yarn.lock
+!pnpm-lock.yaml
 
-# Build
+# Build artifacts
 build/
 dist/
 *.egg-info/
+*.egg
+pip-wheel-metadata/
+__pypackages__/
+npm-cache/
+.parcel-cache/
+.turbo/
+.next/
 
-# VS Code
+# Editors / tooling
 .vscode/
+.idea/
+.ipynb_checkpoints/
+.cache/
 
 # Environment variables
 .env
 *.env
+
+# Temporary files
+tmp/
+temp/
+temp_downloads/
+backend/temp_downloads/
+*.tmp
+*.swp
+*.swo
+*.bak
 
 # OS-specific files
 .DS_Store
@@ -50,3 +91,6 @@ Thumbs.db
 
 # Upload files
 uploads/
+backend/uploads/
+!uploads/.gitkeep
+!backend/uploads/.gitkeep
