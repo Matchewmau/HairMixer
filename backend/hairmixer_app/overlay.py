@@ -10,12 +10,12 @@ from django.conf import settings
 try:
     # Optional dependency, only required for advanced overlay with AI
     from gemini_webapi import GeminiClient
-    from gemini_webapi.constants import Model
     _GEMINI_AVAILABLE = True
 except Exception:
     _GEMINI_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
+
 
 class AdvancedOverlayProcessor:
     """Advanced image overlay processing with facial landmark alignment"""
@@ -29,9 +29,15 @@ class AdvancedOverlayProcessor:
         self.gemini_model = getattr(settings, 'GEMINI_MODEL', 'G_2_5_FLASH')
         self.gemini_timeout = int(getattr(settings, 'GEMINI_TIMEOUT', 120))
         # Basic overlay parameters
-        self.basic_width_ratio = float(getattr(settings, 'OVERLAY_BASIC_WIDTH_RATIO', 0.75))
-        self.y_offset_ratio = float(getattr(settings, 'OVERLAY_Y_OFFSET_RATIO', 0.03))
-        self.blur_radius = float(getattr(settings, 'OVERLAY_BLUR_RADIUS', 0.8))
+        self.basic_width_ratio = float(
+            getattr(settings, 'OVERLAY_BASIC_WIDTH_RATIO', 0.75)
+        )
+        self.y_offset_ratio = float(
+            getattr(settings, 'OVERLAY_Y_OFFSET_RATIO', 0.03)
+        )
+        self.blur_radius = float(
+            getattr(settings, 'OVERLAY_BLUR_RADIUS', 0.8)
+        )
     
     def create_basic_overlay(self, user_img_path, style_img_path, output_path):
         """Create a basic overlay (improved version of simple_overlay)"""
@@ -48,7 +54,9 @@ class AdvancedOverlayProcessor:
             ratio = new_width / hairstyle.size[0]
             new_height = int(hairstyle.size[1] * ratio)
             
-            hairstyle_resized = hairstyle.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            hairstyle_resized = hairstyle.resize(
+                (new_width, new_height), Image.Resampling.LANCZOS
+            )
             
             # Calculate position (centered horizontally, positioned at top)
             x_offset = int((base_width - new_width) / 2)
@@ -58,13 +66,17 @@ class AdvancedOverlayProcessor:
             result = base.copy()
             
             # Apply blend modes for more natural appearance
-            hairstyle_blurred = hairstyle_resized.filter(ImageFilter.GaussianBlur(radius=self.blur_radius))
+            hairstyle_blurred = hairstyle_resized.filter(
+                ImageFilter.GaussianBlur(radius=self.blur_radius)
+            )
             
             hairstyle_with_opacity = Image.new("RGBA", hairstyle_blurred.size)
             hairstyle_with_opacity.paste(hairstyle_blurred, (0, 0))
             
             # Apply alpha composite
-            result.alpha_composite(hairstyle_with_opacity, (x_offset, y_offset))
+            result.alpha_composite(
+                hairstyle_with_opacity, (x_offset, y_offset)
+            )
             
             # Save result
             result.save(output_path, "PNG")
@@ -76,18 +88,30 @@ class AdvancedOverlayProcessor:
             logger.error(f"Error creating basic overlay: {str(e)}")
             raise
     
-    def create_advanced_overlay(self, user_img_path, style_img_path, output_path, style_name: Optional[str] = None):
-        """Create advanced overlay via Gemini Web API if configured; otherwise fallback to basic.
+    def create_advanced_overlay(
+        self,
+        user_img_path,
+        style_img_path,
+        output_path,
+        style_name: Optional[str] = None,
+    ):
+        """Create advanced overlay via Gemini Web API.
+
+        Fallbacks to basic when AI is disabled, credentials are missing,
+        library is not installed, or an error occurs.
 
         Contract:
-        - Inputs: user_img_path (str/Path), style_img_path (unused here), output_path (Path)
+        - Inputs: user_img_path (str/Path), style_img_path (optional),
+          output_path (Path)
         - Output: path string to saved PNG
-        - Behavior: if AI disabled/missing creds/lib, uses basic overlay
         """
         try:
             # Guard: use AI only if enabled and library + creds are present
             use_ai = (
-                self.ai_enabled and _GEMINI_AVAILABLE and self.gemini_sid and self.gemini_sidts
+                self.ai_enabled
+                and _GEMINI_AVAILABLE
+                and self.gemini_sid
+                and self.gemini_sidts
             )
             if not use_ai:
                 reason = []
@@ -97,28 +121,68 @@ class AdvancedOverlayProcessor:
                     reason.append('gemini_webapi not installed')
                 if not self.gemini_sid or not self.gemini_sidts:
                     reason.append('missing credentials')
-                logger.warning(f"Advanced overlay falling back to basic overlay ({', '.join(reason)})")
-                return self.create_basic_overlay(user_img_path, style_img_path, output_path)
+                logger.warning(
+                    "Advanced overlay falling back to basic overlay (%s)",
+                    ", ".join(reason),
+                )
+                return self.create_basic_overlay(
+                    user_img_path, style_img_path, output_path
+                )
 
-            # Build a prompt similar to reference repo: "Edit the person's hair to {hairstyle}"
-            # Use the provided style_name when available, otherwise keep generic wording.
+            # Build a prompt similar to reference: edit hair to a target style.
+            # Use the provided style_name when available, otherwise generic.
             desired_style = style_name or "the selected hairstyle"
-            prompt = f"Edit the person's hair to {desired_style}. Maintain natural look, lighting and proportions."
+            prompt = (
+                f"Edit the person's hair to {desired_style}. "
+                "Maintain natural look, lighting and proportions."
+            )
 
             # Initialize Gemini client
             client = GeminiClient(self.gemini_sid, self.gemini_sidts)
-            # Longer session to reuse connection; mirrors reference repo defaults
+            # Longer session to reuse connection; mirrors reference defaults
             import asyncio
+
+            def _resolve_gemini_model(name: str) -> str:
+                """Map names to gemini_webapi model id strings.
+
+                Accepts either canonical strings (e.g., 'gemini-2.5-flash') or
+                short enum-like aliases (e.g., 'G_2_5_FLASH'). Defaults to
+                'gemini-2.5-flash' if unrecognized.
+                """
+                if not name:
+                    return 'gemini-2.5-flash'
+                norm = str(name).strip()
+                if norm.lower().startswith('gemini-'):
+                    return norm
+                alias = norm.upper().replace('-', '_')
+                mapping = {
+                    'G_2_5_FLASH': 'gemini-2.5-flash',
+                    'G_2_5_PRO': 'gemini-2.5-pro',
+                    'G_2_0_FLASH': 'gemini-2.0-flash',
+                    'G_2_0_FLASH_THINKING': 'gemini-2.0-flash-thinking',
+                }
+                return mapping.get(alias, 'gemini-2.5-flash')
+
             async def _run():
-                await client.init(timeout=self.gemini_timeout, auto_close=False, close_delay=60, auto_refresh=True, verbose=False)
+                await client.init(
+                    timeout=self.gemini_timeout,
+                    auto_close=False,
+                    close_delay=60,
+                    auto_refresh=True,
+                    verbose=False,
+                )
                 try:
-                    # Choose model
-                    model = getattr(Model, self.gemini_model, Model.G_2_5_FLASH)
+                    # Choose model (prefer string id accepted by gemini_webapi)
+                    model = _resolve_gemini_model(self.gemini_model)
                 except Exception:
-                    model = Model.G_2_5_FLASH
+                    model = 'gemini-2.5-flash'
 
                 # Generate edited images
-                resp = await client.generate_content(prompt, files=[str(user_img_path)], model=model)
+                resp = await client.generate_content(
+                    prompt,
+                    files=[str(user_img_path)],
+                    model=model,
+                )
                 images = getattr(resp, 'images', None)
                 if not images:
                     raise RuntimeError('Gemini returned no edited images')
@@ -126,15 +190,18 @@ class AdvancedOverlayProcessor:
                 # Save first image
                 out_dir = Path(output_path).parent
                 out_dir.mkdir(parents=True, exist_ok=True)
-                # gemini_webapi image objects support async save(path, filename)
-                await images[0].save(path=str(out_dir), filename=Path(output_path).name)
+                # gemini_webapi images support async save(path, filename)
+                await images[0].save(
+                    path=str(out_dir),
+                    filename=Path(output_path).name,
+                )
 
             # Run the async flow
-            # If already in an event loop (e.g., ASGI), use create_task style fallback
+            # If already in an event loop, use nested loop fallback
             try:
                 asyncio.run(_run())
             except RuntimeError:
-                # Likely running inside existing event loop; use nested loop policy
+                # Likely running inside loop; use nested loop policy
                 import nest_asyncio
                 nest_asyncio.apply()
                 loop = asyncio.get_event_loop()

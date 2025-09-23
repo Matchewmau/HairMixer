@@ -94,3 +94,7 @@ uploads/
 backend/uploads/
 !uploads/.gitkeep
 !backend/uploads/.gitkeep
+
+# ML and model files
+backend/hairmixer_app/ml/models/
+*.pth

@@ -18,7 +18,8 @@ from dotenv import load_dotenv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load environment variables from .env if present (project root or backend folder)
+# Load environment variables from .env if present
+# (project root or backend folder)
 load_dotenv(dotenv_path=BASE_DIR / '.env')
 load_dotenv(dotenv_path=BASE_DIR.parent / '.env')
 
@@ -32,7 +33,9 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'dev-insecure-key-change-me')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DJANGO_DEBUG', 'true').lower() == 'true'
 
-ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.getenv(
+    'DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1'
+).split(',')
 # Ensure Django test client host is allowed in DEBUG
 if DEBUG and 'testserver' not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append('testserver')
@@ -398,3 +401,17 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
 }
+
+# =====================
+# Face classifier model
+# =====================
+# Choose between 'mobilenet_v3' and 'resnet50'
+FACE_CLASSIFIER_MODEL = os.getenv(
+    'FACE_CLASSIFIER_MODEL', 'mobilenet_v3'
+)
+# Optional: point to specific weights files
+FACE_CLASSIFIER_WEIGHTS = os.getenv('FACE_CLASSIFIER_WEIGHTS', '')
+FACE_CLASSIFIER_RESNET_PATH = os.getenv('FACE_CLASSIFIER_RESNET_PATH', '')
+FACE_CLASSIFIER_MOBILENET_PATH = os.getenv(
+    'FACE_CLASSIFIER_MOBILENET_PATH', ''
+)

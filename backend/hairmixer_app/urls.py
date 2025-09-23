@@ -29,6 +29,11 @@ urlpatterns = [
     ),
     path('recommend/', views.RecommendView.as_view(), name='recommend'),
     path('overlay/', views.OverlayView.as_view(), name='overlay'),
+    path(
+        'overlay/auto/',
+        views.AutoOverlayView.as_view(),
+        name='overlay_auto',
+    ),
     path('feedback/', views.FeedbackView.as_view(), name='feedback'),
     
     # Hairstyle endpoints

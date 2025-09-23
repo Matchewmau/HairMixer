@@ -85,6 +85,7 @@ class MobileNetModelLoader:
                 # Default model path - update this to your model location
                 model_path = self._get_default_model_path()
             model_path_str = str(model_path)
+            self.model_path = model_path_str
 
             logger.info(
                 "Model load start",

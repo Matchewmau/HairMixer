@@ -55,6 +55,7 @@ from .services.recommendation_service import (
 )
 from .services.overlay_service import OverlayService
 from .services.analytics_utils import track_event_safe
+from .services.pipeline_service import RecommendationOverlayPipeline
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -137,6 +138,7 @@ cache_manager = CacheManager() if CACHE_MANAGER_AVAILABLE else None
 image_service = ImageService()
 recommendation_service = RecommendationService()
 overlay_service = OverlayService()
+pipeline_service = RecommendationOverlayPipeline()
 
 # Admin permission helper (env-gated)
 try:
@@ -997,6 +999,68 @@ class OverlayView(APIView):
             return Response(
                 {"error": "Failed to create overlay", "details": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class AutoOverlayView(APIView):
+    parser_classes = (JSONParser,)
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    from drf_spectacular.utils import (
+        extend_schema,
+        OpenApiResponse,
+        OpenApiExample,
+    )
+    from .serializers import RecommendRequestSerializer
+
+    @extend_schema(
+        request=RecommendRequestSerializer,
+        responses={
+            200: OpenApiResponse(description='Overlay generated from recommendation'),
+            400: OpenApiResponse(description='Bad request'),
+            404: OpenApiResponse(description='Not found'),
+            500: OpenApiResponse(description='Server error'),
+        },
+        examples=[
+            OpenApiExample(
+                'Auto overlay',
+                value={
+                    'image_id': '11111111-1111-1111-1111-111111111111',
+                    'preference_id': '33333333-3333-3333-3333-333333333333',
+                },
+                request_only=True,
+            )
+        ],
+    )
+    def post(self, request):
+        try:
+            req_ser = RecommendRequestSerializer(data=request.data)
+            req_ser.is_valid(raise_exception=True)
+            image_id = req_ser.validated_data["image_id"]
+            pref_id = req_ser.validated_data["preference_id"]
+
+            uploaded = get_object_or_404(UploadedImage, id=image_id)
+            prefs = get_object_or_404(UserPreference, id=pref_id)
+
+            overlay_type = 'advanced'
+            if request.query_params.get('overlay') in ('basic', 'advanced'):
+                overlay_type = request.query_params['overlay']
+
+            result = pipeline_service.run(
+                uploaded, prefs, overlay_type=overlay_type,
+                user=(request.user if request.user.is_authenticated else None)
+            )
+            if 'error' in result:
+                return Response(result, status=status.HTTP_400_BAD_REQUEST)
+            return Response(result)
+        except ValidationError as e:
+            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error("Auto overlay error: %s", str(e))
+            return Response(
+                {"error": "Failed to generate auto overlay", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 

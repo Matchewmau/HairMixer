@@ -4,6 +4,7 @@ from .analysis import (
     SetPreferencesView,
     RecommendView,
     OverlayView,
+    AutoOverlayView,
 )
 from .catalog import (
     FeaturedHairstylesView,
@@ -45,6 +46,7 @@ __all__ = [
     'SetPreferencesView',
     'RecommendView',
     'OverlayView',
+    'AutoOverlayView',
     # catalog
     'FeaturedHairstylesView',
     'TrendingHairstylesView',

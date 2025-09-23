@@ -16,6 +16,17 @@ except ImportError as e:
         "MobileNetV3 classifier not available: %s", e
     )
 
+# Import the ResNet50 classifier
+try:
+    from .resnet_classifier import resnet_loader
+    RESNET_AVAILABLE = True
+    logging.getLogger(__name__).debug("ResNet50 classifier available")
+except ImportError as e:
+    RESNET_AVAILABLE = False
+    logging.getLogger(__name__).warning(
+        "ResNet50 classifier not available: %s", e
+    )
+
 # At the top of face_analyzer.py, add a module-level flag
 _MEDIAPIPE_INITIALIZED = False
 _FACENET_INITIALIZED = False
@@ -392,31 +403,76 @@ class FacialFeatureAnalyzer:
     # Removed OpenCV Haar fallback
 
     def _load_shape_classifier(self):
-        """Load MobileNetV3 face shape classifier only (no other fallbacks)."""
+        """
+        Load face shape classifier based on settings
+        (ResNet50 or MobileNetV3).
+        """
         try:
-            if not MOBILENET_AVAILABLE:
-                logger.error("MobileNetV3 classifier module not available")
+            from django.conf import settings as dj_settings
+
+            desired = getattr(
+                dj_settings, 'FACE_CLASSIFIER_MODEL', 'mobilenet_v3'
+            ).lower()
+            custom_weights = getattr(
+                dj_settings, 'FACE_CLASSIFIER_WEIGHTS', ''
+            )
+            resnet_weights = getattr(
+                dj_settings, 'FACE_CLASSIFIER_RESNET_PATH', ''
+            ) or custom_weights
+            mobilenet_weights = getattr(
+                dj_settings, 'FACE_CLASSIFIER_MOBILENET_PATH', ''
+            ) or custom_weights
+
+            def _load_mobilenet() -> bool:
+                if not MOBILENET_AVAILABLE:
+                    return False
+                path = mobilenet_weights or None
+                ok = mobile_net_loader.load_model(path)
+                if ok:
+                    self.shape_classifier = 'mobilenet_v3'
+                    self.feature_extractor = mobile_net_loader
+                    weights = getattr(mobile_net_loader, 'model_path', None)
+                    logger.info(
+                        "model_load_ok model=MobileNetV3 weights=%s",
+                        str(weights) if weights else 'default',
+                    )
+                    return True
+                return False
+
+            def _load_resnet() -> bool:
+                if not RESNET_AVAILABLE:
+                    return False
+                path = resnet_weights or None
+                ok = resnet_loader.load_model(path)
+                if ok:
+                    self.shape_classifier = 'resnet50'
+                    self.feature_extractor = resnet_loader
+                    weights = getattr(resnet_loader, 'model_path', None)
+                    logger.info(
+                        "model_load_ok model=ResNet50 weights=%s",
+                        str(weights) if weights else 'default',
+                    )
+                    return True
+                return False
+
+            # Try desired first, then fallback
+            loaded = False
+            if desired == 'resnet50':
+                loaded = _load_resnet() or _load_mobilenet()
+            else:
+                loaded = _load_mobilenet() or _load_resnet()
+
+            if not loaded:
+                logger.error("No classifier could be loaded")
                 self.feature_extractor = None
                 self.shape_classifier = None
                 return False
 
-            logger.debug(
-                "Attempting to load MobileNetV3 face shape classifier..."
-            )
-            if mobile_net_loader.load_model():
-                self.shape_classifier = 'mobilenet_v3'
-                self.feature_extractor = mobile_net_loader
-                logger.info("model_load_ok model=MobileNetV3 weights=%s", str(self.model_path))
-                logger.debug("MobileNetV3 classifier loaded successfully")
-                return True
-
-            logger.error("Failed to load MobileNetV3 model")
-            self.feature_extractor = None
-            self.shape_classifier = None
-            return False
+            logger.debug("Classifier loaded: %s", self.shape_classifier)
+            return True
 
         except Exception as e:
-            logger.error(f"Error loading MobileNetV3 classifier: {str(e)}")
+            logger.error(f"Error loading classifier: {str(e)}")
             self.feature_extractor = None
             self.shape_classifier = None
             return False
@@ -428,27 +484,30 @@ class FacialFeatureAnalyzer:
         (No model fallbacks)
         """
         try:
-            if not (
-                MOBILENET_AVAILABLE
-                and getattr(self, 'shape_classifier', None) == 'mobilenet_v3'
-                and getattr(self, 'feature_extractor', None)
-            ):
-                logger.error(
-                    "MobileNetV3 classifier unavailable; returning unavailable"
-                )
+            if not getattr(self, 'feature_extractor', None):
+                logger.error("Classifier unavailable; returning unavailable")
                 return {
                     'shape': 'oval',
                     'confidence': 0.0,
                     'method': 'unavailable',
                 }
 
-            mobilenet_result = self._predict_with_mobilenet(face_img)
-            logger.debug(
-                "MobileNetV3 prediction: %s (conf: %.3f)",
-                mobilenet_result['shape'],
-                mobilenet_result['confidence'],
-            )
-            return mobilenet_result
+            if getattr(self, 'shape_classifier', None) == 'resnet50':
+                result = self._predict_with_resnet(face_img)
+                logger.debug(
+                    "ResNet50 prediction: %s (conf: %.3f)",
+                    result['shape'],
+                    result['confidence'],
+                )
+                return result
+            else:
+                result = self._predict_with_mobilenet(face_img)
+                logger.debug(
+                    "MobileNetV3 prediction: %s (conf: %.3f)",
+                    result['shape'],
+                    result['confidence'],
+                )
+                return result
 
         except Exception as e:
             logger.error("Face shape prediction error: %s", str(e))
@@ -488,8 +547,8 @@ class FacialFeatureAnalyzer:
             
             dt = (time.perf_counter() - t0) * 1000.0
             try:
-                pred_shape = out['shape']
-                pred_conf = float(out.get('confidence', 0.0))
+                pred_shape = face_shape
+                pred_conf = float(confidence)
             except Exception:
                 pred_shape = 'n/a'
                 pred_conf = 0.0
@@ -511,6 +570,55 @@ class FacialFeatureAnalyzer:
             
         except Exception as e:
             logger.error(f"MobileNetV3 prediction error: {str(e)}")
+            raise
+
+    def _predict_with_resnet(self, face_img):
+        """Predict face shape using trained ResNet50 model"""
+        t0 = time.perf_counter()
+        try:
+            face_pil = Image.fromarray(face_img)
+            face_tensor = self.transform(face_pil).unsqueeze(0)
+            prediction_result = self.feature_extractor.predict(face_tensor)
+            if prediction_result is None:
+                raise ValueError("ResNet50 prediction returned None")
+
+            predicted_class = prediction_result['predicted_class']
+            confidence = prediction_result['confidence']
+            probabilities = prediction_result['probabilities']
+
+            from .model import FACE_SHAPES
+            face_shape = FACE_SHAPES.get(predicted_class, 'oval')
+
+            all_probabilities = {}
+            for i, prob in enumerate(probabilities):
+                shape_name = FACE_SHAPES.get(i, f'class_{i}')
+                all_probabilities[shape_name] = float(prob)
+
+            dt = (time.perf_counter() - t0) * 1000.0
+            try:
+                pred_shape = face_shape
+                pred_conf = float(confidence)
+            except Exception:
+                pred_shape = 'n/a'
+                pred_conf = 0.0
+            logger.info(
+                "model_predict_ok model=ResNet50 shape=%s conf=%.3f "
+                "latency_ms=%.1f",
+                pred_shape,
+                pred_conf,
+                dt,
+            )
+
+            return {
+                'shape': face_shape,
+                'confidence': confidence,
+                'method': 'resnet50',
+                'all_probabilities': all_probabilities,
+                'raw_prediction': prediction_result
+            }
+
+        except Exception as e:
+            logger.error(f"ResNet50 prediction error: {str(e)}")
             raise
 
     # Removed ResNet/geometric analysis helpers (MobileNet-only)
