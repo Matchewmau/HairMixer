@@ -342,9 +342,9 @@ const Results = () => {
           <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-8 shadow-xl">
             <h2 className="text-2xl font-bold text-white mb-8">Recommended Hairstyles</h2>
             
-            {recommendations.recommended_styles && recommendations.recommended_styles.length > 0 ? (
+            {recommendations.recommendations && recommendations.recommendations.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {recommendations.recommended_styles.map((style, index) => (
+                {recommendations.recommendations.map((style, index) => (
                   <div key={index} className="bg-gray-700/30 backdrop-blur-sm border border-gray-600/50 rounded-xl p-6 hover:shadow-xl hover:shadow-purple-500/10 transition-all duration-300 transform hover:scale-105 group">
                     {style.image_url && (
                       <img
@@ -390,32 +390,20 @@ const Results = () => {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12">
-                <p className="text-gray-300 mb-8 text-lg">
-                  No specific recommendations available yet, but here are some popular styles for your face shape:
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {/* Placeholder recommendations */}
-                  {[
-                    { name: 'Classic Bob', description: 'A timeless bob cut that suits most face shapes' },
-                    { name: 'Beach Waves', description: 'Relaxed, natural-looking waves' },
-                    { name: 'Layered Cut', description: 'Versatile layers that add movement' }
-                  ].map((style, index) => (
-                    <div key={index} className="bg-gray-700/30 backdrop-blur-sm border border-gray-600/50 rounded-xl p-6 hover:shadow-xl hover:shadow-purple-500/10 transition-all duration-300 transform hover:scale-105 group">
-                      <div className="w-full h-48 bg-gray-600/50 rounded-xl mb-4 flex items-center justify-center border border-gray-500/30">
-                        <span className="text-gray-400">Style Image</span>
-                      </div>
-                      <h3 className="font-semibold text-xl text-white mb-3 group-hover:text-purple-400 transition-colors duration-300">
-                        {style.name}
-                      </h3>
-                      <p className="text-gray-300 mb-6 leading-relaxed">
-                        {style.description}
-                      </p>
-                      <button className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white py-3 px-4 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg">
-                        Try This Style
-                      </button>
-                    </div>
-                  ))}
+              <div className="text-center py-16">
+                <div className="bg-yellow-900/20 border border-yellow-600/30 rounded-xl p-8 max-w-lg mx-auto">
+                  <div className="text-yellow-400 text-5xl mb-4">⚠️</div>
+                  <h3 className="text-xl font-bold text-white mb-3">No Recommendations Available</h3>
+                  <p className="text-gray-300 mb-6">
+                    We couldn't generate recommendations based on your preferences. 
+                    This might be because there are no matching hairstyles in our database for your specific criteria.
+                  </p>
+                  <button
+                    onClick={() => navigate('/preferences')}
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-8 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg"
+                  >
+                    Try Different Preferences
+                  </button>
                 </div>
               </div>
             )}

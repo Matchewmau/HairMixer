@@ -3,6 +3,7 @@ from .analysis import (
     UploadImageView,
     SetPreferencesView,
     RecommendView,
+    MLRecommendView,
     OverlayView,
     AutoOverlayView,
 )
@@ -45,6 +46,7 @@ __all__ = [
     'UploadImageView',
     'SetPreferencesView',
     'RecommendView',
+    'MLRecommendView',
     'OverlayView',
     'AutoOverlayView',
     # catalog

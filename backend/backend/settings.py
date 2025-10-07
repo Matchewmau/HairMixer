@@ -407,7 +407,7 @@ SPECTACULAR_SETTINGS = {
 # =====================
 # Choose between 'mobilenet_v3' and 'resnet50'
 FACE_CLASSIFIER_MODEL = os.getenv(
-    'FACE_CLASSIFIER_MODEL', 'mobilenet_v3'
+    'FACE_CLASSIFIER_MODEL', 'resnet50'
 )
 # Optional: point to specific weights files
 FACE_CLASSIFIER_WEIGHTS = os.getenv('FACE_CLASSIFIER_WEIGHTS', '')

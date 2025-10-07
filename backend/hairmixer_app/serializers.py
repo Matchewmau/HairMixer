@@ -132,22 +132,36 @@ class UserPreferenceSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserPreference
         fields = [
-            "id", "gender", "occasions", "hair_type", "hair_length", 
-            "hair_color", "lifestyle", "maintenance", "budget_range",
-            "color_preference", "avoid_styles", "version", "preference_hash",
+            "id", "faceshape", "faceshape_confidence", "gender",
+            "occasions", "hair_type", "hair_length", "hair_color",
+            "lifestyle", "maintenance", "volume", "styling_maintenance",
+            "hair_texture_detail", "styling_preference", "hair_condition",
+            "hair_thickness", "wants_bangs", "hairstyle_family",
+            "hairstyle_name", "budget_range", "color_preference",
+            "avoid_styles", "version", "preference_hash",
             "created_at", "updated_at"
         ]
-        read_only_fields = ["user", "version", "preference_hash"]
+        read_only_fields = [
+            "user", "version", "preference_hash",
+            "faceshape_confidence"
+        ]
     
     # inform drf-spectacular about the field type
     @extend_schema_field(str)
     def get_preference_hash(self, obj):  # type: ignore[override]
         pref_data = {
+            'faceshape': obj.faceshape or '',
             'occasions': sorted(obj.occasions or []),
             'hair_type': obj.hair_type,
             'hair_length': obj.hair_length,
             'lifestyle': obj.lifestyle,
             'maintenance': obj.maintenance,
+            'volume': obj.volume or '',
+            'hair_texture_detail': obj.hair_texture_detail or '',
+            'styling_preference': obj.styling_preference or '',
+            'hair_condition': obj.hair_condition or '',
+            'hair_thickness': obj.hair_thickness or '',
+            'wants_bangs': obj.wants_bangs or False,
         }
         return hashlib.md5(
             json.dumps(pref_data, sort_keys=True).encode()
@@ -155,12 +169,18 @@ class UserPreferenceSerializer(serializers.ModelSerializer):
     
     def validate_occasions(self, value):
         if not value or len(value) == 0:
-            raise serializers.ValidationError("At least one occasion must be selected")
+            raise serializers.ValidationError(
+                "At least one occasion must be selected"
+            )
         
-        valid_occasions = [choice[0] for choice in UserPreference.OCCASION_CHOICES]
+        valid_occasions = [
+            choice[0] for choice in UserPreference.OCCASION_CHOICES
+        ]
         for occasion in value:
             if occasion not in valid_occasions:
-                raise serializers.ValidationError(f"'{occasion}' is not a valid occasion")
+                raise serializers.ValidationError(
+                    f"'{occasion}' is not a valid occasion"
+                )
         return value
 
 class HairstyleCategorySerializer(serializers.ModelSerializer):

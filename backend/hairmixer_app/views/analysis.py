@@ -232,7 +232,7 @@ class SetPreferencesView(APIView):
                 return Response(
                     {
                         "error": (
-                            "Invalid maintenance "
+                            "Invalid maintenance " +
                             (
                                 "'" + preference_data['maintenance'] + "'"
                                 + ". Must be one of: " + str(valid_maintenance)
@@ -248,7 +248,7 @@ class SetPreferencesView(APIView):
                     return Response(
                         {
                             "error": (
-                                "Invalid gender "
+                                "Invalid gender " +
                                 (
                                     "'" + preference_data['gender'] + "'"
                                     + ". Must be one of: " + str(valid_genders)
@@ -259,11 +259,6 @@ class SetPreferencesView(APIView):
                     )
 
             if preference_data.get('lifestyle'):
-                lifestyle_map = {'moderate': 'casual', 'relaxed': 'casual'}
-                if preference_data['lifestyle'] in lifestyle_map:
-                    preference_data['lifestyle'] = lifestyle_map[
-                        preference_data['lifestyle']
-                    ]
                 from ..models import UserPreference
 
                 valid_lifestyles = [
@@ -273,7 +268,7 @@ class SetPreferencesView(APIView):
                     return Response(
                         {
                             "error": (
-                                "Invalid lifestyle "
+                                "Invalid lifestyle " +
                                 (
                                     "'" + preference_data['lifestyle'] + "'"
                                     + ". Must be one of: "
@@ -591,6 +586,136 @@ class AutoOverlayView(APIView):
             return Response(
                 {
                     "error": "Failed to generate auto overlay",
+                    "details": str(e),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class MLRecommendView(APIView):
+    """
+    ML-based hairstyle recommendations using trained Random Forest model.
+    
+    Uses hairstyle_family_model.pkl to generate intelligent hairstyle
+    recommendations based on comprehensive user preferences including
+    face shape (detected by ResNet50), hair characteristics, lifestyle,
+    and occasions.
+    
+    Endpoint: POST /api/recommend/ml/
+    """
+    parser_classes = (JSONParser,)
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [RecommendationThrottle]
+    
+    @extend_schema(
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'preference_id': {
+                        'type': 'string',
+                        'format': 'uuid',
+                        'description': 'User preference UUID'
+                    },
+                },
+                'required': ['preference_id']
+            }
+        },
+        responses={
+            200: OpenApiResponse(
+                description='ML-based recommendations generated'
+            ),
+            400: OpenApiResponse(description='Bad request'),
+            404: OpenApiResponse(description='Preferences not found'),
+            500: OpenApiResponse(
+                description='Server error generating recommendations'
+            ),
+        },
+    )
+    def post(self, request):
+        try:
+            from ..services.hairstyle_recommender import (
+                HairstyleRecommender
+            )
+            
+            pref_id = request.data.get('preference_id')
+            
+            if not pref_id:
+                return Response(
+                    {"error": "preference_id is required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
+            # Get user preferences
+            try:
+                prefs = UserPreference.objects.get(id=pref_id)
+            except UserPreference.DoesNotExist:
+                return Response(
+                    {"error": "Preferences not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            
+            # Convert to dict for recommender
+            preferences_dict = {
+                'gender': prefs.gender,
+                'hair_type': prefs.hair_type,
+                'hair_length': prefs.hair_length,
+                'faceshape': prefs.faceshape,
+                'maintenance': prefs.maintenance,
+                'lifestyle': prefs.lifestyle,
+                'volume': prefs.volume,
+                'styling_maintenance': prefs.styling_maintenance,
+                'styling_preference': prefs.styling_preference,
+                'hair_condition': prefs.hair_condition,
+                'hair_thickness': prefs.hair_thickness,
+                'hair_texture_detail': prefs.hair_texture_detail,
+                'wants_bangs': prefs.wants_bangs,
+                'occasions': prefs.occasions,
+            }
+            
+            # Get ML recommendations
+            recommender = HairstyleRecommender()
+            recommendations = recommender.get_top_recommendations(
+                preferences_dict,
+                top_n=10
+            )
+            
+            response_data = {
+                'recommendation_count': len(recommendations),
+                'recommendations': recommendations,
+                'model_used': 'hairstyle_family_model',
+                'faceshape': prefs.faceshape or 'not_detected',
+                'faceshape_confidence': prefs.faceshape_confidence or 0.0,
+            }
+            
+            # Track analytics
+            track_event_safe(
+                analytics_service,
+                user=(
+                    request.user
+                    if getattr(request.user, 'is_authenticated', False)
+                    else None
+                ),
+                event_type='ml_recommendation_generated',
+                event_data={
+                    'preference_id': str(pref_id),
+                    'recommendation_count': len(recommendations),
+                    'faceshape': prefs.faceshape or 'not_detected',
+                },
+                request=request,
+            )
+            
+            return Response(response_data)
+            
+        except Exception as e:
+            logger.error(
+                f"Error generating ML recommendations: {str(e)}",
+                exc_info=True
+            )
+            return Response(
+                {
+                    "error": "Failed to generate ML recommendations",
                     "details": str(e),
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

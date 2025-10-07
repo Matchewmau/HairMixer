@@ -19,6 +19,12 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.exceptions import ValidationError
 from django.contrib.auth import authenticate
 from django.contrib.auth.hashers import make_password
+from drf_spectacular.utils import (
+    extend_schema,
+    OpenApiResponse,
+    OpenApiExample,
+    OpenApiParameter,
+)
 from django.core.paginator import Paginator
 from django.db import connection
 from pathlib import Path
@@ -48,6 +54,7 @@ from .serializers import (
     UploadedImageSerializer,
     RecommendRequestSerializer,
     OverlayRequestSerializer,
+    OverlayResponseSerializer,
 )
 from .services.image_service import ImageService
 from .services.recommendation_service import (
@@ -83,12 +90,7 @@ if not _ML_IMPORTS_DONE:
         logger.warning(f"ML model not available: {e}")
         ML_MODEL_AVAILABLE = False
 
-    try:
-        from .logic.recommendation_engine import EnhancedRecommendationEngine
-        RECOMMENDATION_ENGINE_AVAILABLE = True
-    except ImportError as e:
-        logger.warning(f"Recommendation engine not available: {e}")
-        RECOMMENDATION_ENGINE_AVAILABLE = False
+
 
     try:
         from .overlay import AdvancedOverlayProcessor
@@ -127,9 +129,6 @@ class RecommendationThrottle(UserRateThrottle):
 
 
 MODEL = None
-recommendation_engine = (
-    EnhancedRecommendationEngine() if RECOMMENDATION_ENGINE_AVAILABLE else None
-)
 overlay_processor = (
     AdvancedOverlayProcessor() if OVERLAY_PROCESSOR_AVAILABLE else None
 )
@@ -430,14 +429,6 @@ class UploadImageView(APIView):
     authentication_classes = []
     throttle_classes = [ImageUploadThrottle]
     
-    # schema annotations
-    from drf_spectacular.utils import (
-        extend_schema,
-        OpenApiResponse,
-        OpenApiExample,
-        OpenApiParameter,
-    )
-
     @extend_schema(
         request={
             'multipart/form-data': {
@@ -711,17 +702,8 @@ class SetPreferencesView(APIView):
                         status=status.HTTP_400_BAD_REQUEST
                     )
             
-            # Normalize and validate lifestyle if provided
+            # Validate lifestyle if provided
             if preference_data.get('lifestyle'):
-                # Map UI values to model choices
-                lifestyle_map = {
-                    'moderate': 'casual',
-                    'relaxed': 'casual',
-                }
-                if preference_data['lifestyle'] in lifestyle_map:
-                    preference_data['lifestyle'] = lifestyle_map[
-                        preference_data['lifestyle']
-                    ]
                 valid_lifestyles = [
                     choice[0] for choice in UserPreference.LIFESTYLE_CHOICES
                 ]
@@ -804,18 +786,18 @@ class SetPreferencesView(APIView):
 
 
 class RecommendView(APIView):
+    """
+    Hairstyle recommendations using Random Forest model.
+    
+    Uses the trained Random Forest classifier (hairstyle_family_model.pkl)
+    to generate intelligent recommendations based on face analysis and
+    user preferences.
+    """
     parser_classes = (JSONParser,)
     # Allow anonymous recommendations; throttle applies regardless
     permission_classes = [AllowAny]
     authentication_classes = []
     throttle_classes = [RecommendationThrottle]
-    
-    from drf_spectacular.utils import (
-        extend_schema,
-        OpenApiResponse,
-        OpenApiExample,
-    )
-    from .serializers import RecommendRequestSerializer
 
     @extend_schema(
         request=RecommendRequestSerializer,
@@ -901,20 +883,197 @@ class RecommendView(APIView):
             )
 
 
+class MLRecommendView(APIView):
+    """
+    ML-based hairstyle recommendations using trained Random Forest model.
+    
+    This endpoint uses the hairstyle_family_model.pkl to generate
+    intelligent hairstyle recommendations based on comprehensive user
+    preferences including face shape (detected by ResNet50), hair
+    characteristics, lifestyle, and occasions.
+    
+    Endpoint: POST /api/recommend/ml/
+    
+    Request Body:
+        {
+            "preference_id": "uuid-string"  # Required
+        }
+    
+    Response (200):
+        {
+            "recommendation_count": 10,
+            "recommendations": [
+                {
+                    "id": "hairstyle-uuid",
+                    "name": "Hairstyle Name",
+                    "description": "Description...",
+                    "image_url": "/media/...",
+                    "category": "Category Name",
+                    "hairstyle_family": "Bob",
+                    "difficulty": "medium",
+                    "estimated_time": 30,
+                    "maintenance": "medium",
+                    "tags": [...],
+                    "match_score": 0.85,
+                    "confidence": 85.0
+                },
+                ...
+            ],
+            "model_used": "hairstyle_family_model",
+            "faceshape": "oval",
+            "faceshape_confidence": 0.92
+        }
+    
+    The model predicts hairstyle families and matches them with
+    hairstyles in the database, returning the top 10 most suitable
+    options with confidence scores.
+    
+    Features used by model (21 total):
+    - Core: gender, hair_type, hair_length, faceshape, maintenance
+    - Detailed: volume, thickness, texture, styling_preference, condition
+    - Binary: wants_bangs
+    - Multi-select: 8 occasion types
+    
+    Rate Limiting: Subject to RecommendationThrottle (20/hour)
+    Authentication: Not required (public endpoint)
+    """
+    parser_classes = (JSONParser,)
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [RecommendationThrottle]
+    
+    @extend_schema(
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'preference_id': {
+                        'type': 'string',
+                        'format': 'uuid',
+                        'description': 'User preference UUID'
+                    },
+                },
+                'required': ['preference_id']
+            }
+        },
+        responses={
+            200: OpenApiResponse(
+                description='ML-based recommendations generated'
+            ),
+            400: OpenApiResponse(description='Bad request'),
+            404: OpenApiResponse(description='Preferences not found'),
+            500: OpenApiResponse(
+                description='Server error generating recommendations'
+            ),
+        },
+        examples=[
+            OpenApiExample(
+                'Generate ML recommendations',
+                value={
+                    'preference_id': (
+                        '33333333-3333-3333-3333-333333333333'
+                    ),
+                },
+                request_only=True,
+            )
+        ],
+    )
+    def post(self, request):
+        try:
+            from .services.hairstyle_recommender import HairstyleRecommender
+            
+            pref_id = request.data.get('preference_id')
+            
+            if not pref_id:
+                return Response(
+                    {"error": "preference_id is required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
+            # Get user preferences
+            try:
+                prefs = UserPreference.objects.get(id=pref_id)
+            except UserPreference.DoesNotExist:
+                return Response(
+                    {"error": "User preferences not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            
+            # Convert preferences to dict
+            pref_dict = {
+                'faceshape': prefs.faceshape or '',
+                'gender': prefs.gender or '',
+                'hair_type': prefs.hair_type or '',
+                'hair_length': prefs.hair_length or '',
+                'hair_color': prefs.hair_color or '',
+                'lifestyle': prefs.lifestyle or '',
+                'maintenance': prefs.maintenance or '',
+                'volume': prefs.volume or '',
+                'styling_maintenance': prefs.styling_maintenance or '',
+                'hair_texture_detail': prefs.hair_texture_detail or '',
+                'styling_preference': prefs.styling_preference or '',
+                'hair_condition': prefs.hair_condition or '',
+                'hair_thickness': prefs.hair_thickness or '',
+                'wants_bangs': prefs.wants_bangs or False,
+                'occasions': prefs.occasions or [],
+                'hairstyle_family': prefs.hairstyle_family or '',
+                'hairstyle_name': prefs.hairstyle_name or '',
+            }
+            
+            # Initialize recommender and get recommendations
+            recommender = HairstyleRecommender()
+            recommendations = recommender.get_top_recommendations(
+                pref_dict, top_n=10
+            )
+            
+            logger.info(
+                f"ML recommendations generated: {len(recommendations)} styles"
+            )
+            
+            response_data = {
+                "recommendation_count": len(recommendations),
+                "recommendations": recommendations,
+                "model_used": "hairstyle_family_model",
+                "faceshape": prefs.faceshape or 'not_detected',
+                "faceshape_confidence": prefs.faceshape_confidence or 0.0,
+            }
+            
+            # Track analytics
+            track_event_safe(
+                analytics_service,
+                user=(
+                    request.user
+                    if getattr(request.user, 'is_authenticated', False)
+                    else None
+                ),
+                event_type='ml_recommendation_generated',
+                event_data={
+                    'preference_id': str(pref_id),
+                    'recommendation_count': len(recommendations),
+                    'faceshape': prefs.faceshape or 'not_detected',
+                },
+                request=request,
+            )
+            
+            return Response(response_data)
+            
+        except Exception as e:
+            logger.error(
+                f"Error generating ML recommendations: {str(e)}",
+                exc_info=True
+            )
+            return Response(
+                {
+                    "error": "Failed to generate ML recommendations",
+                    "details": str(e),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
 class OverlayView(APIView):
     parser_classes = (JSONParser,)
     permission_classes = [IsAuthenticated]
-    
-    # Schema annotations for API docs
-    from drf_spectacular.utils import (
-        extend_schema,
-        OpenApiResponse,
-        OpenApiExample,
-    )
-    from .serializers import (
-        OverlayRequestSerializer,
-        OverlayResponseSerializer,
-    )
 
     @extend_schema(
         request=OverlayRequestSerializer,
@@ -1006,13 +1165,6 @@ class AutoOverlayView(APIView):
     parser_classes = (JSONParser,)
     permission_classes = [AllowAny]
     authentication_classes = []
-
-    from drf_spectacular.utils import (
-        extend_schema,
-        OpenApiResponse,
-        OpenApiExample,
-    )
-    from .serializers import RecommendRequestSerializer
 
     @extend_schema(
         request=RecommendRequestSerializer,
@@ -1158,7 +1310,7 @@ def health_check(request):
         'message': 'HairMixer backend is running',
         'ml_available': ML_MODEL_AVAILABLE,
         'preprocess_available': ML_PREPROCESS_AVAILABLE,
-        'recommendation_available': RECOMMENDATION_ENGINE_AVAILABLE,
+        'recommendation_available': True,
         'overlay_available': OVERLAY_PROCESSOR_AVAILABLE,
         'analytics_available': ANALYTICS_AVAILABLE,
         'cache_available': CACHE_MANAGER_AVAILABLE,
@@ -1219,7 +1371,7 @@ def api_root(request):
         "system_status": {
             "ml_available": ML_MODEL_AVAILABLE,
             "preprocess_available": ML_PREPROCESS_AVAILABLE,
-            "recommendation_available": RECOMMENDATION_ENGINE_AVAILABLE,
+            "recommendation_available": True,
             "overlay_available": OVERLAY_PROCESSOR_AVAILABLE,
             "analytics_available": ANALYTICS_AVAILABLE
         }
@@ -1459,13 +1611,7 @@ class UserHistoryView(APIView):
 
 class SearchView(APIView):
     """Search hairstyles with advanced filtering"""
-    permission_classes = [AllowAny]  # Add this line
-    
-    from drf_spectacular.utils import (
-        extend_schema,
-        OpenApiParameter,
-        OpenApiResponse,
-    )
+    permission_classes = [AllowAny]
 
     @extend_schema(
         parameters=[

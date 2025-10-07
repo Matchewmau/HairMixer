@@ -82,7 +82,7 @@ except ImportError:
     # Fallback if model.py import fails
     FACE_SHAPES = {
         0: "oval", 1: "round", 2: "square",
-        3: "heart", 4: "diamond", 5: "oblong"
+        3: "heart", 4: "diamond", 5: "oblong", 6: "triangle"
     }
 
 

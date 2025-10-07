@@ -8,19 +8,21 @@ from ..models import (
 )
 from .cache_manager import CacheManager
 from ..ml.face_analyzer import analyze_face_comprehensive
-try:
-    from ..ml.recommendation_model import MLRecommendationEngine
-    _ML_ENGINE_OK = True
-except Exception:
-    _ML_ENGINE_OK = False
+from .hairstyle_recommender import HairstyleRecommender
 
 logger = logging.getLogger(__name__)
 
 
 class RecommendationService:
+    """
+    Recommendation service using hairstyle_family_model (Random Forest).
+    
+    This service uses the trained Random Forest classifier to generate
+    hairstyle recommendations based on user preferences and face analysis.
+    """
     def __init__(self):
         self.cache = CacheManager()
-        self.ml_engine = MLRecommendationEngine() if _ML_ENGINE_OK else None
+        self.recommender = HairstyleRecommender()
 
     def generate(
         self, uploaded: UploadedImage, prefs: UserPreference, user=None
@@ -41,55 +43,43 @@ class RecommendationService:
         face_shape = (
             (face_analysis.get('face_shape') or {}).get('shape', 'oval')
         )
-        facial_features = face_analysis.get('facial_features') or {}
-
-        # Select candidate hairstyles then score
-        styles = list(
-            Hairstyle.objects.filter(is_active=True)
-            .order_by('-trend_score', '-popularity_score', 'name')[:50]
+        face_shape_confidence = float(
+            (face_analysis.get('face_shape') or {}).get('confidence', 0.0)
         )
-        recommendations = []
-        if styles:
-            for hs in styles:
-                try:
-                    if self.ml_engine:
-                        score_obj = self.ml_engine.predict_user_preference(
-                            face_shape, facial_features, hs, prefs
-                        )
-                        match_score = float(score_obj.get('score') or 0.0)
-                    else:
-                        # simple heuristic if ML engine missing
-                        match_score = 0.5
-                    # Prefer stored image; else external image_url
-                    try:
-                        if hs.image:
-                            image_url = hs.image.url
-                        else:
-                            image_url = hs.image_url or None
-                    except Exception:
-                        image_url = hs.image_url or None
-                    recommendations.append({
-                        'id': str(hs.id),
-                        'name': hs.name,
-                        'description': hs.description or '',
-                        'image_url': image_url,
-                        'category': hs.category.name if hs.category else '',
-                        'difficulty': hs.difficulty or 'Medium',
-                        'estimated_time': hs.estimated_time or 30,
-                        'maintenance': hs.maintenance or 'Medium',
-                        'tags': hs.tags or [],
-                        'match_score': round(match_score, 3),
-                    })
-                except Exception:
-                    logger.warning(
-                        "Scoring failed for style %s", hs.id, exc_info=True
-                    )
-        else:
-            recommendations = []
+        facial_features = face_analysis.get('facial_features') or {}
+        
+        # Update preferences with detected face shape if not already set
+        if not prefs.faceshape and face_shape:
+            prefs.faceshape = face_shape
+            prefs.faceshape_confidence = face_shape_confidence
+            prefs.save(update_fields=['faceshape', 'faceshape_confidence'])
 
-        # Sort and pick top N
-        recommendations.sort(key=lambda x: x['match_score'], reverse=True)
-        top_recs = recommendations[:9]
+        # Convert preferences to dict for Random Forest recommender
+        preferences_dict = {
+            'gender': prefs.gender or '',
+            'hair_type': prefs.hair_type or '',
+            'hair_length': prefs.hair_length or '',
+            'faceshape': prefs.faceshape or face_shape or '',
+            'maintenance': prefs.maintenance or '',
+            'lifestyle': prefs.lifestyle or '',
+            'volume': prefs.volume or '',
+            'styling_maintenance': prefs.styling_maintenance or '',
+            'styling_preference': prefs.styling_preference or '',
+            'hair_condition': prefs.hair_condition or '',
+            'hair_thickness': prefs.hair_thickness or '',
+            'hair_texture_detail': prefs.hair_texture_detail or '',
+            'wants_bangs': prefs.wants_bangs or False,
+            'occasions': prefs.occasions or [],
+        }
+        
+        # Use Random Forest model (hairstyle_family_model) for recommendations
+        # Get top 10 recommendations only - no fallbacks
+        recommendations = self.recommender.get_top_recommendations(
+            preferences_dict,
+            top_n=10
+        )
+        
+        top_recs = recommendations[:10]
         processing_time = (timezone.now() - start_time).total_seconds()
 
         selected_style_obj = None

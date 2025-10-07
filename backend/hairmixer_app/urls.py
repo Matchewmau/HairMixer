@@ -28,6 +28,11 @@ urlpatterns = [
         name='set_preferences',
     ),
     path('recommend/', views.RecommendView.as_view(), name='recommend'),
+    path(
+        'recommend/ml/',
+        views.MLRecommendView.as_view(),
+        name='ml_recommend'
+    ),
     path('overlay/', views.OverlayView.as_view(), name='overlay'),
     path(
         'overlay/auto/',

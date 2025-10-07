@@ -124,6 +124,16 @@ class APIService {
     });
   }
 
+  // ML-based hairstyle recommendations (top 10)
+  async getMLRecommendations(preferenceId) {
+    return this.request('/recommend/ml/', {
+      method: 'POST',
+      body: JSON.stringify({
+        preference_id: preferenceId,
+      }),
+    });
+  }
+
   // Overlay generation
   async generateOverlay(imageId, hairstyleId, overlayType = 'basic') {
     return this.request('/overlay/', {
