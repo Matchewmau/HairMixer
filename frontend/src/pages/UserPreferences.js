@@ -28,7 +28,8 @@ import Navbar from '../components/Navbar';
  * - Step 7: Maintenance (low, medium, high)
  * - Step 8: Styling Preference (natural, classic, elegant, trendy, edgy) + Bangs
  * - Step 9: Occasions (multiple selection)
- * - Step 10: Hair Condition (optional: healthy, dry ends, damaged, etc.)
+ * - Step 10: Hair Color (black, brown, blonde, red, gray, white, other) ⭐ NEW
+ * - Step 11: Hair Condition (optional: healthy, dry ends, damaged, etc.)
  * 
  * State Management:
  * - preferences: All user preference data including gender and hair_condition
@@ -53,7 +54,7 @@ const UserPreferences = () => {
 
   // Step-by-step wizard state
   const [currentStep, setCurrentStep] = useState(0);
-  const totalSteps = 11; // Gender (0) + Basic characteristics (1-9) + Hair condition (10)
+  const totalSteps = 12; // Gender (0) + Basic characteristics (1-9) + Hair Color (10) + Hair condition (11)
 
   const [preferences, setPreferences] = useState({
     // Core characteristics
@@ -189,14 +190,15 @@ const UserPreferences = () => {
         throw new Error(preferencesResponse.error || 'Failed to save preferences');
       }
       
-      // Get ML-based recommendations (top 10)
-      console.log('Getting ML recommendations with preference_id:', preferencesResponse.preference_id);
+      // Get recommendations using Random Forest No-Family model
+      console.log('Getting recommendations with image_id:', uploadResponse.image_id, 'preference_id:', preferencesResponse.preference_id);
       
-      const mlRecommendationsResponse = await APIService.getMLRecommendations(
+      const mlRecommendationsResponse = await APIService.getRecommendations(
+        uploadResponse.image_id,
         preferencesResponse.preference_id
       );
       
-      console.log('ML Recommendations:', mlRecommendationsResponse);
+      console.log('Recommendations:', mlRecommendationsResponse);
       
       // Navigate to results
       navigate('/results', { 
@@ -304,6 +306,11 @@ const UserPreferences = () => {
       label: 'Gender',
       required: false
     },
+    hair_color: {
+      options: ['black', 'brown', 'blonde', 'red', 'gray', 'white', 'other'],
+      label: 'Hair Color',
+      required: true
+    },
     hair_condition: {
       options: ['none', 'thinning', 'split_ends', 'dry_ends', 'frizzy', 'dandruff', 'oily_scalp', 'sensitive_scalp', 'damaged'],  // Dataset values
       label: 'Hair Condition',
@@ -379,6 +386,8 @@ const UserPreferences = () => {
       case 9: 
         return preferences.occasions && preferences.occasions.length > 0;
       case 10:
+        return validateField('hair_color', preferences.hair_color).valid;
+      case 11:
         return true; // Hair condition is optional
       default: 
         return false;
@@ -429,6 +438,10 @@ const UserPreferences = () => {
       case 9: 
         return 'Please select at least one occasion';
       case 10:
+        fieldName = 'hair_color';
+        label = 'hair color';
+        break;
+      case 11:
         return ''; // Optional field
       default: 
         return '';
@@ -448,7 +461,8 @@ const UserPreferences = () => {
            preferences.lifestyle && 
            preferences.maintenance &&
            preferences.styling_preference &&
-           preferences.occasions.length > 0;
+           preferences.occasions.length > 0 &&
+           preferences.hair_color;
     // Note: hair_condition is optional
   };
 
@@ -464,7 +478,8 @@ const UserPreferences = () => {
     { number: 7, title: 'Maintenance', description: 'How much maintenance do you prefer?' },
     { number: 8, title: 'Styling', description: 'What\'s your styling preference?' },
     { number: 9, title: 'Occasions', description: 'What occasions do you style for?' },
-    { number: 10, title: 'Hair Condition', description: 'What\'s your current hair health?' }
+    { number: 10, title: 'Hair Color', description: 'What\'s your current hair color?' },
+    { number: 11, title: 'Hair Condition', description: 'What\'s your current hair health?' }
   ];
 
   if (isLoading) {
@@ -557,7 +572,7 @@ const UserPreferences = () => {
             <div className="text-center">
               <h2 className="text-2xl font-bold text-white mb-2">
                 Step {currentStep + 1} of {totalSteps + 1}: {steps[currentStep].title}
-                <span className="ml-2 text-red-400 text-sm">{currentStep !== 10 ? '*' : ''}</span>
+                <span className="ml-2 text-red-400 text-sm">{currentStep !== 11 ? '*' : ''}</span>
               </h2>
               <p className="text-lg text-gray-300">
                 {steps[currentStep].description}
@@ -910,8 +925,38 @@ const UserPreferences = () => {
               </div>
             )}
 
-            {/* Step 10: Hair Condition */}
+            {/* Step 10: Hair Color */}
             {currentStep === 10 && (
+              <div className="space-y-8">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                    { value: 'black', label: 'Black', emoji: '⬛', color: 'from-gray-900 to-black' },
+                    { value: 'brown', label: 'Brown', emoji: '🟤', color: 'from-amber-800 to-amber-900' },
+                    { value: 'blonde', label: 'Blonde', emoji: '🟡', color: 'from-yellow-400 to-yellow-600' },
+                    { value: 'red', label: 'Red', emoji: '🔴', color: 'from-red-500 to-red-700' },
+                    { value: 'gray', label: 'Gray', emoji: '⚪', color: 'from-gray-400 to-gray-600' },
+                    { value: 'white', label: 'White', emoji: '⚪', color: 'from-gray-200 to-gray-400' },
+                    { value: 'other', label: 'Other', emoji: '🎨', color: 'from-purple-500 to-pink-500' }
+                  ].map((color) => (
+                    <button
+                      key={color.value}
+                      onClick={() => handlePreferenceChange('hair_color', color.value)}
+                      className={`p-6 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
+                        preferences.hair_color === color.value
+                          ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
+                          : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
+                      }`}
+                    >
+                      <div className="text-4xl mb-3">{color.emoji}</div>
+                      <div className="font-medium text-lg">{color.label}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Step 11: Hair Condition */}
+            {currentStep === 11 && (
               <div className="space-y-8">
                 <p className="text-center text-gray-300 text-lg mb-6">
                   Optional - Select your current hair condition to get more personalized recommendations

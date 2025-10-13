@@ -3,26 +3,27 @@ from typing import Dict, Any
 from pathlib import Path
 from django.conf import settings
 from django.utils import timezone
+from django.db.models import Q
 from ..models import (
     UploadedImage, UserPreference, RecommendationLog, Hairstyle
 )
 from .cache_manager import CacheManager
 from ..ml.face_analyzer import analyze_face_comprehensive
-from .hairstyle_recommender import HairstyleRecommender
+from ..ml.hairstyle_recommender import get_hairstyle_recommender
 
 logger = logging.getLogger(__name__)
 
 
 class RecommendationService:
     """
-    Recommendation service using hairstyle_family_model (Random Forest).
+    Recommendation service using Random Forest No-Family Model.
     
-    This service uses the trained Random Forest classifier to generate
-    hairstyle recommendations based on user preferences and face analysis.
+    This service uses the trained Random Forest classifier (rf_name_no_family.pkl)
+    to generate hairstyle recommendations based on user preferences and face analysis.
     """
     def __init__(self):
         self.cache = CacheManager()
-        self.recommender = HairstyleRecommender()
+        self.ml_recommender = get_hairstyle_recommender()
 
     def generate(
         self, uploaded: UploadedImage, prefs: UserPreference, user=None
@@ -54,12 +55,12 @@ class RecommendationService:
             prefs.faceshape_confidence = face_shape_confidence
             prefs.save(update_fields=['faceshape', 'faceshape_confidence'])
 
-        # Convert preferences to dict for Random Forest recommender
-        preferences_dict = {
+        # Convert preferences to dict for Random Forest No-Family recommender
+        user_pref_dict = {
             'gender': prefs.gender or '',
             'hair_type': prefs.hair_type or '',
             'hair_length': prefs.hair_length or '',
-            'faceshape': prefs.faceshape or face_shape or '',
+            'hair_color': prefs.hair_color or '',
             'maintenance': prefs.maintenance or '',
             'lifestyle': prefs.lifestyle or '',
             'volume': prefs.volume or '',
@@ -68,16 +69,70 @@ class RecommendationService:
             'hair_condition': prefs.hair_condition or '',
             'hair_thickness': prefs.hair_thickness or '',
             'hair_texture_detail': prefs.hair_texture_detail or '',
-            'wants_bangs': prefs.wants_bangs or False,
+            'wants_bangs': prefs.wants_bangs if prefs.wants_bangs is not None else False,
             'occasions': prefs.occasions or [],
         }
         
-        # Use Random Forest model (hairstyle_family_model) for recommendations
-        # Get top 10 recommendations only - no fallbacks
-        recommendations = self.recommender.get_top_recommendations(
-            preferences_dict,
-            top_n=10
-        )
+        # Use Random Forest No-Family model for ML predictions
+        recommendations = []
+        if self.ml_recommender.is_available():
+            ml_predictions = self.ml_recommender.predict_top_k(
+                user_pref_dict,
+                face_shape,
+                k=10
+            )
+            
+            # Look up hairstyles in database
+            for pred in ml_predictions:
+                hairstyle_name = pred['hairstyle_name']
+                
+                # Try to find matching hairstyle in DB
+                # Handle both underscore and space variations
+                try:
+                    hairstyle = Hairstyle.objects.filter(
+                        Q(name__iexact=hairstyle_name) |
+                        Q(name__iexact=hairstyle_name.replace('_', ' ')) |
+                        Q(name__iexact=hairstyle_name.replace(' ', '_')),
+                        is_active=True
+                    ).first()
+                    
+                    if hairstyle:
+                        recommendations.append({
+                            'id': str(hairstyle.id),
+                            'name': hairstyle.name,
+                            'description': hairstyle.description or '',
+                            'image_url': (
+                                hairstyle.image.url if hairstyle.image 
+                                else hairstyle.image_url
+                            ),
+                            'category': (
+                                hairstyle.category.name 
+                                if hairstyle.category else ''
+                            ),
+                            'difficulty': hairstyle.difficulty or 'Medium',
+                            'estimated_time': hairstyle.estimated_time or 30,
+                            'maintenance': hairstyle.maintenance or 'Medium',
+                            'tags': hairstyle.tags or [],
+                            'match_score': pred['confidence'],
+                            'rank': pred['rank']
+                        })
+                    else:
+                        logger.debug(
+                            f"Hairstyle '{hairstyle_name}' not found in database"
+                        )
+                except Exception as e:
+                    logger.warning(
+                        f"Could not find hairstyle {hairstyle_name}: {e}"
+                    )
+        else:
+            logger.warning("ML recommender not available")
+        
+        # If ML model fails or returns no results, log warning
+        if not recommendations:
+            logger.warning(
+                "No ML recommendations generated. "
+                "Check model loading and database hairstyle entries."
+            )
         
         top_recs = recommendations[:10]
         processing_time = (timezone.now() - start_time).total_seconds()
@@ -96,9 +151,7 @@ class RecommendationService:
             uploaded=uploaded,
             preference=prefs,
             face_shape=face_shape,
-            face_shape_confidence=float(
-                face_analysis.get('confidence') or 0.0
-            ),
+            face_shape_confidence=face_shape_confidence,
             detected_features=facial_features,
             selected_hairstyle=selected_style_obj,
             candidates=[r['id'] for r in top_recs],
@@ -107,20 +160,20 @@ class RecommendationService:
             },
             status='completed',
             processing_time=processing_time,
-            model_version='v1.0'
+            model_version='RF_No_Family_v1.0'
         )
 
         response_data = {
             "recommendation_id": str(log.id),
             "face_shape": face_shape,
-            "face_shape_confidence": float(
-                face_analysis.get('confidence') or 0.0
-            ),
+            "face_shape_confidence": face_shape_confidence,
             "detected_features": facial_features,
             "recommended_styles": top_recs,
+            "recommendations": top_recs,  # Frontend expects this field
             "candidates": top_recs,
             "processing_time": f"{processing_time:.2f}s",
-            "total_styles_analyzed": len(recommendations)
+            "total_styles_analyzed": len(recommendations),
+            "model_version": "RF_No_Family_v1.0"
         }
 
         # Cache results

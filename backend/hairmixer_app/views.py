@@ -980,7 +980,7 @@ class MLRecommendView(APIView):
     )
     def post(self, request):
         try:
-            from .services.hairstyle_recommender import HairstyleRecommender
+            from .ml.hairstyle_recommender import get_hairstyle_recommender
             
             pref_id = request.data.get('preference_id')
             
@@ -999,9 +999,8 @@ class MLRecommendView(APIView):
                     status=status.HTTP_404_NOT_FOUND,
                 )
             
-            # Convert preferences to dict
+            # Convert preferences to dict for RF No-Family model
             pref_dict = {
-                'faceshape': prefs.faceshape or '',
                 'gender': prefs.gender or '',
                 'hair_type': prefs.hair_type or '',
                 'hair_length': prefs.hair_length or '',
@@ -1014,17 +1013,63 @@ class MLRecommendView(APIView):
                 'styling_preference': prefs.styling_preference or '',
                 'hair_condition': prefs.hair_condition or '',
                 'hair_thickness': prefs.hair_thickness or '',
-                'wants_bangs': prefs.wants_bangs or False,
+                'wants_bangs': prefs.wants_bangs if prefs.wants_bangs is not None else False,
                 'occasions': prefs.occasions or [],
-                'hairstyle_family': prefs.hairstyle_family or '',
-                'hairstyle_name': prefs.hairstyle_name or '',
             }
             
-            # Initialize recommender and get recommendations
-            recommender = HairstyleRecommender()
-            recommendations = recommender.get_top_recommendations(
-                pref_dict, top_n=10
+            # Get face shape (use detected or default to oval)
+            face_shape = prefs.faceshape or 'oval'
+            
+            # Use RF No-Family recommender
+            ml_recommender = get_hairstyle_recommender()
+            if not ml_recommender.is_available():
+                return Response(
+                    {"error": "ML model not available"},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+            
+            # Get predictions
+            ml_predictions = ml_recommender.predict_top_k(
+                pref_dict, face_shape, k=10
             )
+            
+            # Convert to response format
+            recommendations = []
+            for pred in ml_predictions:
+                hairstyle_name = pred['hairstyle_name']
+                try:
+                    hairstyle = Hairstyle.objects.filter(
+                        Q(name__iexact=hairstyle_name) |
+                        Q(name__iexact=hairstyle_name.replace('_', ' ')) |
+                        Q(name__iexact=hairstyle_name.replace(' ', '_')),
+                        is_active=True
+                    ).first()
+                    
+                    if hairstyle:
+                        recommendations.append({
+                            'id': str(hairstyle.id),
+                            'name': hairstyle.name,
+                            'description': hairstyle.description or '',
+                            'image_url': (
+                                hairstyle.image.url if hairstyle.image 
+                                else hairstyle.image_url
+                            ),
+                            'category': (
+                                hairstyle.category.name 
+                                if hairstyle.category else ''
+                            ),
+                            'difficulty': hairstyle.difficulty or 'Medium',
+                            'estimated_time': hairstyle.estimated_time or 30,
+                            'maintenance': hairstyle.maintenance or 'Medium',
+                            'tags': hairstyle.tags or [],
+                            'match_score': pred['confidence'],
+                            'confidence': pred['confidence'] * 100,
+                            'rank': pred['rank']
+                        })
+                except Exception as e:
+                    logger.warning(
+                        f"Could not find hairstyle {hairstyle_name}: {e}"
+                    )
             
             logger.info(
                 f"ML recommendations generated: {len(recommendations)} styles"
@@ -1033,8 +1078,8 @@ class MLRecommendView(APIView):
             response_data = {
                 "recommendation_count": len(recommendations),
                 "recommendations": recommendations,
-                "model_used": "hairstyle_family_model",
-                "faceshape": prefs.faceshape or 'not_detected',
+                "model_used": "RF_No_Family_v1.0",
+                "faceshape": face_shape,
                 "faceshape_confidence": prefs.faceshape_confidence or 0.0,
             }
             
