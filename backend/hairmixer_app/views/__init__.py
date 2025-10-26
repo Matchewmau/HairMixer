@@ -17,6 +17,7 @@ from .catalog import (
     FaceShapesView,
     OccasionsView,
 )
+from .hairstyle_detail_view import HairstyleDetailWithAIView
 from .user import (
     UserRecommendationsView,
     UserFavoritesView,
@@ -53,6 +54,7 @@ __all__ = [
     'FeaturedHairstylesView',
     'TrendingHairstylesView',
     'HairstyleDetailView',
+    'HairstyleDetailWithAIView',
     'ListHairstylesView',
     'HairstyleCategoriesView',
     'SearchView',

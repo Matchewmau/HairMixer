@@ -1677,8 +1677,8 @@ class SearchView(APIView):
                 str,
                 OpenApiParameter.QUERY,
                 enum=[
-                    'casual', 'formal', 'party', 'business', 'wedding',
-                    'date', 'work'
+                    'work', 'casual', 'formal', 'party', 'wedding',
+                    'birthday'
                 ],
             ),
             OpenApiParameter(
@@ -1925,13 +1925,12 @@ class OccasionsView(APIView):
     def get(self, request):
         try:
             occasions = [
+                {'value': 'work', 'label': 'Work'},
                 {'value': 'casual', 'label': 'Casual'},
                 {'value': 'formal', 'label': 'Formal'},
                 {'value': 'party', 'label': 'Party'},
-                {'value': 'business', 'label': 'Business'},
                 {'value': 'wedding', 'label': 'Wedding'},
-                {'value': 'date', 'label': 'Date Night'},
-                {'value': 'work', 'label': 'Work'},
+                {'value': 'birthday', 'label': 'Birthday'},
             ]
             
             return Response({'occasions': occasions})

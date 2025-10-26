@@ -469,7 +469,10 @@ class OverlayView(APIView):
     )
     def post(self, request):
         try:
+            logger.info(f"Overlay request data: {request.data}")
             req_ser = OverlayRequestSerializer(data=request.data)
+            if not req_ser.is_valid():
+                logger.error(f"Overlay validation errors: {req_ser.errors}")
             req_ser.is_valid(raise_exception=True)
             image_id = req_ser.validated_data["image_id"]
             style_id = req_ser.validated_data["hairstyle_id"]

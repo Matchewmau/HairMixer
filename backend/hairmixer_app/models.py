@@ -162,14 +162,13 @@ class UserPreference(models.Model):
         ("normal", "Normal"),
         ("thick", "Thick")
     ]
+    # Face shape choices - Updated to match ResNet50 model (5 classes)
     FACE_SHAPE_CHOICES = [
-        ("oval", "Oval"),
-        ("round", "Round"),
-        ("square", "Square"),
         ("heart", "Heart"),
         ("oblong", "Oblong"),
-        ("diamond", "Diamond"),
-        ("triangle", "Triangle")
+        ("oval", "Oval"),
+        ("round", "Round"),
+        ("square", "Square")
     ]
 
     id = models.UUIDField(

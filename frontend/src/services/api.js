@@ -146,6 +146,15 @@ class APIService {
     });
   }
 
+  // Get detailed hairstyle information with AI-generated content
+  async getHairstyleDetailsWithAI(hairstyleId, preferenceId = null, imageId = null) {
+    const params = new URLSearchParams();
+    if (preferenceId) params.append('preference_id', preferenceId);
+    if (imageId) params.append('image_id', imageId);
+    const query = params.toString();
+    return this.request(`/hairstyles/${hairstyleId}/details/${query ? '?' + query : ''}`);
+  }
+
   // Feedback
   async submitFeedback(feedbackData) {
     return this.request('/feedback/', {

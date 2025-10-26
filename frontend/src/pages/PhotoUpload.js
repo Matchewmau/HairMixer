@@ -70,24 +70,24 @@ const PhotoUpload = () => {
 
     try {
       // Upload image to backend
-      const uploadResponse = await APIService.uploadImage(selectedFile);
+      const response = await APIService.uploadImage(selectedFile);
       
-      console.log('Upload response:', uploadResponse);
+      console.log('Upload response:', response);
 
       // Check if face was detected
-      if (uploadResponse.face_detected) {
+      if (response.face_detected) {
         setAnalysisResult('success');
         
-        // Navigate to preferences page after 2 seconds
+        // Navigate directly to preferences form after 1.5 seconds
         setTimeout(() => {
           navigate('/preferences', { 
             state: { 
               imageFile: selectedFile,
               previewUrl: previewUrl,
-              uploadResponse: uploadResponse
+              uploadResponse: response
             }
           });
-        }, 2000);
+        }, 1500);
       } else {
         setAnalysisResult('failed');
       }
@@ -238,8 +238,11 @@ const PhotoUpload = () => {
         {analysisResult === 'success' && (
           <div className="bg-green-900/30 backdrop-blur-sm border border-green-700/50 rounded-xl p-8 text-center">
             <div className="text-green-400 text-7xl mb-6">✓</div>
-            <p className="text-green-300 font-medium text-xl">
-              Face detected successfully! Redirecting to preferences...
+            <p className="text-green-300 font-medium text-xl mb-2">
+              Face detected successfully!
+            </p>
+            <p className="text-gray-400">
+              Redirecting to preferences...
             </p>
           </div>
         )}

@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 
 
 class ResNet50FaceShapeClassifier(nn.Module):
-    """ResNet50 model adapted for face shape classification"""
+    """ResNet50 model adapted for face shape classification (5 classes)"""
 
-    def __init__(self, num_classes: int = 7, pretrained: bool = False):
+    def __init__(self, num_classes: int = 5, pretrained: bool = False):
         super().__init__()
         # Avoid attempting to download weights by default
         model = resnet50(weights=None if not pretrained else None)
@@ -47,14 +47,14 @@ class ResNetModelLoader:
         self.model: nn.Module | None = None
         device_str = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.device = torch.device(device_str)
-        self.num_classes = 7
+        self.num_classes = 5  # Updated to 5 classes
         self.model_path: str | None = None
 
     def _get_default_model_path(self) -> Path:
         models_dir = (
             Path(settings.BASE_DIR) / 'hairmixer_app' / 'ml' / 'models'
         )
-        return models_dir / 'resnet50_80epoch.pth'
+        return models_dir / 'resnet50_best_model.pth'  # Updated model file
 
     def load_model(self, model_path: str | os.PathLike | None = None) -> bool:
         try:

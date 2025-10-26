@@ -303,12 +303,11 @@ const UserProfile = () => {
                       className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
                     >
                       <option value="">Select face shape</option>
+                      <option value="heart">Heart</option>
+                      <option value="oblong">Oblong</option>
                       <option value="oval">Oval</option>
                       <option value="round">Round</option>
                       <option value="square">Square</option>
-                      <option value="heart">Heart</option>
-                      <option value="diamond">Diamond</option>
-                      <option value="oblong">Oblong</option>
                     </select>
                   ) : (
                     <p className="text-white bg-slate-700/50 px-4 py-2 rounded-lg capitalize">

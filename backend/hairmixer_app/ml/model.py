@@ -5,14 +5,13 @@ import threading
 logger = logging.getLogger(__name__)
 
 # Face shape categories with confidence mapping
+# Updated for ResNet50 model (resnet50_best_model.pth) with 5 classes
 FACE_SHAPES = {
-    0: "diamond",
-    1: "heart", 
-    2: "oblong",
-    3: "oval",
-    4: "round",
-    5: "square",
-    6: "triangle"  # Your 7th face shape class
+    0: "heart",
+    1: "oblong",
+    2: "oval",
+    3: "round",
+    4: "square"
 }
 
 FACE_SHAPE_CHARACTERISTICS = {
@@ -35,11 +34,6 @@ FACE_SHAPE_CHARACTERISTICS = {
         "description": "Wider forehead with narrow chin",
         "suitable_styles": ["chin-length cuts", "side parts", "full bangs"],
         "avoid": ["short crops", "excessive volume on top"]
-    },
-    "diamond": {
-        "description": "Narrow forehead and jaw with wide cheekbones",
-        "suitable_styles": ["side-swept bangs", "chin-length styles"],
-        "avoid": ["slicked back", "center parts"]
     },
     "oblong": {
         "description": "Longer than wide with straight sides",

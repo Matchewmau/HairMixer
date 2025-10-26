@@ -39,7 +39,7 @@ const Discover = () => {
           theme: "Casual",
           description: "Long bob with soft curtain bangs for an effortless, chic look.",
           features: ["Curtain bangs", "Long bob cut", "Natural flow"],
-          suitableFor: ["Oval", "Round", "Diamond"],
+          suitableFor: ["Oval", "Round", "Heart"],
           stylingTime: "5-10 minutes",
           maintenanceLevel: "Trim every 8-10 weeks",
           tags: ["Effortless", "Chic", "Low-maintenance"]
@@ -59,7 +59,7 @@ const Discover = () => {
           theme: "Professional",
           description: "A sophisticated short cut that's both elegant and practical.",
           features: ["Clean lines", "Structured shape", "Professional look"],
-          suitableFor: ["Oval", "Heart", "Diamond"],
+          suitableFor: ["Oval", "Heart", "Oblong"],
           stylingTime: "5 minutes",
           maintenanceLevel: "Trim every 4-6 weeks",
           tags: ["Professional", "Elegant", "Low-styling"]
@@ -107,7 +107,7 @@ const Discover = () => {
           theme: "Edgy",
           description: "Daring pixie cut with undercut details for maximum impact.",
           features: ["Undercut sides", "Textured top", "Bold contrast"],
-          suitableFor: ["Oval", "Heart", "Diamond"],
+          suitableFor: ["Oval", "Heart", "Oblong"],
           stylingTime: "5-10 minutes",
           maintenanceLevel: "Trim every 3-4 weeks",
           tags: ["Daring", "Bold", "High-impact"]

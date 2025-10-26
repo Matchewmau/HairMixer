@@ -63,6 +63,11 @@ urlpatterns = [
         name='hairstyle_detail',
     ),
     path(
+        'hairstyles/<uuid:hairstyle_id>/details/',
+        views.HairstyleDetailWithAIView.as_view(),
+        name='hairstyle_detail_ai',
+    ),
+    path(
         'hairstyles/categories/',
         views.HairstyleCategoriesView.as_view(),
         name='hairstyle_categories',
