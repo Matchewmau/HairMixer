@@ -9,21 +9,21 @@ from ..models import (
 )
 from .cache_manager import CacheManager
 from ..ml.face_analyzer import analyze_face_comprehensive
-from ..ml.hairstyle_recommender import get_hairstyle_recommender
+from ..ml.hairstyle_model_recommender import get_hairstyle_model_recommender
 
 logger = logging.getLogger(__name__)
 
 
 class RecommendationService:
     """
-    Recommendation service using Random Forest No-Family Model.
+    Recommendation service using Random Forest Model with One-Hot Encoding.
     
-    This service uses the trained Random Forest classifier (rf_name_no_family.pkl)
+    This service uses the trained Random Forest classifier (hairstyle_model.joblib)
     to generate hairstyle recommendations based on user preferences and face analysis.
     """
     def __init__(self):
         self.cache = CacheManager()
-        self.ml_recommender = get_hairstyle_recommender()
+        self.ml_recommender = get_hairstyle_model_recommender()
 
     def generate(
         self, uploaded: UploadedImage, prefs: UserPreference, user=None

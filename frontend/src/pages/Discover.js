@@ -217,9 +217,9 @@ const Discover = () => {
         user={user} 
         onLogout={handleLogout}
       />
-      <div className="min-h-screen bg-gray-900 pt-20">
+      <div className="min-h-screen bg-gray-900 pt-20 md:pt-24">
         {/* Header Section */}
-        <div className="bg-gradient-to-r from-purple-600 to-blue-600 py-16">
+        <div className="bg-gradient-to-r from-purple-600 to-blue-600 py-12 md:py-16">
           <div className="max-w-7xl mx-auto px-4 text-center">
             <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
               Discover Your Perfect Style

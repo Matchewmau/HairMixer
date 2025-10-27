@@ -50,7 +50,7 @@ import Navbar from '../components/Navbar';
 const UserPreferences = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { imageFile, previewUrl, uploadResponse } = location.state || {};
+  const { imageFile, previewUrl, uploadResponse, existingPreferences } = location.state || {};
 
   // Step-by-step wizard state
   const [currentStep, setCurrentStep] = useState(0);
@@ -58,34 +58,34 @@ const UserPreferences = () => {
 
   const [preferences, setPreferences] = useState({
     // Core characteristics
-    hair_type: '',
-    hair_length: '',
-    lifestyle: '',
-    maintenance: '',
-    occasions: [],
+    hair_type: existingPreferences?.hair_type || '',
+    hair_length: existingPreferences?.hair_length || '',
+    lifestyle: existingPreferences?.lifestyle || '',
+    maintenance: existingPreferences?.maintenance || '',
+    occasions: existingPreferences?.occasions || [],
     
     // New detailed characteristics
-    volume: '',
-    styling_maintenance: '',
-    hair_texture_detail: '',
-    styling_preference: '',
-    hair_condition: '',
-    hair_thickness: '',
-    wants_bangs: false,
-    hair_color: '',
-    gender: '',
+    volume: existingPreferences?.volume || '',
+    styling_maintenance: existingPreferences?.styling_maintenance || '',
+    hair_texture_detail: existingPreferences?.hair_texture_detail || '',
+    styling_preference: existingPreferences?.styling_preference || '',
+    hair_condition: existingPreferences?.hair_condition || [],  // Changed to array for multi-select
+    hair_thickness: existingPreferences?.hair_thickness || '',
+    wants_bangs: existingPreferences?.wants_bangs || false,
+    hair_color: existingPreferences?.hair_color || '',
+    gender: existingPreferences?.gender || '',
     
     // Hairstyle preferences
-    hairstyle_family: '',
-    hairstyle_name: '',
+    hairstyle_family: existingPreferences?.hairstyle_family || '',
+    hairstyle_name: existingPreferences?.hairstyle_name || '',
     
     // Face shape (auto-filled from ResNet50)
-    faceshape: uploadResponse?.face_shape?.shape || '',
+    faceshape: uploadResponse?.face_shape?.shape || existingPreferences?.faceshape || '',
     
     // Legacy compatibility check
-    check_compatibility: false,
-    target_hairstyle: '',
-    custom_hairstyle: '',
+    check_compatibility: existingPreferences?.check_compatibility || false,
+    target_hairstyle: existingPreferences?.target_hairstyle || '',
+    custom_hairstyle: existingPreferences?.custom_hairstyle || '',
   });
 
   const [occasions, setOccasions] = useState([]);
@@ -139,13 +139,17 @@ const UserPreferences = () => {
   };
 
   const handleSubmit = async () => {
-    if (!isFormValid()) return;
+    // Final validation check
+    if (!isFormValid()) {
+      alert('⚠️ Please complete all required fields before submitting.');
+      return;
+    }
 
     // Validate all required fields before submission
     const errors = validateAllFields();
     if (Object.keys(errors).length > 0) {
       const errorMessages = Object.values(errors).join('\n');
-      alert(`Please fix the following errors:\n\n${errorMessages}`);
+      alert(`⚠️ Please fix the following errors:\n\n${errorMessages}`);
       return;
     }
 
@@ -160,8 +164,8 @@ const UserPreferences = () => {
         faceshape: uploadResponse?.face_shape?.shape || preferences.faceshape || '',
         // Default styling_maintenance to maintenance if not set
         styling_maintenance: preferences.styling_maintenance || preferences.maintenance,
-        // Default hair_condition to 'none' (healthy) if not provided
-        hair_condition: preferences.hair_condition || 'none',
+        // Keep hair_condition as array (can be empty)
+        hair_condition: preferences.hair_condition || [],
       };
       
       // Final validation check on cleaned data
@@ -170,12 +174,12 @@ const UserPreferences = () => {
         throw new Error(`Invalid maintenance level: ${cleanedPreferences.maintenance}. Must be one of: ${validMaintenance.join(', ')}`);
       }
 
-      const validGenders = ['male', 'female', 'nb', 'other'];
+      const validGenders = ['male', 'female'];  // Updated to only allow male and female
       if (cleanedPreferences.gender && !validGenders.includes(cleanedPreferences.gender)) {
         throw new Error(`Invalid gender: ${cleanedPreferences.gender}. Must be one of: ${validGenders.join(', ')}`);
       }
 
-      const validLifestyles = ['active', 'moderate', 'relaxed'];  // Dataset values
+      const validLifestyles = ['active', 'professional', 'creative', 'casual', 'moderate', 'relaxed'];  // Updated to match model
       if (!validLifestyles.includes(cleanedPreferences.lifestyle)) {
         throw new Error(`Invalid lifestyle: ${cleanedPreferences.lifestyle}. Must be one of: ${validLifestyles.join(', ')}`);
       }
@@ -215,7 +219,19 @@ const UserPreferences = () => {
       console.error('Full error object:', error);
       console.error('Error submitting preferences:', error.message);
       
-      let errorMessage = `Failed to get recommendations: ${error.message}`;
+      // Provide user-friendly error messages
+      let errorMessage = '❌ Failed to get recommendations. ';
+      
+      if (error.message.includes('network') || error.message.includes('fetch')) {
+        errorMessage += 'Please check your internet connection and try again.';
+      } else if (error.message.includes('Invalid')) {
+        errorMessage += `\n\n${error.message}\n\nPlease review your selections.`;
+      } else if (error.message.includes('Failed to save preferences')) {
+        errorMessage += 'Could not save your preferences. Please try again.';
+      } else {
+        errorMessage += `\n\n${error.message}`;
+      }
+      
       alert(errorMessage);
     } finally {
       setIsSubmitting(false);
@@ -232,16 +248,34 @@ const UserPreferences = () => {
         ...prev,
         occasions: newOccasions
       }));
-    } else {
+    } else if (key === 'wants_bangs') {
+      // Toggle boolean value
       setPreferences(prev => ({
         ...prev,
-        [key]: value
+        [key]: !prev[key]
+      }));
+    } else {
+      // For single-select fields, allow toggling (unselect if clicking the same value)
+      const newValue = preferences[key] === value ? '' : value;
+      setPreferences(prev => ({
+        ...prev,
+        [key]: newValue
       }));
     }
   };
 
   // Step navigation functions
   const nextStep = () => {
+    // Validate current step before proceeding
+    if (!isCurrentStepValid()) {
+      const errorMsg = getCurrentStepValidationMessage();
+      if (errorMsg) {
+        // Show error notification
+        alert(`⚠️ ${errorMsg}`);
+      }
+      return;
+    }
+    
     if (currentStep < totalSteps - 1) {
       setCurrentStep(currentStep + 1);
     } else {
@@ -256,7 +290,44 @@ const UserPreferences = () => {
   };
 
   const goToStep = (step) => {
-    setCurrentStep(step);
+    // Step 11 is always accessible since it's optional
+    // For other steps, only allow navigation to completed steps or the next immediate step
+    if (step === 11 || step <= currentStep || isStepCompleted(step - 1)) {
+      setCurrentStep(step);
+    }
+  };
+
+  // Check if a specific step has been completed
+  const isStepCompleted = (stepNumber) => {
+    switch (stepNumber) {
+      case 0:
+        return !!preferences.gender;
+      case 1: 
+        return !!preferences.hair_type;
+      case 2: 
+        return !!preferences.hair_length;
+      case 3: 
+        return !!preferences.volume;
+      case 4: 
+        return !!preferences.hair_thickness;
+      case 5: 
+        return !!preferences.hair_texture_detail;
+      case 6: 
+        return !!preferences.lifestyle;
+      case 7: 
+        return !!preferences.maintenance;
+      case 8: 
+        return !!preferences.styling_preference;
+      case 9: 
+        return preferences.occasions && preferences.occasions.length > 0;
+      case 10:
+        return !!preferences.hair_color;
+      case 11:
+        // Hair condition is optional, but show as completed only if user made a selection
+        return Array.isArray(preferences.hair_condition) && preferences.hair_condition.length > 0;
+      default: 
+        return false;
+    }
   };
 
   // Validation rules for each field (matching dataset exactly)
@@ -277,17 +348,17 @@ const UserPreferences = () => {
       required: true
     },
     hair_thickness: {
-      options: ['thin', 'medium', 'thick'],  // Dataset only has these 3
+      options: ['thin', 'medium', 'thick', 'very_thick'],  // Added very_thick
       label: 'Hair Thickness',
       required: true
     },
     hair_texture_detail: {
-      options: ['fine', 'normal', 'thick'],  // Dataset only has these 3
+      options: ['fine', 'normal', 'thick', 'smooth', 'coarse', 'silky', 'frizzy'],  // Updated to match model
       label: 'Hair Texture',
       required: true
     },
     lifestyle: {
-      options: ['active', 'moderate', 'relaxed'],  // Dataset values
+      options: ['active', 'professional', 'creative', 'casual', 'moderate', 'relaxed'],  // Updated to match model
       label: 'Lifestyle',
       required: true
     },
@@ -297,7 +368,7 @@ const UserPreferences = () => {
       required: true
     },
     styling_preference: {
-      options: ['natural', 'classic', 'elegant', 'trendy', 'edgy'],  // Dataset values
+      options: ['natural', 'casual', 'classic', 'polished', 'elegant', 'glamorous', 'trendy', 'edgy'],  // Updated to match model
       label: 'Styling Preference',
       required: true
     },
@@ -307,14 +378,15 @@ const UserPreferences = () => {
       required: false
     },
     hair_color: {
-      options: ['black', 'brown', 'blonde', 'red', 'gray', 'white', 'other'],
+      options: ['black', 'brown', 'blonde', 'red', 'auburn', 'gray', 'white', 'other'],  // Added auburn
       label: 'Hair Color',
       required: true
     },
     hair_condition: {
-      options: ['none', 'thinning', 'split_ends', 'dry_ends', 'frizzy', 'dandruff', 'oily_scalp', 'sensitive_scalp', 'damaged'],  // Dataset values
+      options: ['none', 'excellent', 'good', 'fair', 'damaged', 'dry_ends', 'oily_scalp', 'dandruff', 'frizzy', 'split_ends', 'thinning', 'sensitive_scalp'],  // Updated to match model
       label: 'Hair Condition',
-      required: false
+      required: false,
+      multiSelect: true  // NEW: Support multiple selections
     }
   };
 
@@ -539,33 +611,47 @@ const UserPreferences = () => {
           {/* Breadcrumb Navigation */}
           <div className="mb-8">
             <div className="flex items-center justify-center space-x-2 mb-4">
-              {steps.map((step) => (
-                <React.Fragment key={step.number}>
-                  <div
-                    onClick={() => goToStep(step.number)}
-                    className={`flex items-center justify-center w-10 h-10 rounded-full text-sm font-bold cursor-pointer transition-all duration-300 ${
-                      currentStep === step.number
-                        ? 'bg-purple-500 text-white scale-110 shadow-lg shadow-purple-500/30'
-                        : currentStep > step.number
-                        ? 'bg-green-500 text-white hover:scale-105'
-                        : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
-                    }`}
-                  >
-                    {currentStep > step.number ? (
-                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    ) : (
-                      step.number
+              {steps.map((step) => {
+                const isCompleted = isStepCompleted(step.number);
+                const isCurrent = currentStep === step.number;
+                // Step 11 is always accessible since it's optional
+                const isAccessible = step.number === 11 ? true : (step.number <= currentStep || isStepCompleted(step.number - 1));
+                
+                return (
+                  <React.Fragment key={step.number}>
+                    <div
+                      onClick={() => isAccessible ? goToStep(step.number) : null}
+                      className={`flex items-center justify-center w-10 h-10 rounded-full text-sm font-bold transition-all duration-300 ${
+                        isCurrent
+                          ? 'bg-purple-500 text-white scale-110 shadow-lg shadow-purple-500/30 cursor-pointer'
+                          : isCompleted
+                          ? 'bg-green-500 text-white hover:scale-105 cursor-pointer'
+                          : isAccessible
+                          ? 'bg-gray-600 text-gray-300 hover:bg-gray-500 cursor-pointer'
+                          : 'bg-gray-700 text-gray-500 cursor-not-allowed opacity-50'
+                      }`}
+                      title={
+                        isAccessible 
+                          ? `Step ${step.number + 1}: ${step.title}` 
+                          : 'Complete previous steps to unlock'
+                      }
+                    >
+                      {isCompleted && !isCurrent ? (
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        step.number
+                      )}
+                    </div>
+                    {step.number < totalSteps && (
+                      <div className={`h-1 w-8 transition-colors duration-300 ${
+                        isCompleted ? 'bg-green-500' : 'bg-gray-600'
+                      }`}></div>
                     )}
-                  </div>
-                  {step.number < totalSteps && (
-                    <div className={`h-1 w-8 transition-colors duration-300 ${
-                      currentStep > step.number ? 'bg-green-500' : 'bg-gray-600'
-                    }`}></div>
-                  )}
-                </React.Fragment>
-              ))}
+                  </React.Fragment>
+                );
+              })}
             </div>
             
             {/* Step Title and Description */}
@@ -573,12 +659,15 @@ const UserPreferences = () => {
               <h2 className="text-2xl font-bold text-white mb-2">
                 Step {currentStep + 1} of {totalSteps + 1}: {steps[currentStep].title}
                 <span className="ml-2 text-red-400 text-sm">{currentStep !== 11 ? '*' : ''}</span>
+                {isStepCompleted(currentStep) && (
+                  <span className="ml-2 text-green-400 text-sm">✓</span>
+                )}
               </h2>
               <p className="text-lg text-gray-300">
                 {steps[currentStep].description}
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                {currentStep !== 10 ? '* Required field' : 'Optional - helps us give better recommendations'}
+                {currentStep !== 11 ? '* Required field' : 'Optional - helps us give better recommendations'}
               </p>
             </div>
           </div>
@@ -607,7 +696,7 @@ const UserPreferences = () => {
                   <label className="block text-center text-lg font-medium text-gray-200 mb-6">
                     👤 Select your gender (helps personalize recommendations)
                   </label>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto">
                     <button
                       onClick={() => handlePreferenceChange('gender', 'male')}
                       className={`p-8 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
@@ -630,30 +719,6 @@ const UserPreferences = () => {
                     >
                       <div className="text-4xl mb-3">👩</div>
                       <div className="font-medium text-lg">Female</div>
-                    </button>
-                    
-                    <button
-                      onClick={() => handlePreferenceChange('gender', 'nb')}
-                      className={`p-8 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
-                        preferences.gender === 'nb'
-                          ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
-                          : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
-                      }`}
-                    >
-                      <div className="text-4xl mb-3">🧑</div>
-                      <div className="font-medium text-lg">Non-binary</div>
-                    </button>
-                    
-                    <button
-                      onClick={() => handlePreferenceChange('gender', 'other')}
-                      className={`p-8 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
-                        preferences.gender === 'other'
-                          ? 'border-gray-400 bg-gray-500/20 text-gray-300 shadow-lg shadow-gray-500/25'
-                          : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
-                      }`}
-                    >
-                      <div className="text-4xl mb-3">👤</div>
-                      <div className="font-medium text-lg">Prefer not to say</div>
                     </button>
                   </div>
                 </div>
@@ -742,23 +807,24 @@ const UserPreferences = () => {
             {/* Step 4: Hair Thickness */}
             {currentStep === 4 && (
               <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
                     { value: 'thin', label: 'Thin', emoji: '🪶' },
                     { value: 'medium', label: 'Medium', emoji: '🌿' },
-                    { value: 'thick', label: 'Thick', emoji: '🌲' }
+                    { value: 'thick', label: 'Thick', emoji: '🌲' },
+                    { value: 'very_thick', label: 'Very Thick', emoji: '🌳' }
                   ].map((thickness) => (
                     <button
                       key={thickness.value}
                       onClick={() => handlePreferenceChange('hair_thickness', thickness.value)}
-                      className={`p-8 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
+                      className={`p-6 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
                         preferences.hair_thickness === thickness.value
                           ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
                           : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
                       }`}
                     >
                       <div className="text-4xl mb-3">{thickness.emoji}</div>
-                      <div className="font-medium text-lg">{thickness.label}</div>
+                      <div className="font-medium text-sm">{thickness.label}</div>
                     </button>
                   ))}
                 </div>
@@ -768,23 +834,27 @@ const UserPreferences = () => {
             {/* Step 5: Hair Texture Detail */}
             {currentStep === 5 && (
               <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
                     { value: 'fine', label: 'Fine', emoji: '🪶' },
-                    { value: 'normal', label: 'Normal', emoji: '�' },
-                    { value: 'thick', label: 'Thick', emoji: '🌲' }
+                    { value: 'normal', label: 'Normal', emoji: '✨' },
+                    { value: 'thick', label: 'Thick', emoji: '🌲' },
+                    { value: 'smooth', label: 'Smooth', emoji: '💆' },
+                    { value: 'coarse', label: 'Coarse', emoji: '🌾' },
+                    { value: 'silky', label: 'Silky', emoji: '🎀' },
+                    { value: 'frizzy', label: 'Frizzy', emoji: '🌩️' }
                   ].map((texture) => (
                     <button
                       key={texture.value}
                       onClick={() => handlePreferenceChange('hair_texture_detail', texture.value)}
-                      className={`p-8 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
+                      className={`p-6 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
                         preferences.hair_texture_detail === texture.value
                           ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
                           : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
                       }`}
                     >
-                      <div className="text-4xl mb-3">{texture.emoji}</div>
-                      <div className="font-medium text-lg">{texture.label}</div>
+                      <div className="text-3xl mb-2">{texture.emoji}</div>
+                      <div className="font-medium text-sm">{texture.label}</div>
                     </button>
                   ))}
                 </div>
@@ -794,24 +864,27 @@ const UserPreferences = () => {
             {/* Step 6: Lifestyle */}
             {currentStep === 6 && (
               <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {[
-                    { value: 'active', emoji: '🏃‍♀️', description: 'Always on the go, love sports and outdoor activities' },
-                    { value: 'moderate', emoji: '🚶‍♀️', description: 'Balanced lifestyle with some activities and relaxation' },
-                    { value: 'relaxed', emoji: '🧘‍♀️', description: 'Prefer calm, low-key activities and plenty of downtime' }
+                    { value: 'active', emoji: '🏃‍♀️', description: 'Always on the go, sports and outdoor activities' },
+                    { value: 'professional', emoji: '💼', description: 'Office work, business meetings, corporate' },
+                    { value: 'creative', emoji: '🎨', description: 'Artist, designer, creative professional' },
+                    { value: 'casual', emoji: '�', description: 'Relaxed, everyday, comfortable lifestyle' },
+                    { value: 'moderate', emoji: '�🚶‍♀️', description: 'Balanced lifestyle with varied activities' },
+                    { value: 'relaxed', emoji: '🧘‍♀️', description: 'Calm, low-key, plenty of downtime' }
                   ].map((lifestyle) => (
                     <button
                       key={lifestyle.value}
                       onClick={() => handlePreferenceChange('lifestyle', lifestyle.value)}
-                      className={`p-8 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 text-left ${
+                      className={`p-6 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 text-left ${
                         preferences.lifestyle === lifestyle.value
                           ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
                           : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
                       }`}
                     >
-                      <div className="text-4xl mb-4">{lifestyle.emoji}</div>
-                      <div className="font-medium text-xl mb-2">{lifestyle.value.charAt(0).toUpperCase() + lifestyle.value.slice(1)}</div>
-                      <div className="text-sm opacity-80">{lifestyle.description}</div>
+                      <div className="text-3xl mb-3">{lifestyle.emoji}</div>
+                      <div className="font-medium text-lg mb-1">{lifestyle.value.charAt(0).toUpperCase() + lifestyle.value.slice(1)}</div>
+                      <div className="text-xs opacity-75">{lifestyle.description}</div>
                     </button>
                   ))}
                 </div>
@@ -848,26 +921,29 @@ const UserPreferences = () => {
             {/* Step 8: Styling Preference */}
             {currentStep === 8 && (
               <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                   {[
-                    { value: 'natural', label: 'Natural', emoji: '🌱', description: 'Embrace your natural texture with minimal effort' },
-                    { value: 'classic', label: 'Classic', emoji: '�', description: 'Timeless, traditional hairstyles' },
-                    { value: 'elegant', label: 'Elegant', emoji: '💼', description: 'Sophisticated and refined styles' },
-                    { value: 'trendy', label: 'Trendy', emoji: '✨', description: 'Current fashion-forward looks' },
-                    { value: 'edgy', label: 'Edgy', emoji: '🎸', description: 'Bold and unconventional styles' }
+                    { value: 'natural', label: 'Natural', emoji: '🌱', description: 'Minimal effort, embrace texture' },
+                    { value: 'casual', label: 'Casual', emoji: '👕', description: 'Relaxed, everyday styles' },
+                    { value: 'classic', label: 'Classic', emoji: '👔', description: 'Timeless, traditional' },
+                    { value: 'polished', label: 'Polished', emoji: '💼', description: 'Professional, refined' },
+                    { value: 'elegant', label: 'Elegant', emoji: '✨', description: 'Sophisticated and chic' },
+                    { value: 'glamorous', label: 'Glamorous', emoji: '💎', description: 'High-fashion, luxurious' },
+                    { value: 'trendy', label: 'Trendy', emoji: '🌟', description: 'Current fashion-forward' },
+                    { value: 'edgy', label: 'Edgy', emoji: '🎸', description: 'Bold and unconventional' }
                   ].map((style) => (
                     <button
                       key={style.value}
                       onClick={() => handlePreferenceChange('styling_preference', style.value)}
-                      className={`p-6 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 text-left ${
+                      className={`p-5 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 text-left ${
                         preferences.styling_preference === style.value
                           ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
                           : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
                       }`}
                     >
-                      <div className="text-4xl mb-3">{style.emoji}</div>
-                      <div className="font-medium text-lg mb-2">{style.label}</div>
-                      <div className="text-sm opacity-80">{style.description}</div>
+                      <div className="text-3xl mb-2">{style.emoji}</div>
+                      <div className="font-medium text-sm mb-1">{style.label}</div>
+                      <div className="text-xs opacity-75">{style.description}</div>
                     </button>
                   ))}
                 </div>
@@ -934,6 +1010,7 @@ const UserPreferences = () => {
                     { value: 'brown', label: 'Brown', emoji: '🟤', color: 'from-amber-800 to-amber-900' },
                     { value: 'blonde', label: 'Blonde', emoji: '🟡', color: 'from-yellow-400 to-yellow-600' },
                     { value: 'red', label: 'Red', emoji: '🔴', color: 'from-red-500 to-red-700' },
+                    { value: 'auburn', label: 'Auburn', emoji: '🟫', color: 'from-orange-800 to-red-900' },
                     { value: 'gray', label: 'Gray', emoji: '⚪', color: 'from-gray-400 to-gray-600' },
                     { value: 'white', label: 'White', emoji: '⚪', color: 'from-gray-200 to-gray-400' },
                     { value: 'other', label: 'Other', emoji: '🎨', color: 'from-purple-500 to-pink-500' }
@@ -959,10 +1036,13 @@ const UserPreferences = () => {
             {currentStep === 11 && (
               <div className="space-y-8">
                 <p className="text-center text-gray-300 text-lg mb-6">
-                  Optional - Select your current hair condition to get more personalized recommendations
+                  Optional - Select all that apply to your current hair condition (you can select multiple)
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {[
+                    { value: 'excellent', label: 'Excellent', emoji: '🌟' },
+                    { value: 'good', label: 'Good', emoji: '👍' },
+                    { value: 'fair', label: 'Fair', emoji: '😊' },
                     { value: 'none', label: 'Healthy', emoji: '✨' },
                     { value: 'dry_ends', label: 'Dry Ends', emoji: '🌵' },
                     { value: 'damaged', label: 'Damaged', emoji: '⚠️' },
@@ -972,32 +1052,55 @@ const UserPreferences = () => {
                     { value: 'oily_scalp', label: 'Oily Scalp', emoji: '💧' },
                     { value: 'dandruff', label: 'Dandruff', emoji: '❄️' },
                     { value: 'sensitive_scalp', label: 'Sensitive Scalp', emoji: '🩹' }
-                  ].map((condition) => (
-                    <button
-                      key={condition.value}
-                      onClick={() => handlePreferenceChange('hair_condition', condition.value)}
-                      className={`p-6 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
-                        preferences.hair_condition === condition.value
-                          ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
-                          : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
-                      }`}
-                    >
-                      <div className="text-3xl mb-2">{condition.emoji}</div>
-                      <div className="font-medium text-sm">{condition.label}</div>
-                    </button>
-                  ))}
+                  ].map((condition) => {
+                    const isSelected = Array.isArray(preferences.hair_condition) 
+                      ? preferences.hair_condition.includes(condition.value)
+                      : preferences.hair_condition === condition.value;
+                    
+                    return (
+                      <button
+                        key={condition.value}
+                        onClick={() => {
+                          const currentConditions = Array.isArray(preferences.hair_condition)
+                            ? preferences.hair_condition
+                            : preferences.hair_condition
+                              ? [preferences.hair_condition]
+                              : [];
+                          
+                          const newConditions = currentConditions.includes(condition.value)
+                            ? currentConditions.filter(c => c !== condition.value)
+                            : [...currentConditions, condition.value];
+                          
+                          handlePreferenceChange('hair_condition', newConditions);
+                        }}
+                        className={`p-6 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
+                          isSelected
+                            ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
+                            : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
+                        }`}
+                      >
+                        <div className="text-3xl mb-2">{condition.emoji}</div>
+                        <div className="font-medium text-sm">{condition.label}</div>
+                        {isSelected && (
+                          <div className="mt-2">
+                            <span className="text-purple-400">✓</span>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
-                {preferences.hair_condition && (
+                {Array.isArray(preferences.hair_condition) && preferences.hair_condition.length > 0 && (
                   <div className="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4 mt-6">
                     <p className="text-purple-300 text-center">
-                      ✅ Hair condition selected
+                      ✅ {preferences.hair_condition.length} condition{preferences.hair_condition.length !== 1 ? 's' : ''} selected
                     </p>
                   </div>
                 )}
-                {!preferences.hair_condition && (
+                {(!preferences.hair_condition || (Array.isArray(preferences.hair_condition) && preferences.hair_condition.length === 0)) && (
                   <div className="bg-gray-700/20 border border-gray-600/30 rounded-xl p-4 mt-6">
                     <p className="text-gray-400 text-center text-sm">
-                      💡 Tip: Selecting your hair condition helps us recommend styles that work best for your hair health
+                      💡 Tip: Select all conditions that apply to get the most personalized recommendations
                     </p>
                   </div>
                 )}

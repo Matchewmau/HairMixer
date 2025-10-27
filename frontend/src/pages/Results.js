@@ -10,6 +10,7 @@ const Results = () => {
   const { preferences, imageFile, previewUrl, uploadResponse, recommendations } = location.state || {};
   
   const [user, setUser] = useState(null);
+  const [favorites, setFavorites] = useState([]);
   
   // New state for Try Hairstyle modal
   const [showTryHairstyleModal, setShowTryHairstyleModal] = useState(false);
@@ -20,7 +21,47 @@ const Results = () => {
 
   useEffect(() => {
     checkAuth();
+    loadFavorites();
   }, []);
+
+  const loadFavorites = () => {
+    try {
+      const storedFavorites = localStorage.getItem('hairstyle_favorites');
+      if (storedFavorites) {
+        setFavorites(JSON.parse(storedFavorites));
+      }
+    } catch (error) {
+      console.error('Failed to load favorites:', error);
+    }
+  };
+
+  const toggleFavorite = (hairstyleId, hairstyleName) => {
+    try {
+      const storedFavorites = localStorage.getItem('hairstyle_favorites');
+      let currentFavorites = storedFavorites ? JSON.parse(storedFavorites) : [];
+      
+      const isFavorite = currentFavorites.some(fav => fav.id === hairstyleId);
+      
+      if (isFavorite) {
+        currentFavorites = currentFavorites.filter(fav => fav.id !== hairstyleId);
+      } else {
+        currentFavorites.push({
+          id: hairstyleId,
+          name: hairstyleName,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      localStorage.setItem('hairstyle_favorites', JSON.stringify(currentFavorites));
+      setFavorites(currentFavorites);
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
+    }
+  };
+
+  const isFavorite = (hairstyleId) => {
+    return favorites.some(fav => fav.id === hairstyleId);
+  };
 
   const checkAuth = async () => {
     try {
@@ -130,38 +171,27 @@ const Results = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-800 to-blue-900">
+    <div className="min-h-screen bg-gray-900 pt-20 md:pt-0">
       <Navbar 
-        transparent={true} 
         user={user} 
         onLogout={handleLogout}
-        showBackButton={true}
-        backPath="/preferences"
       />
       
-      <div className="pt-20 pb-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto">
-          {/* Header */}
-          <div className="text-center mb-12">
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-6">
-              Your Hairstyle Recommendations
-            </h1>
-            {previewUrl && (
-              <div className="flex justify-center mb-6">
-                <img
-                  src={previewUrl}
-                  alt="Uploaded profile"
-                  className="h-40 w-40 object-cover rounded-full border-4 border-purple-400/30 shadow-2xl"
-                />
-              </div>
-            )}
-            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-              Based on your preferences and facial analysis
-            </p>
-          </div>
-
-          {/* Face Analysis Summary */}
-          {uploadResponse && (
+      {/* Header Section - Similar to Discover page */}
+      <div className="bg-gradient-to-r from-purple-600 to-blue-600 py-12 md:py-16 md:mt-24">
+        <div className="max-w-7xl mx-auto px-4 text-center">
+          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
+            Your Hairstyle Recommendations
+          </h1>
+          <p className="text-xl text-gray-200 max-w-3xl mx-auto">
+            Based on your preferences and facial analysis
+          </p>
+        </div>
+      </div>
+      
+      <div className="max-w-7xl mx-auto px-4 py-12">
+        {/* Face Analysis Summary */}
+        {uploadResponse && (
             <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-8 mb-12 shadow-xl">
               <h2 className="text-2xl font-bold text-white mb-6">Face Analysis</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -436,7 +466,12 @@ const Results = () => {
             </button>
             <button
               onClick={() => navigate('/preferences', { 
-                state: { imageFile, previewUrl, uploadResponse } 
+                state: { 
+                  imageFile, 
+                  previewUrl, 
+                  uploadResponse,
+                  existingPreferences: preferences  // Pass existing preferences
+                } 
               })}
               className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-8 py-4 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg font-medium"
             >
@@ -444,10 +479,9 @@ const Results = () => {
             </button>
           </div>
         </div>
-      </div>
 
-      {/* Try Hairstyle Modal */}
-      {showTryHairstyleModal && (
+        {/* Try Hairstyle Modal */}
+        {showTryHairstyleModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl max-w-6xl w-full my-8">
             {loadingDetails ? (
@@ -473,13 +507,31 @@ const Results = () => {
                   <h2 className="text-2xl font-bold text-white">
                     {recommendations.recommendations[currentHairstyleIndex].name}
                   </h2>
-                  <button
-                    onClick={closeTryHairstyleModal}
-                    className="text-gray-400 hover:text-white text-2xl"
-                    aria-label="Close"
-                  >
-                    ✕
-                  </button>
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => toggleFavorite(
+                        recommendations.recommendations[currentHairstyleIndex].id,
+                        recommendations.recommendations[currentHairstyleIndex].name
+                      )}
+                      className={`p-2 rounded-full transition-all duration-300 ${
+                        isFavorite(recommendations.recommendations[currentHairstyleIndex].id)
+                          ? 'bg-red-500 text-white hover:bg-red-600'
+                          : 'bg-gray-700 text-gray-400 hover:bg-gray-600 hover:text-red-400'
+                      }`}
+                      aria-label="Add to favorites"
+                    >
+                      <svg className="w-6 h-6" fill={isFavorite(recommendations.recommendations[currentHairstyleIndex].id) ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={closeTryHairstyleModal}
+                      className="text-gray-400 hover:text-white text-2xl"
+                      aria-label="Close"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
 
                 {/* Main content grid */}

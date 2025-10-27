@@ -60,8 +60,8 @@ const Dashboard = () => {
       />
 
       {/* Full Screen Hero Section */}
-      <div className="h-screen">
-        <div className="bg-gradient-to-br from-gray-900 via-slate-800 to-blue-900 h-full overflow-hidden">
+      <div className="min-h-screen pt-20 md:pt-0">
+        <div className="bg-gradient-to-br from-gray-900 via-slate-800 to-blue-900 min-h-screen overflow-hidden">
           <div className="w-full h-full flex items-center justify-center relative overflow-hidden">
             {/* Dark geometric pattern background */}
             <div className="absolute inset-0 opacity-10">

@@ -126,6 +126,9 @@ class UserPreference(models.Model):
     ]
     LIFESTYLE_CHOICES = [
         ("active", "Active"),
+        ("professional", "Professional"),
+        ("creative", "Creative"),
+        ("casual", "Casual"),
         ("moderate", "Moderate"),
         ("relaxed", "Relaxed")
     ]
@@ -136,13 +139,19 @@ class UserPreference(models.Model):
     ]
     STYLING_PREFERENCE_CHOICES = [
         ("natural", "Natural"),
+        ("casual", "Casual"),
         ("classic", "Classic"),
+        ("polished", "Polished"),
         ("elegant", "Elegant"),
+        ("glamorous", "Glamorous"),
         ("trendy", "Trendy"),
         ("edgy", "Edgy")
     ]
     HAIR_CONDITION_CHOICES = [
         ("none", "None/Healthy"),
+        ("excellent", "Excellent"),
+        ("good", "Good"),
+        ("fair", "Fair"),
         ("damaged", "Damaged"),
         ("dry_ends", "Dry Ends"),
         ("oily_scalp", "Oily Scalp"),
@@ -155,12 +164,27 @@ class UserPreference(models.Model):
     HAIR_THICKNESS_CHOICES = [
         ("thin", "Thin"),
         ("medium", "Medium"),
-        ("thick", "Thick")
+        ("thick", "Thick"),
+        ("very_thick", "Very Thick")
     ]
     HAIR_TEXTURE_DETAIL_CHOICES = [
         ("fine", "Fine"),
         ("normal", "Normal"),
-        ("thick", "Thick")
+        ("thick", "Thick"),
+        ("smooth", "Smooth"),
+        ("coarse", "Coarse"),
+        ("silky", "Silky"),
+        ("frizzy", "Frizzy")
+    ]
+    HAIR_COLOR_CHOICES = [
+        ("black", "Black"),
+        ("brown", "Brown"),
+        ("blonde", "Blonde"),
+        ("red", "Red"),
+        ("auburn", "Auburn"),
+        ("gray", "Gray"),
+        ("white", "White"),
+        ("other", "Other")
     ]
     # Face shape choices - Updated to match ResNet50 model (5 classes)
     FACE_SHAPE_CHOICES = [
@@ -194,7 +218,7 @@ class UserPreference(models.Model):
     occasions = models.JSONField(default=list, blank=True)
     hair_type = models.CharField(max_length=16, choices=HAIR_TYPE_CHOICES)
     hair_length = models.CharField(max_length=16, choices=LENGTH_CHOICES)
-    hair_color = models.CharField(max_length=50, blank=True)
+    hair_color = models.CharField(max_length=50, choices=HAIR_COLOR_CHOICES, blank=True)
     lifestyle = models.CharField(
         max_length=20, choices=LIFESTYLE_CHOICES, blank=True
     )
@@ -215,9 +239,8 @@ class UserPreference(models.Model):
     styling_preference = models.CharField(
         max_length=20, choices=STYLING_PREFERENCE_CHOICES, blank=True
     )
-    hair_condition = models.CharField(
-        max_length=16, choices=HAIR_CONDITION_CHOICES, blank=True
-    )
+    # Hair condition - Changed to JSONField to support multiple conditions
+    hair_condition = models.JSONField(default=list, blank=True)
     hair_thickness = models.CharField(
         max_length=16, choices=HAIR_THICKNESS_CHOICES, blank=True
     )
