@@ -92,6 +92,7 @@ const UserPreferences = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState(null);
+  const [occasionsLoaded, setOccasionsLoaded] = useState(false);
 
   useEffect(() => {
     if (!uploadResponse) {
@@ -99,9 +100,31 @@ const UserPreferences = () => {
       return;
     }
     
-    loadFilterOptions();
+    // Always load filter options on mount
+    if (!occasionsLoaded) {
+      loadFilterOptions();
+    }
     checkAuth();
-  }, [uploadResponse, navigate]);
+  }, [uploadResponse, navigate, occasionsLoaded]);
+
+  // Re-check auth when component becomes visible again
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        checkAuth();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
+  // Reload occasions when user logs in
+  useEffect(() => {
+    if (user && !occasionsLoaded) {
+      loadFilterOptions();
+    }
+  }, [user, occasionsLoaded]);
 
   const checkAuth = async () => {
     try {
@@ -121,6 +144,9 @@ const UserPreferences = () => {
     try {
       await AuthService.logout();
       setUser(null);
+      // Clear occasions when logging out and mark as not loaded
+      setOccasions([]);
+      setOccasionsLoaded(false);
       navigate('/');
     } catch (error) {
       console.error('Logout failed:', error);
@@ -129,10 +155,23 @@ const UserPreferences = () => {
 
   const loadFilterOptions = async () => {
     try {
+      console.log('Loading filter options (occasions)...');
       const occasionsResponse = await APIService.getOccasions();
+      console.log('Occasions loaded:', occasionsResponse);
       setOccasions(occasionsResponse.occasions || []);
+      setOccasionsLoaded(true);
     } catch (error) {
       console.error('Error loading filter options:', error);
+      // If there's an error, set a default list of occasions
+      setOccasions([
+        { value: 'casual', label: 'Casual' },
+        { value: 'professional', label: 'Professional' },
+        { value: 'formal', label: 'Formal' },
+        { value: 'party', label: 'Party' },
+        { value: 'wedding', label: 'Wedding' },
+        { value: 'sports', label: 'Sports' },
+      ]);
+      setOccasionsLoaded(true);
     } finally {
       setIsLoading(false);
     }
@@ -290,11 +329,18 @@ const UserPreferences = () => {
   };
 
   const goToStep = (step) => {
-    // Step 11 is always accessible since it's optional
-    // For other steps, only allow navigation to completed steps or the next immediate step
-    if (step === 11 || step <= currentStep || isStepCompleted(step - 1)) {
+    // Only allow navigation to:
+    // 1. Steps already visited (step <= currentStep)
+    // 2. The next immediate step if previous step is completed
+    // Users must complete all required steps in order - no skipping allowed
+    if (step <= currentStep) {
+      // Can always go back to previously visited steps
+      setCurrentStep(step);
+    } else if (step === currentStep + 1 && isStepCompleted(currentStep)) {
+      // Can go to next step only if current step is completed
       setCurrentStep(step);
     }
+    // Otherwise, cannot skip ahead
   };
 
   // Check if a specific step has been completed
@@ -614,8 +660,8 @@ const UserPreferences = () => {
               {steps.map((step) => {
                 const isCompleted = isStepCompleted(step.number);
                 const isCurrent = currentStep === step.number;
-                // Step 11 is always accessible since it's optional
-                const isAccessible = step.number === 11 ? true : (step.number <= currentStep || isStepCompleted(step.number - 1));
+                // Users can only access: previously visited steps OR next step if current is completed
+                const isAccessible = step.number <= currentStep || (step.number === currentStep + 1 && isStepCompleted(currentStep));
                 
                 return (
                   <React.Fragment key={step.number}>
@@ -633,7 +679,7 @@ const UserPreferences = () => {
                       title={
                         isAccessible 
                           ? `Step ${step.number + 1}: ${step.title}` 
-                          : 'Complete previous steps to unlock'
+                          : 'Complete previous steps first'
                       }
                     >
                       {isCompleted && !isCurrent ? (
