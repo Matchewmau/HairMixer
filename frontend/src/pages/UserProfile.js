@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import AuthService from '../services/AuthService';
+import apiService from '../services/api';
 
 const UserProfile = () => {
   const [user, setUser] = useState(null);
@@ -23,6 +24,12 @@ const UserProfile = () => {
     maintenanceLevel: ''
   });
   const navigate = useNavigate();
+  
+  // State for viewing favorite hairstyle details
+  const [showFavoriteModal, setShowFavoriteModal] = useState(false);
+  const [selectedFavorite, setSelectedFavorite] = useState(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [detailsError, setDetailsError] = useState('');
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -70,6 +77,35 @@ const UserProfile = () => {
     const updatedFavorites = favorites.filter(fav => fav.id !== hairstyleId);
     setFavorites(updatedFavorites);
     localStorage.setItem('hairstyle_favorites', JSON.stringify(updatedFavorites));
+  };
+
+  const handleViewFavorite = async (favorite) => {
+    try {
+      setDetailsError('');
+      setLoadingDetails(true);
+      setSelectedFavorite(favorite);
+      setShowFavoriteModal(true);
+
+      // Fetch detailed information about the hairstyle
+      const details = await apiService.getHairstyleDetailsWithAI(
+        favorite.id,
+        null, // No preference ID from profile
+        null  // No image ID from profile
+      );
+      
+      setSelectedFavorite({ ...favorite, details });
+    } catch (error) {
+      console.error('Failed to load hairstyle details:', error);
+      setDetailsError(error?.message || 'Failed to load hairstyle details');
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  const closeFavoriteModal = () => {
+    setShowFavoriteModal(false);
+    setSelectedFavorite(null);
+    setDetailsError('');
   };
 
   useEffect(() => {
@@ -417,15 +453,19 @@ const UserProfile = () => {
                 {favorites.map((favorite) => (
                   <div 
                     key={favorite.id}
-                    className="bg-slate-700/50 rounded-xl overflow-hidden border border-slate-600/50 hover:border-purple-500/50 transition-all duration-300"
+                    className="bg-slate-700/50 rounded-xl overflow-hidden border border-slate-600/50 hover:border-purple-500/50 transition-all duration-300 cursor-pointer group"
+                    onClick={() => handleViewFavorite(favorite)}
                   >
                     <div className="p-4">
                       <div className="flex items-start justify-between mb-3">
-                        <h3 className="text-white font-semibold text-lg flex-1 pr-2">
+                        <h3 className="text-white font-semibold text-lg flex-1 pr-2 group-hover:text-purple-400 transition-colors">
                           {favorite.name}
                         </h3>
                         <button
-                          onClick={() => removeFavorite(favorite.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeFavorite(favorite.id);
+                          }}
                           className="text-red-500 hover:text-red-400 transition-colors duration-200 flex-shrink-0"
                           title="Remove from favorites"
                         >
@@ -435,7 +475,7 @@ const UserProfile = () => {
                         </button>
                       </div>
                       
-                      <div className="flex items-center text-gray-400 text-sm">
+                      <div className="flex items-center text-gray-400 text-sm mb-2">
                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
@@ -445,6 +485,10 @@ const UserProfile = () => {
                           year: 'numeric'
                         })}
                       </div>
+                      
+                      <p className="text-purple-400 text-sm group-hover:text-purple-300 transition-colors">
+                        Click to view details →
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -506,6 +550,141 @@ const UserProfile = () => {
           </div>
         </div>
       </div>
+
+      {/* Favorite Hairstyle Details Modal */}
+      {showFavoriteModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl max-w-4xl w-full my-8">
+            {loadingDetails ? (
+              <div className="p-12 text-center">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mb-4"></div>
+                <p className="text-white text-lg">Loading hairstyle details...</p>
+              </div>
+            ) : detailsError ? (
+              <div className="p-12 text-center">
+                <div className="text-red-400 text-5xl mb-4">⚠️</div>
+                <p className="text-red-400 text-lg mb-6">{detailsError}</p>
+                <button
+                  onClick={closeFavoriteModal}
+                  className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-2 rounded-lg"
+                >
+                  Close
+                </button>
+              </div>
+            ) : selectedFavorite ? (
+              <div className="p-6">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-white">
+                    {selectedFavorite.name}
+                  </h2>
+                  <button
+                    onClick={closeFavoriteModal}
+                    className="text-gray-400 hover:text-white text-2xl"
+                    aria-label="Close"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="space-y-4 overflow-y-auto max-h-[600px]">
+                  {/* Hairstyle Image */}
+                  {selectedFavorite.details?.hairstyle?.image_url && (
+                    <div className="bg-gray-800 rounded-xl p-4">
+                      <img
+                        src={selectedFavorite.details.hairstyle.image_url}
+                        alt={selectedFavorite.name}
+                        className="w-full rounded-lg shadow-lg"
+                      />
+                    </div>
+                  )}
+
+                  {/* Description */}
+                  {selectedFavorite.details?.hairstyle?.description && (
+                    <div className="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4">
+                      <h3 className="text-lg font-semibold text-white mb-3">Description</h3>
+                      <p className="text-gray-300 leading-relaxed">
+                        {selectedFavorite.details.hairstyle.description}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Personalized Description */}
+                  {selectedFavorite.details?.personalized_description && (
+                    <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4">
+                      <h3 className="text-lg font-semibold text-white mb-3">✨ Why This Style Works</h3>
+                      <p className="text-gray-300 leading-relaxed">
+                        {selectedFavorite.details.personalized_description}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Face Shape Info */}
+                  {selectedFavorite.details?.face_shape && (
+                    <div className="bg-green-900/20 border border-green-500/30 rounded-xl p-4">
+                      <h3 className="text-lg font-semibold text-white mb-2">Face Shape Compatibility</h3>
+                      <p className="text-green-300 capitalize">
+                        Recommended for {selectedFavorite.details.face_shape} face shape
+                        {selectedFavorite.details.face_shape_confidence > 0 && (
+                          <span className="text-gray-400 ml-2">
+                            ({Math.round(selectedFavorite.details.face_shape_confidence * 100)}% confidence)
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Styling Tips */}
+                  {selectedFavorite.details?.styling_tips && selectedFavorite.details.styling_tips.length > 0 && (
+                    <div className="bg-pink-900/20 border border-pink-500/30 rounded-xl p-4">
+                      <h3 className="text-lg font-semibold text-white mb-3">💡 Styling Tips</h3>
+                      <ul className="space-y-2">
+                        {selectedFavorite.details.styling_tips.map((tip, idx) => (
+                          <li key={idx} className="text-gray-300 text-sm flex items-start">
+                            <span className="text-pink-400 mr-2">→</span>
+                            <span>{tip}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Maintenance Guide */}
+                  {selectedFavorite.details?.maintenance_guide && selectedFavorite.details.maintenance_guide.length > 0 && (
+                    <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-xl p-4">
+                      <h3 className="text-lg font-semibold text-white mb-3">🔧 Maintenance Guide</h3>
+                      <ol className="space-y-2">
+                        {selectedFavorite.details.maintenance_guide.map((step, idx) => (
+                          <li key={idx} className="text-gray-300 text-sm flex items-start">
+                            <span className="text-yellow-400 font-medium mr-2">{idx + 1}.</span>
+                            <span>{step}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
+
+                  {/* Recommended Products */}
+                  {selectedFavorite.details?.recommended_products && selectedFavorite.details.recommended_products.length > 0 && (
+                    <div className="bg-orange-900/20 border border-orange-500/30 rounded-xl p-4">
+                      <h3 className="text-lg font-semibold text-white mb-3">🛍️ Recommended Products</h3>
+                      <ul className="space-y-2">
+                        {selectedFavorite.details.recommended_products.map((product, idx) => (
+                          <li key={idx} className="text-gray-300 text-sm flex items-start">
+                            <span className="text-orange-400 mr-2">{idx + 1}.</span>
+                            <span>{product}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
     </>
   );
 };

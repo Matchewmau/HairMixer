@@ -178,7 +178,7 @@ const Results = () => {
       />
       
       {/* Header Section - Similar to Discover page */}
-      <div className="bg-gradient-to-r from-purple-600 to-blue-600 py-12 md:py-16 md:mt-24">
+      <div className="bg-gradient-to-r from-purple-600 to-blue-600 py-12 md:py-16 md:pt-24">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
             Your Hairstyle Recommendations
@@ -194,65 +194,54 @@ const Results = () => {
         {uploadResponse && (
             <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-8 mb-12 shadow-xl">
               <h2 className="text-2xl font-bold text-white mb-6">Face Analysis</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="text-center">
-                  <div className="bg-blue-500/20 backdrop-blur-sm border border-blue-400/30 rounded-xl p-6">
-                    <h3 className="font-medium text-white mb-2">Face Shape</h3>
-                    <p className="text-blue-400 font-semibold text-xl capitalize">
-                      {uploadResponse.face_shape?.shape || 'Unknown'}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-2">
-                      {uploadResponse.detection_method && `via ${uploadResponse.detection_method}`}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="bg-green-500/20 backdrop-blur-sm border border-green-400/30 rounded-xl p-6">
-                    <h3 className="font-medium text-white mb-2">Confidence</h3>
-                    <p className="text-green-400 font-semibold text-xl">
-                      {uploadResponse.face_shape?.confidence ? 
-                        `${Math.round(uploadResponse.face_shape.confidence * 100)}%` : 
-                        uploadResponse.confidence ?
-                        `${Math.round(uploadResponse.confidence * 100)}%` :
-                        'N/A'}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="bg-purple-500/20 backdrop-blur-sm border border-purple-400/30 rounded-xl p-6">
-                    <h3 className="font-medium text-white mb-2">Quality Score</h3>
-                    <p className="text-purple-400 font-semibold text-xl">
-                      {uploadResponse.quality_score ? 
-                        `${Math.round(uploadResponse.quality_score * 10)}/10` : 
-                        uploadResponse.quality_metrics?.overall_quality ?
-                        `${Math.round(uploadResponse.quality_metrics.overall_quality * 10)}/10` :
-                        'N/A'}
-                    </p>
-                  </div>
-                </div>
-              </div>
               
-              {/* Show face shape characteristics if available */}
-              {uploadResponse.face_shape?.shape && (
-                <div className="mt-6 p-6 bg-gray-700/30 backdrop-blur-sm border border-gray-600/50 rounded-xl">
-                  <h4 className="font-medium text-white mb-3">
-                    {uploadResponse.face_shape.shape.charAt(0).toUpperCase() + uploadResponse.face_shape.shape.slice(1)} Face Shape Characteristics:
-                  </h4>
-                  <div className="text-sm text-gray-300">
-                    <p className="mb-3">
-                      <strong className="text-white">Best suited for:</strong> Most hairstyles work well with your face shape!
-                    </p>
-                    <div className="flex flex-wrap gap-3 mt-4">
-                      <span className="px-3 py-1 bg-blue-500/20 text-blue-300 border border-blue-400/30 rounded-full text-sm">
-                        Method: {uploadResponse.detection_method || 'AI Analysis'}
-                      </span>
-                      <span className="px-3 py-1 bg-green-500/20 text-green-300 border border-green-400/30 rounded-full text-sm">
-                        Confidence: {Math.round((uploadResponse.face_shape.confidence || 0) * 100)}%
-                      </span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                {/* User Image */}
+                {previewUrl && (
+                  <div className="flex justify-center">
+                    <div className="relative w-full max-w-xs mx-auto">
+                      <div className="aspect-square overflow-hidden rounded-xl shadow-lg border-2 border-blue-500/30">
+                        <img
+                          src={previewUrl}
+                          alt="Uploaded face for analysis"
+                          className="w-full h-full object-cover object-center"
+                          style={{ objectPosition: 'center 30%' }}
+                        />
+                      </div>
+                      <div className="absolute top-2 right-2 bg-blue-500/90 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-medium">
+                        Your Photo
+                      </div>
                     </div>
                   </div>
+                )}
+
+                {/* Face Shape Info */}
+                <div className="space-y-4">
+                  <div className="bg-blue-500/20 backdrop-blur-sm border border-blue-400/30 rounded-xl p-6">
+                    <h3 className="font-medium text-white mb-3 text-lg">Detected Face Shape</h3>
+                    <p className="text-blue-400 font-semibold text-3xl capitalize mb-2">
+                      {uploadResponse.face_shape?.shape || 'Unknown'}
+                    </p>
+                    <p className="text-sm text-gray-400">
+                      Detection Method: {uploadResponse.detection_method || 'AI Analysis'}
+                    </p>
+                  </div>
+                  
+                  {/* Face shape characteristics */}
+                  {uploadResponse.face_shape?.shape && (
+                    <div className="p-6 bg-gray-700/30 backdrop-blur-sm border border-gray-600/50 rounded-xl">
+                      <h4 className="font-medium text-white mb-3">
+                        {uploadResponse.face_shape.shape.charAt(0).toUpperCase() + uploadResponse.face_shape.shape.slice(1)} Face Shape Characteristics:
+                      </h4>
+                      <div className="text-sm text-gray-300">
+                        <p className="mb-3">
+                          <strong className="text-white">Best suited for:</strong> Most hairstyles work well with your face shape!
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           )}
 
@@ -560,13 +549,23 @@ const Results = () => {
                     
                     {/* Face Shape Info */}
                     <div className="bg-blue-900/30 border border-blue-500/30 rounded-xl p-4">
-                      <h3 className="text-lg font-semibold text-white mb-2">Face Shape Analysis</h3>
-                      <p className="text-blue-300 capitalize">
-                        {hairstyleDetails.face_shape} ({Math.round(hairstyleDetails.face_shape_confidence * 100)}% confidence)
+                      <h3 className="text-lg font-semibold text-white mb-2">Your Face Shape Analysis</h3>
+                      <p className="text-blue-300 capitalize text-xl font-semibold mb-2">
+                        {uploadResponse?.face_shape?.shape || hairstyleDetails.face_shape || 'Oval'} Face
                       </p>
-                      <p className="text-sm text-gray-300 mt-2">
-                        {hairstyleDetails.ai_generated ? 'AI-analyzed compatibility' : 'Standard compatibility'}
+                      <p className="text-sm text-gray-300 mb-3">
+                        Detected via {uploadResponse?.detection_method || 'AI Model Analysis'}
+                        {uploadResponse?.face_shape?.confidence && (
+                          <span className="ml-2">
+                            ({Math.round(uploadResponse.face_shape.confidence * 100)}% confidence)
+                          </span>
+                        )}
                       </p>
+                      <div className="bg-blue-800/30 border border-blue-400/20 rounded-lg p-3 mt-3">
+                        <p className="text-sm text-blue-200">
+                          <strong>Why this works for you:</strong> This hairstyle is specifically recommended for your {uploadResponse?.face_shape?.shape || hairstyleDetails.face_shape || 'oval'} face shape, creating a balanced and flattering look that complements your natural features.
+                        </p>
+                      </div>
                     </div>
                   </div>
 
@@ -575,76 +574,101 @@ const Results = () => {
                     {/* Personalized Description */}
                     <div className="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4">
                       <h3 className="text-lg font-semibold text-white mb-3">✨ Why This Style Works for You</h3>
-                      <p className="text-gray-300 leading-relaxed">
+                      <p className="text-gray-300 leading-relaxed mb-3">
                         {hairstyleDetails.personalized_description}
                       </p>
+                      
+                      {/* Face Shape Specific Benefits */}
+                      {(uploadResponse?.face_shape?.shape || hairstyleDetails.face_shape) && (
+                        <div className="bg-purple-800/20 border border-purple-400/20 rounded-lg p-3 mt-3">
+                          <p className="text-sm text-purple-200">
+                            <strong className="text-purple-300">Perfect for your {uploadResponse?.face_shape?.shape || hairstyleDetails.face_shape} face:</strong> This hairstyle helps balance your facial proportions, highlights your best features, and creates a harmonious overall look that's tailored to your unique face shape.
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {/* User Preferences Used */}
-                    {hairstyleDetails.user_preferences && Object.keys(hairstyleDetails.user_preferences).length > 0 && (
+                    {(hairstyleDetails.user_preferences && Object.keys(hairstyleDetails.user_preferences).length > 0) || uploadResponse?.face_shape?.shape ? (
                       <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4">
-                        <h3 className="text-lg font-semibold text-white mb-3">👤 Your Preferences</h3>
-                        <div className="grid grid-cols-2 gap-2">
-                          {hairstyleDetails.user_preferences.hair_type && (
-                            <div className="text-sm">
-                              <span className="text-blue-400 font-medium">Hair Type:</span>
-                              <span className="text-gray-300 ml-2">{hairstyleDetails.user_preferences.hair_type}</span>
-                            </div>
-                          )}
-                          {hairstyleDetails.user_preferences.hair_length && (
-                            <div className="text-sm">
-                              <span className="text-blue-400 font-medium">Length:</span>
-                              <span className="text-gray-300 ml-2">{hairstyleDetails.user_preferences.hair_length}</span>
-                            </div>
-                          )}
-                          {hairstyleDetails.user_preferences.hair_thickness && (
-                            <div className="text-sm">
-                              <span className="text-blue-400 font-medium">Thickness:</span>
-                              <span className="text-gray-300 ml-2">{hairstyleDetails.user_preferences.hair_thickness}</span>
-                            </div>
-                          )}
-                          {hairstyleDetails.user_preferences.hair_texture_detail && (
-                            <div className="text-sm">
-                              <span className="text-blue-400 font-medium">Texture:</span>
-                              <span className="text-gray-300 ml-2">{hairstyleDetails.user_preferences.hair_texture_detail}</span>
-                            </div>
-                          )}
-                          {hairstyleDetails.user_preferences.maintenance && (
-                            <div className="text-sm">
-                              <span className="text-blue-400 font-medium">Maintenance:</span>
-                              <span className="text-gray-300 ml-2">{hairstyleDetails.user_preferences.maintenance}</span>
-                            </div>
-                          )}
-                          {hairstyleDetails.user_preferences.lifestyle && (
-                            <div className="text-sm">
-                              <span className="text-blue-400 font-medium">Lifestyle:</span>
-                              <span className="text-gray-300 ml-2">{hairstyleDetails.user_preferences.lifestyle}</span>
-                            </div>
-                          )}
-                          {hairstyleDetails.user_preferences.gender && (
-                            <div className="text-sm">
-                              <span className="text-blue-400 font-medium">Gender:</span>
-                              <span className="text-gray-300 ml-2">{hairstyleDetails.user_preferences.gender}</span>
-                            </div>
-                          )}
-                          {hairstyleDetails.user_preferences.occasions && hairstyleDetails.user_preferences.occasions.length > 0 && (
-                            <div className="text-sm col-span-2">
-                              <span className="text-blue-400 font-medium">Occasions:</span>
-                              <span className="text-gray-300 ml-2">{hairstyleDetails.user_preferences.occasions.join(', ')}</span>
-                            </div>
-                          )}
-                          {hairstyleDetails.face_shape && (
-                            <div className="text-sm col-span-2">
-                              <span className="text-blue-400 font-medium">Face Shape:</span>
-                              <span className="text-gray-300 ml-2">{hairstyleDetails.face_shape}</span>
-                              {hairstyleDetails.face_shape_confidence > 0 && (
-                                <span className="text-gray-400 ml-1">({(hairstyleDetails.face_shape_confidence * 100).toFixed(0)}% confidence)</span>
+                        <h3 className="text-lg font-semibold text-white mb-3">👤 Your Profile & Preferences</h3>
+                        
+                        {/* Face Shape - Prominently displayed */}
+                        {(uploadResponse?.face_shape?.shape || hairstyleDetails.face_shape) && (
+                          <div className="bg-blue-800/30 border border-blue-400/30 rounded-lg p-3 mb-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span className="text-blue-300 font-semibold text-sm uppercase tracking-wide">Face Shape</span>
+                                <p className="text-white text-lg font-bold capitalize mt-1">
+                                  {uploadResponse?.face_shape?.shape || hairstyleDetails.face_shape}
+                                </p>
+                              </div>
+                              {uploadResponse?.face_shape?.confidence && (
+                                <div className="text-right">
+                                  <span className="text-green-400 font-bold text-lg">
+                                    {Math.round(uploadResponse.face_shape.confidence * 100)}%
+                                  </span>
+                                  <p className="text-xs text-gray-400">Confidence</p>
+                                </div>
                               )}
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
+                        
+                        {hairstyleDetails.user_preferences && Object.keys(hairstyleDetails.user_preferences).length > 0 && (
+                          <div className="grid grid-cols-2 gap-2">
+                            {hairstyleDetails.user_preferences.hair_type && (
+                              <div className="text-sm">
+                                <span className="text-blue-400 font-medium">Hair Type:</span>
+                                <span className="text-gray-300 ml-2 capitalize">{hairstyleDetails.user_preferences.hair_type}</span>
+                              </div>
+                            )}
+                            {hairstyleDetails.user_preferences.hair_length && (
+                              <div className="text-sm">
+                                <span className="text-blue-400 font-medium">Length:</span>
+                                <span className="text-gray-300 ml-2 capitalize">{hairstyleDetails.user_preferences.hair_length}</span>
+                              </div>
+                            )}
+                            {hairstyleDetails.user_preferences.hair_thickness && (
+                              <div className="text-sm">
+                                <span className="text-blue-400 font-medium">Thickness:</span>
+                                <span className="text-gray-300 ml-2 capitalize">{hairstyleDetails.user_preferences.hair_thickness}</span>
+                              </div>
+                            )}
+                            {hairstyleDetails.user_preferences.hair_texture_detail && (
+                              <div className="text-sm">
+                                <span className="text-blue-400 font-medium">Texture:</span>
+                                <span className="text-gray-300 ml-2 capitalize">{hairstyleDetails.user_preferences.hair_texture_detail}</span>
+                              </div>
+                            )}
+                            {hairstyleDetails.user_preferences.maintenance && (
+                              <div className="text-sm">
+                                <span className="text-blue-400 font-medium">Maintenance:</span>
+                                <span className="text-gray-300 ml-2 capitalize">{hairstyleDetails.user_preferences.maintenance}</span>
+                              </div>
+                            )}
+                            {hairstyleDetails.user_preferences.lifestyle && (
+                              <div className="text-sm">
+                                <span className="text-blue-400 font-medium">Lifestyle:</span>
+                                <span className="text-gray-300 ml-2 capitalize">{hairstyleDetails.user_preferences.lifestyle}</span>
+                              </div>
+                            )}
+                            {hairstyleDetails.user_preferences.gender && (
+                              <div className="text-sm">
+                                <span className="text-blue-400 font-medium">Gender:</span>
+                                <span className="text-gray-300 ml-2 capitalize">{hairstyleDetails.user_preferences.gender}</span>
+                              </div>
+                            )}
+                            {hairstyleDetails.user_preferences.occasions && hairstyleDetails.user_preferences.occasions.length > 0 && (
+                              <div className="text-sm col-span-2">
+                                <span className="text-blue-400 font-medium">Occasions:</span>
+                                <span className="text-gray-300 ml-2 capitalize">{hairstyleDetails.user_preferences.occasions.join(', ')}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    ) : null}
 
                     {/* LLM INTELLIGENT ANALYSIS */}
                     {hairstyleDetails.llm_analysis && hairstyleDetails.llm_analysis.llm_generated && (

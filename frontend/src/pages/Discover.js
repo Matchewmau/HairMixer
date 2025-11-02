@@ -216,37 +216,63 @@ const Discover = () => {
       <Navbar 
         user={user} 
         onLogout={handleLogout}
+        transparent={true}
       />
       <div className="min-h-screen bg-gray-900 pt-20 md:pt-24">
-        {/* Header Section */}
-        <div className="bg-gradient-to-r from-purple-600 to-blue-600 py-12 md:py-16">
-          <div className="max-w-7xl mx-auto px-4 text-center">
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
-              Discover Your Perfect Style
+        {/* Header Section with Modern Dark Theme */}
+        <div className="bg-gradient-to-br from-gray-900 via-slate-800 to-blue-900 py-16 md:py-24 relative overflow-hidden">
+          {/* Dark geometric pattern background */}
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute top-0 right-0 w-96 h-96">
+              <div className="w-full h-full rounded-full border-2 border-blue-400 transform translate-x-48 -translate-y-48"></div>
+            </div>
+            <div className="absolute top-1/4 left-0 w-64 h-64">
+              <div className="w-full h-full rounded-full border-2 border-purple-400 transform -translate-x-32"></div>
+            </div>
+            {/* Mesh pattern overlay */}
+            <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+                  <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgb(59, 130, 246)" strokeWidth="0.5" opacity="0.3"/>
+                </pattern>
+              </defs>
+              <rect width="100%" height="100%" fill="url(#grid)" />
+            </svg>
+          </div>
+
+          <div className="max-w-7xl mx-auto px-4 text-center relative z-10">
+            <div className="mb-6">
+              <span className="inline-block bg-blue-500/20 text-blue-300 px-4 py-2 rounded-full text-sm font-medium border border-blue-500/30 backdrop-blur-sm">
+                Explore Our Collection
+              </span>
+            </div>
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 bg-gradient-to-r from-white via-blue-100 to-purple-200 bg-clip-text text-transparent">
+              Discover Your Perfect
+              <span className="block text-blue-400">Hairstyle</span>
             </h1>
-            <p className="text-xl text-gray-200 max-w-3xl mx-auto">
+            <p className="text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
               Explore our curated collection of hairstyles across different categories. 
               Find inspiration for your next look!
             </p>
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 py-12">
+        <div className="max-w-7xl mx-auto px-4 py-12 md:py-16">
           {/* Category Filter */}
-          <div className="mb-12">
-            <h2 className="text-2xl font-bold text-white mb-6">Browse by Category</h2>
+          <div className="mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-8">Browse by Category</h2>
             <div className="flex flex-wrap gap-4">
               {categories.map((category) => (
                 <button
                   key={category.key}
                   onClick={() => setSelectedCategory(category.key)}
-                  className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition duration-300 ${
+                  className={`flex items-center space-x-3 px-6 py-4 rounded-lg font-semibold transition-all duration-300 transform ${
                     selectedCategory === category.key
-                      ? 'bg-purple-600 text-white shadow-lg scale-105'
-                      : 'bg-slate-800/50 text-gray-300 hover:bg-slate-700/50 hover:text-white'
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-purple-500/25 scale-105 border border-blue-500/30'
+                      : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white backdrop-blur-sm border border-white/10 hover:border-white/20 hover:scale-105'
                   }`}
                 >
-                  <span className="text-xl">{category.icon}</span>
+                  <span className="text-2xl">{category.icon}</span>
                   <span>{category.name}</span>
                 </button>
               ))}
@@ -258,39 +284,42 @@ const Discover = () => {
             {getFilteredStyles().map((style) => (
               <div
                 key={style.id}
-                className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50 hover:border-purple-500/30 transition-all duration-300 cursor-pointer group"
+                className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 hover:border-purple-500/40 hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-300 cursor-pointer group"
                 onClick={() => openStyleDetails(style)}
               >
                 {/* Style Image Placeholder */}
-                <div className="w-full h-48 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-lg mb-4 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                  <div className="text-4xl">💇‍♀️</div>
+                <div className="relative mb-6 overflow-hidden rounded-lg">
+                  <div className="w-full h-56 bg-gradient-to-br from-purple-600/20 to-blue-600/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
+                    <div className="text-5xl">💇‍♀️</div>
+                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 </div>
 
                 {/* Style Info */}
-                <div className="space-y-3">
-                  <h3 className="text-xl font-bold text-white group-hover:text-purple-400 transition-colors duration-300">
+                <div className="space-y-4">
+                  <h3 className="text-xl font-bold text-white group-hover:text-blue-400 transition-colors duration-300">
                     {style.name}
                   </h3>
-                  <p className="text-gray-300 text-sm line-clamp-2">
+                  <p className="text-gray-300 text-sm leading-relaxed line-clamp-2">
                     {style.description}
                   </p>
 
                   {/* Style Attributes */}
                   <div className="flex flex-wrap gap-2">
-                    <span className="bg-purple-900/30 text-purple-300 px-2 py-1 rounded-full text-xs">
+                    <span className="bg-purple-500/20 text-purple-300 px-3 py-1 rounded-full text-xs font-medium border border-purple-500/30">
                       {style.length}
                     </span>
-                    <span className="bg-blue-900/30 text-blue-300 px-2 py-1 rounded-full text-xs">
+                    <span className="bg-blue-500/20 text-blue-300 px-3 py-1 rounded-full text-xs font-medium border border-blue-500/30">
                       {style.maintenance} Maintenance
                     </span>
-                    <span className="bg-green-900/30 text-green-300 px-2 py-1 rounded-full text-xs">
+                    <span className="bg-green-500/20 text-green-300 px-3 py-1 rounded-full text-xs font-medium border border-green-500/30">
                       {style.theme}
                     </span>
                   </div>
 
                   {/* View Details Button */}
-                  <div className="pt-2">
-                    <div className="text-purple-400 text-sm font-medium group-hover:text-purple-300 flex items-center">
+                  <div className="pt-3">
+                    <div className="text-blue-400 text-sm font-semibold group-hover:text-blue-300 flex items-center">
                       View Details
                       <svg className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -305,14 +334,14 @@ const Discover = () => {
 
         {/* Style Details Modal */}
         {selectedStyle && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-slate-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-white/10 shadow-2xl">
               {/* Modal Header */}
-              <div className="flex items-center justify-between p-6 border-b border-slate-700">
-                <h2 className="text-2xl font-bold text-white">{selectedStyle.name}</h2>
+              <div className="flex items-center justify-between p-6 border-b border-white/10">
+                <h2 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">{selectedStyle.name}</h2>
                 <button
                   onClick={closeStyleDetails}
-                  className="text-gray-400 hover:text-white transition-colors duration-300"
+                  className="text-gray-400 hover:text-white transition-colors duration-300 p-2 hover:bg-white/10 rounded-lg"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -323,24 +352,24 @@ const Discover = () => {
               {/* Modal Content */}
               <div className="p-6 space-y-6">
                 {/* Style Image */}
-                <div className="w-full h-64 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-lg flex items-center justify-center">
-                  <div className="text-6xl">💇‍♀️</div>
+                <div className="w-full h-72 bg-gradient-to-br from-purple-600/20 to-blue-600/20 rounded-xl flex items-center justify-center border border-white/10">
+                  <div className="text-7xl">💇‍♀️</div>
                 </div>
 
                 {/* Description */}
-                <div>
-                  <h3 className="text-lg font-semibold text-white mb-2">Description</h3>
-                  <p className="text-gray-300">{selectedStyle.description}</p>
+                <div className="bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10">
+                  <h3 className="text-lg font-semibold text-blue-400 mb-3">Description</h3>
+                  <p className="text-gray-300 leading-relaxed">{selectedStyle.description}</p>
                 </div>
 
                 {/* Key Features */}
-                <div>
-                  <h3 className="text-lg font-semibold text-white mb-3">Key Features</h3>
-                  <ul className="space-y-2">
+                <div className="bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10">
+                  <h3 className="text-lg font-semibold text-blue-400 mb-4">Key Features</h3>
+                  <ul className="space-y-3">
                     {selectedStyle.features.map((feature, index) => (
-                      <li key={index} className="flex items-center text-gray-300">
-                        <span className="text-purple-400 mr-2">•</span>
-                        {feature}
+                      <li key={index} className="flex items-start text-gray-300">
+                        <span className="text-blue-400 mr-3 text-lg">✓</span>
+                        <span>{feature}</span>
                       </li>
                     ))}
                   </ul>
@@ -349,29 +378,29 @@ const Discover = () => {
                 {/* Style Details Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
-                    <div>
-                      <h4 className="text-sm font-semibold text-purple-400 mb-1">Hair Length</h4>
-                      <p className="text-white">{selectedStyle.length}</p>
+                    <div className="bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10">
+                      <h4 className="text-sm font-semibold text-purple-400 mb-2">Hair Length</h4>
+                      <p className="text-white font-medium">{selectedStyle.length}</p>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-semibold text-purple-400 mb-1">Styling Time</h4>
-                      <p className="text-white">{selectedStyle.stylingTime}</p>
+                    <div className="bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10">
+                      <h4 className="text-sm font-semibold text-purple-400 mb-2">Styling Time</h4>
+                      <p className="text-white font-medium">{selectedStyle.stylingTime}</p>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-semibold text-purple-400 mb-1">Maintenance</h4>
-                      <p className="text-white">{selectedStyle.maintenanceLevel}</p>
+                    <div className="bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10">
+                      <h4 className="text-sm font-semibold text-purple-400 mb-2">Maintenance</h4>
+                      <p className="text-white font-medium">{selectedStyle.maintenanceLevel}</p>
                     </div>
                   </div>
                   <div className="space-y-4">
-                    <div>
-                      <h4 className="text-sm font-semibold text-purple-400 mb-1">Best for Face Shapes</h4>
-                      <p className="text-white">{selectedStyle.suitableFor.join(', ')}</p>
+                    <div className="bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10">
+                      <h4 className="text-sm font-semibold text-purple-400 mb-2">Best for Face Shapes</h4>
+                      <p className="text-white font-medium">{selectedStyle.suitableFor.join(', ')}</p>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-semibold text-purple-400 mb-1">Style Tags</h4>
+                    <div className="bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10">
+                      <h4 className="text-sm font-semibold text-purple-400 mb-2">Style Tags</h4>
                       <div className="flex flex-wrap gap-2">
                         {selectedStyle.tags.map((tag, index) => (
-                          <span key={index} className="bg-purple-900/30 text-purple-300 px-2 py-1 rounded-full text-xs">
+                          <span key={index} className="bg-purple-500/20 text-purple-300 px-3 py-1 rounded-full text-xs font-medium border border-purple-500/30">
                             {tag}
                           </span>
                         ))}
@@ -381,15 +410,15 @@ const Discover = () => {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex space-x-4 pt-4">
+                <div className="flex flex-col sm:flex-row gap-4 pt-4">
                   <button
                     onClick={() => navigate('/upload')}
-                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 px-6 rounded-lg font-medium transition duration-300"
+                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-4 px-6 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-purple-500/25 border border-blue-500/30"
                   >
                     Try This Style
                   </button>
                   {user && (
-                    <button className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 px-6 rounded-lg font-medium transition duration-300">
+                    <button className="flex-1 bg-white/10 hover:bg-white/20 text-white py-4 px-6 rounded-lg font-semibold transition-all duration-300 backdrop-blur-sm border border-white/20 hover:border-white/40">
                       Save to Favorites
                     </button>
                   )}
