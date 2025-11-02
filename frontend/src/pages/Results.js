@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import AuthService from '../services/AuthService';
 import apiService from '../services/api';
@@ -10,7 +10,7 @@ const Results = () => {
   const { preferences, imageFile, previewUrl, uploadResponse, recommendations } = location.state || {};
   
   const [user, setUser] = useState(null);
-  const [favorites, setFavorites] = useState([]);
+  const [savedHairstyles, setSavedHairstyles] = useState([]);
   
   // New state for Try Hairstyle modal
   const [showTryHairstyleModal, setShowTryHairstyleModal] = useState(false);
@@ -18,49 +18,92 @@ const Results = () => {
   const [hairstyleDetails, setHairstyleDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [detailsError, setDetailsError] = useState('');
+  
+  // Cache for hairstyle details to avoid redundant API calls
+  const [hairstyleDetailsCache, setHairstyleDetailsCache] = useState({});
+  
+  // State for image modal
+  const [showImageModal, setShowImageModal] = useState(false);
+
+  const loadSavedHairstyles = useCallback(() => {
+    try {
+      if (!user?.id) return;
+      
+      const storageKey = `saved_hairstyle_recommendations_user_${user.id}`;
+      const storedSaved = localStorage.getItem(storageKey);
+      if (storedSaved) {
+        setSavedHairstyles(JSON.parse(storedSaved));
+      }
+    } catch (error) {
+      console.error('Failed to load saved hairstyles:', error);
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     checkAuth();
-    loadFavorites();
   }, []);
 
-  const loadFavorites = () => {
-    try {
-      const storedFavorites = localStorage.getItem('hairstyle_favorites');
-      if (storedFavorites) {
-        setFavorites(JSON.parse(storedFavorites));
-      }
-    } catch (error) {
-      console.error('Failed to load favorites:', error);
+  // Load saved hairstyles when user changes
+  useEffect(() => {
+    if (user) {
+      loadSavedHairstyles();
+    } else {
+      setSavedHairstyles([]);
     }
-  };
+  }, [user, loadSavedHairstyles]);
 
-  const toggleFavorite = (hairstyleId, hairstyleName) => {
+  // Add keyboard support for closing image modal
+  useEffect(() => {
+    const handleEscKey = (e) => {
+      if (e.key === 'Escape' && showImageModal) {
+        setShowImageModal(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscKey);
+    return () => document.removeEventListener('keydown', handleEscKey);
+  }, [showImageModal]);
+
+  const saveHairstyleRecommendation = (hairstyleId, hairstyleName, recommendation) => {
     try {
-      const storedFavorites = localStorage.getItem('hairstyle_favorites');
-      let currentFavorites = storedFavorites ? JSON.parse(storedFavorites) : [];
+      if (!user?.id) {
+        console.error('User must be logged in to save hairstyles');
+        return;
+      }
       
-      const isFavorite = currentFavorites.some(fav => fav.id === hairstyleId);
+      const storageKey = `saved_hairstyle_recommendations_user_${user.id}`;
+      const storedSaved = localStorage.getItem(storageKey);
+      let currentSaved = storedSaved ? JSON.parse(storedSaved) : [];
       
-      if (isFavorite) {
-        currentFavorites = currentFavorites.filter(fav => fav.id !== hairstyleId);
+      const isAlreadySaved = currentSaved.some(saved => saved.id === hairstyleId);
+      
+      if (isAlreadySaved) {
+        // Remove if already saved
+        currentSaved = currentSaved.filter(saved => saved.id !== hairstyleId);
       } else {
-        currentFavorites.push({
+        // Save the full recommendation data
+        currentSaved.push({
           id: hairstyleId,
           name: hairstyleName,
-          timestamp: new Date().toISOString()
+          recommendation: recommendation,
+          face_shape: uploadResponse?.face_shape?.shape || null,
+          face_shape_confidence: uploadResponse?.face_shape?.confidence || null,
+          user_preferences: preferences || null,
+          overlay_url: hairstyleDetails?.overlay_url || null,
+          personalized_description: hairstyleDetails?.personalized_description || null,
+          saved_at: new Date().toISOString()
         });
       }
       
-      localStorage.setItem('hairstyle_favorites', JSON.stringify(currentFavorites));
-      setFavorites(currentFavorites);
+      localStorage.setItem(storageKey, JSON.stringify(currentSaved));
+      setSavedHairstyles(currentSaved);
     } catch (error) {
-      console.error('Failed to toggle favorite:', error);
+      console.error('Failed to save hairstyle:', error);
     }
   };
 
-  const isFavorite = (hairstyleId) => {
-    return favorites.some(fav => fav.id === hairstyleId);
+  const isHairstyleSaved = (hairstyleId) => {
+    return savedHairstyles.some(saved => saved.id === hairstyleId);
   };
 
   const checkAuth = async () => {
@@ -97,11 +140,21 @@ const Results = () => {
   const handleTryHairstyle = async (index) => {
     try {
       setDetailsError('');
-      setLoadingDetails(true);
       setCurrentHairstyleIndex(index);
       setShowTryHairstyleModal(true);
 
       const style = recommendations.recommendations[index];
+      const cacheKey = style.id;
+      
+      // Check if we already have cached details for this hairstyle
+      if (hairstyleDetailsCache[cacheKey]) {
+        console.log('Using cached hairstyle details for:', style.name);
+        setHairstyleDetails(hairstyleDetailsCache[cacheKey]);
+        return;
+      }
+      
+      // If not cached, fetch from API
+      setLoadingDetails(true);
       
       // Fetch detailed information
       const details = await apiService.getHairstyleDetailsWithAI(
@@ -116,7 +169,7 @@ const Results = () => {
           const resp = await apiService.generateOverlay(
             uploadResponse.image_id,
             style.id,
-            'basic'
+            'advanced'
           );
           details.overlay_url = resolveMediaUrl(resp.overlay_url);
         } catch (overlayError) {
@@ -126,6 +179,12 @@ const Results = () => {
       }
       
       setHairstyleDetails(details);
+      
+      // Cache the details for future use
+      setHairstyleDetailsCache(prev => ({
+        ...prev,
+        [cacheKey]: details
+      }));
     } catch (e) {
       console.error('Failed to load hairstyle details:', e);
       setDetailsError(e?.message || 'Failed to load hairstyle details');
@@ -347,7 +406,7 @@ const Results = () => {
                   {/* Recommendations for Improvement */}
                   <div>
                     <h4 className="text-lg font-semibold text-white mb-4">Pro Tips</h4>
-                    <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
+                    <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-4">
                       <div className="flex items-start">
                         <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center mr-3 mt-0.5 flex-shrink-0">
                           <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
@@ -471,8 +530,8 @@ const Results = () => {
 
         {/* Try Hairstyle Modal */}
         {showTryHairstyleModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl max-w-6xl w-full my-8">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-white/10 rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col my-8">
             {loadingDetails ? (
               <div className="p-12 text-center">
                 <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mb-4"></div>
@@ -490,192 +549,201 @@ const Results = () => {
                 </button>
               </div>
             ) : hairstyleDetails && recommendations?.recommendations[currentHairstyleIndex] ? (
-              <div className="p-6">
-                {/* Header with navigation */}
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-white">
+              <div className="flex flex-col h-full overflow-hidden">
+                {/* Header with navigation - Fixed at top */}
+                <div className="flex items-center justify-between p-6 pb-4 border-b border-white/10 flex-shrink-0">
+                  <h2 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">
                     {recommendations.recommendations[currentHairstyleIndex].name}
                   </h2>
                   <div className="flex items-center gap-4">
                     <button
-                      onClick={() => toggleFavorite(
+                      onClick={() => saveHairstyleRecommendation(
                         recommendations.recommendations[currentHairstyleIndex].id,
-                        recommendations.recommendations[currentHairstyleIndex].name
+                        recommendations.recommendations[currentHairstyleIndex].name,
+                        recommendations.recommendations[currentHairstyleIndex]
                       )}
-                      className={`p-2 rounded-full transition-all duration-300 ${
-                        isFavorite(recommendations.recommendations[currentHairstyleIndex].id)
-                          ? 'bg-red-500 text-white hover:bg-red-600'
-                          : 'bg-gray-700 text-gray-400 hover:bg-gray-600 hover:text-red-400'
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 ${
+                        isHairstyleSaved(recommendations.recommendations[currentHairstyleIndex].id)
+                          ? 'bg-green-600 text-white hover:bg-green-700'
+                          : 'bg-white/10 text-gray-300 hover:bg-white/20 hover:text-white border border-white/20'
                       }`}
-                      aria-label="Add to favorites"
+                      aria-label="Save hairstyle recommendation"
                     >
-                      <svg className="w-6 h-6" fill={isFavorite(recommendations.recommendations[currentHairstyleIndex].id) ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                      <svg className="w-5 h-5" fill={isHairstyleSaved(recommendations.recommendations[currentHairstyleIndex].id) ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                       </svg>
+                      <span className="text-sm font-medium">
+                        {isHairstyleSaved(recommendations.recommendations[currentHairstyleIndex].id) ? 'Saved' : 'Save'}
+                      </span>
                     </button>
                     <button
                       onClick={closeTryHairstyleModal}
-                      className="text-gray-400 hover:text-white text-2xl"
+                      className="text-gray-400 hover:text-white transition-colors duration-300 p-2 hover:bg-white/10 rounded-lg"
                       aria-label="Close"
                     >
-                      ✕
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
                     </button>
                   </div>
                 </div>
 
-                {/* Main content grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                  {/* Left side - Image and overlay */}
-                  <div className="space-y-4">
-                    {hairstyleDetails.overlay_url ? (
-                      <div className="bg-gray-800 rounded-xl p-4">
-                        <h3 className="text-lg font-semibold text-white mb-3">Your Look with {recommendations.recommendations[currentHairstyleIndex].name}</h3>
-                        <img
-                          src={hairstyleDetails.overlay_url}
-                          alt="Hairstyle overlay"
-                          className="w-full rounded-lg shadow-lg"
-                        />
-                      </div>
-                    ) : hairstyleDetails.hairstyle?.image_url && (
-                      <div className="bg-gray-800 rounded-xl p-4">
-                        <h3 className="text-lg font-semibold text-white mb-3">Style Reference</h3>
-                        <img
-                          src={hairstyleDetails.hairstyle.image_url}
-                          alt="Hairstyle reference"
-                          className="w-full rounded-lg shadow-lg"
-                        />
-                      </div>
-                    )}
-                    
-                    {/* Face Shape Info */}
-                    <div className="bg-blue-900/30 border border-blue-500/30 rounded-xl p-4">
-                      <h3 className="text-lg font-semibold text-white mb-2">Your Face Shape Analysis</h3>
-                      <p className="text-blue-300 capitalize text-xl font-semibold mb-2">
-                        {uploadResponse?.face_shape?.shape || hairstyleDetails.face_shape || 'Oval'} Face
-                      </p>
-                      <p className="text-sm text-gray-300 mb-3">
-                        Detected via {uploadResponse?.detection_method || 'AI Model Analysis'}
-                        {uploadResponse?.face_shape?.confidence && (
-                          <span className="ml-2">
-                            ({Math.round(uploadResponse.face_shape.confidence * 100)}% confidence)
-                          </span>
-                        )}
-                      </p>
-                      <div className="bg-blue-800/30 border border-blue-400/20 rounded-lg p-3 mt-3">
-                        <p className="text-sm text-blue-200">
-                          <strong>Why this works for you:</strong> This hairstyle is specifically recommended for your {uploadResponse?.face_shape?.shape || hairstyleDetails.face_shape || 'oval'} face shape, creating a balanced and flattering look that complements your natural features.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right side - Details */}
-                  <div className="space-y-4 overflow-y-auto max-h-[600px]">
-                    {/* Personalized Description */}
-                    <div className="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4">
-                      <h3 className="text-lg font-semibold text-white mb-3">✨ Why This Style Works for You</h3>
-                      <p className="text-gray-300 leading-relaxed mb-3">
-                        {hairstyleDetails.personalized_description}
-                      </p>
-                      
-                      {/* Face Shape Specific Benefits */}
-                      {(uploadResponse?.face_shape?.shape || hairstyleDetails.face_shape) && (
-                        <div className="bg-purple-800/20 border border-purple-400/20 rounded-lg p-3 mt-3">
-                          <p className="text-sm text-purple-200">
-                            <strong className="text-purple-300">Perfect for your {uploadResponse?.face_shape?.shape || hairstyleDetails.face_shape} face:</strong> This hairstyle helps balance your facial proportions, highlights your best features, and creates a harmonious overall look that's tailored to your unique face shape.
-                          </p>
+                {/* Main content grid - Split layout */}
+                <div className="flex-1 overflow-hidden px-6 py-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+                    {/* Left side - Image and Face Shape (Fixed, no scroll) */}
+                    <div className="space-y-4 flex flex-col">
+                      {hairstyleDetails.overlay_url ? (
+                        <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                          <h3 className="text-lg font-semibold text-blue-400 mb-3">Your Look with {recommendations.recommendations[currentHairstyleIndex].name}</h3>
+                          <div 
+                            className="w-full h-96 bg-gradient-to-br from-purple-600/20 to-blue-600/20 rounded-xl flex items-center justify-center border border-white/10 overflow-hidden cursor-pointer hover:border-blue-400/50 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/20"
+                            onClick={() => setShowImageModal(true)}
+                            title="Click to view full size"
+                          >
+                            <img
+                              src={hairstyleDetails.overlay_url}
+                              alt="Hairstyle overlay"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <p className="text-xs text-gray-400 text-center mt-2">Click image to view full size</p>
+                        </div>
+                      ) : hairstyleDetails.hairstyle?.image_url ? (
+                        <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                          <h3 className="text-lg font-semibold text-blue-400 mb-3">Style Reference</h3>
+                          <div 
+                            className="w-full h-96 bg-gradient-to-br from-purple-600/20 to-blue-600/20 rounded-xl flex items-center justify-center border border-white/10 overflow-hidden cursor-pointer hover:border-blue-400/50 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/20"
+                            onClick={() => setShowImageModal(true)}
+                            title="Click to view full size"
+                          >
+                            <img
+                              src={hairstyleDetails.hairstyle.image_url}
+                              alt="Hairstyle reference"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <p className="text-xs text-gray-400 text-center mt-2">Click image to view full size</p>
+                        </div>
+                      ) : (
+                        <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                          <h3 className="text-lg font-semibold text-blue-400 mb-3">Style Preview</h3>
+                          <div className="w-full h-96 bg-gradient-to-br from-purple-600/20 to-blue-600/20 rounded-xl flex items-center justify-center border border-white/10">
+                            <div className="text-7xl">💇‍♀️</div>
+                          </div>
                         </div>
                       )}
+                      
+                      {/* Face Shape Info */}
+                      <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                        <h3 className="text-lg font-semibold text-blue-400 mb-3">Your Face Shape Analysis</h3>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="text-blue-300 font-semibold text-sm uppercase tracking-wide">Face Shape</span>
+                              <p className="text-white text-xl font-bold capitalize mt-1">
+                                {uploadResponse?.face_shape?.shape || hairstyleDetails.face_shape || 'Oval'}
+                              </p>
+                            </div>
+                            {uploadResponse?.face_shape?.confidence && (
+                              <div className="text-right">
+                                <span className="text-green-400 font-bold text-lg">
+                                  {Math.round(uploadResponse.face_shape.confidence * 100)}%
+                                </span>
+                                <p className="text-xs text-gray-400">Confidence</p>
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-400">
+                            Detected via {uploadResponse?.detection_method || 'AI Model Analysis'}
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* User Preferences Used */}
-                    {(hairstyleDetails.user_preferences && Object.keys(hairstyleDetails.user_preferences).length > 0) || uploadResponse?.face_shape?.shape ? (
-                      <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4">
-                        <h3 className="text-lg font-semibold text-white mb-3">👤 Your Profile & Preferences</h3>
+                    {/* Right side - Details (Scrollable) */}
+                    <div className="space-y-4 overflow-y-auto pr-2" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+                      {/* Personalized Description */}
+                      <div className="bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10">
+                        <h3 className="text-lg font-semibold text-blue-400 mb-3">✨ Why This Style Works for You</h3>
+                        <p className="text-gray-300 leading-relaxed">
+                          {hairstyleDetails.personalized_description}
+                        </p>
                         
-                        {/* Face Shape - Prominently displayed */}
+                        {/* Face Shape Specific Benefits */}
                         {(uploadResponse?.face_shape?.shape || hairstyleDetails.face_shape) && (
-                          <div className="bg-blue-800/30 border border-blue-400/30 rounded-lg p-3 mb-3">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <span className="text-blue-300 font-semibold text-sm uppercase tracking-wide">Face Shape</span>
-                                <p className="text-white text-lg font-bold capitalize mt-1">
-                                  {uploadResponse?.face_shape?.shape || hairstyleDetails.face_shape}
-                                </p>
-                              </div>
-                              {uploadResponse?.face_shape?.confidence && (
-                                <div className="text-right">
-                                  <span className="text-green-400 font-bold text-lg">
-                                    {Math.round(uploadResponse.face_shape.confidence * 100)}%
-                                  </span>
-                                  <p className="text-xs text-gray-400">Confidence</p>
-                                </div>
-                              )}
-                            </div>
+                          <div className="bg-white/5 border border-white/10 rounded-lg p-3 mt-3">
+                            <p className="text-sm text-gray-300">
+                              <strong className="text-blue-300">Perfect for your {uploadResponse?.face_shape?.shape || hairstyleDetails.face_shape} face:</strong> This hairstyle helps balance your facial proportions, highlights your best features, and creates a harmonious overall look that's tailored to your unique face shape.
+                            </p>
                           </div>
                         )}
-                        
-                        {hairstyleDetails.user_preferences && Object.keys(hairstyleDetails.user_preferences).length > 0 && (
-                          <div className="grid grid-cols-2 gap-2">
+                      </div>
+
+                      {/* User Preferences Used */}
+                      {(hairstyleDetails.user_preferences && Object.keys(hairstyleDetails.user_preferences).length > 0) ? (
+                        <div className="bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10">
+                          <h3 className="text-lg font-semibold text-blue-400 mb-4">👤 Your Profile & Preferences</h3>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {hairstyleDetails.user_preferences.hair_type && (
-                              <div className="text-sm">
-                                <span className="text-blue-400 font-medium">Hair Type:</span>
-                                <span className="text-gray-300 ml-2 capitalize">{hairstyleDetails.user_preferences.hair_type}</span>
+                              <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                                <h4 className="text-sm font-semibold text-purple-400 mb-1">Hair Type</h4>
+                                <p className="text-white font-medium capitalize">{hairstyleDetails.user_preferences.hair_type}</p>
                               </div>
                             )}
                             {hairstyleDetails.user_preferences.hair_length && (
-                              <div className="text-sm">
-                                <span className="text-blue-400 font-medium">Length:</span>
-                                <span className="text-gray-300 ml-2 capitalize">{hairstyleDetails.user_preferences.hair_length}</span>
+                              <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                                <h4 className="text-sm font-semibold text-purple-400 mb-1">Length</h4>
+                                <p className="text-white font-medium capitalize">{hairstyleDetails.user_preferences.hair_length}</p>
                               </div>
                             )}
                             {hairstyleDetails.user_preferences.hair_thickness && (
-                              <div className="text-sm">
-                                <span className="text-blue-400 font-medium">Thickness:</span>
-                                <span className="text-gray-300 ml-2 capitalize">{hairstyleDetails.user_preferences.hair_thickness}</span>
+                              <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                                <h4 className="text-sm font-semibold text-purple-400 mb-1">Thickness</h4>
+                                <p className="text-white font-medium capitalize">{hairstyleDetails.user_preferences.hair_thickness}</p>
                               </div>
                             )}
                             {hairstyleDetails.user_preferences.hair_texture_detail && (
-                              <div className="text-sm">
-                                <span className="text-blue-400 font-medium">Texture:</span>
-                                <span className="text-gray-300 ml-2 capitalize">{hairstyleDetails.user_preferences.hair_texture_detail}</span>
+                              <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                                <h4 className="text-sm font-semibold text-purple-400 mb-1">Texture</h4>
+                                <p className="text-white font-medium capitalize">{hairstyleDetails.user_preferences.hair_texture_detail}</p>
                               </div>
                             )}
                             {hairstyleDetails.user_preferences.maintenance && (
-                              <div className="text-sm">
-                                <span className="text-blue-400 font-medium">Maintenance:</span>
-                                <span className="text-gray-300 ml-2 capitalize">{hairstyleDetails.user_preferences.maintenance}</span>
+                              <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                                <h4 className="text-sm font-semibold text-purple-400 mb-1">Maintenance</h4>
+                                <p className="text-white font-medium capitalize">{hairstyleDetails.user_preferences.maintenance}</p>
                               </div>
                             )}
                             {hairstyleDetails.user_preferences.lifestyle && (
-                              <div className="text-sm">
-                                <span className="text-blue-400 font-medium">Lifestyle:</span>
-                                <span className="text-gray-300 ml-2 capitalize">{hairstyleDetails.user_preferences.lifestyle}</span>
+                              <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                                <h4 className="text-sm font-semibold text-purple-400 mb-1">Lifestyle</h4>
+                                <p className="text-white font-medium capitalize">{hairstyleDetails.user_preferences.lifestyle}</p>
                               </div>
                             )}
                             {hairstyleDetails.user_preferences.gender && (
-                              <div className="text-sm">
-                                <span className="text-blue-400 font-medium">Gender:</span>
-                                <span className="text-gray-300 ml-2 capitalize">{hairstyleDetails.user_preferences.gender}</span>
+                              <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                                <h4 className="text-sm font-semibold text-purple-400 mb-1">Gender</h4>
+                                <p className="text-white font-medium capitalize">{hairstyleDetails.user_preferences.gender}</p>
                               </div>
                             )}
                             {hairstyleDetails.user_preferences.occasions && hairstyleDetails.user_preferences.occasions.length > 0 && (
-                              <div className="text-sm col-span-2">
-                                <span className="text-blue-400 font-medium">Occasions:</span>
-                                <span className="text-gray-300 ml-2 capitalize">{hairstyleDetails.user_preferences.occasions.join(', ')}</span>
+                              <div className="bg-white/5 rounded-lg p-3 border border-white/10 md:col-span-2">
+                                <h4 className="text-sm font-semibold text-purple-400 mb-1">Occasions</h4>
+                                <p className="text-white font-medium capitalize">{hairstyleDetails.user_preferences.occasions.join(', ')}</p>
                               </div>
                             )}
                           </div>
-                        )}
-                      </div>
-                    ) : null}
+                        </div>
+                      ) : null}
 
-                    {/* LLM INTELLIGENT ANALYSIS */}
-                    {hairstyleDetails.llm_analysis && hairstyleDetails.llm_analysis.llm_generated && (
-                      <>
-                        {/* Compatibility Score */}
-                        {hairstyleDetails.llm_analysis.compatibility_score > 0 && (
-                          <div className="bg-gradient-to-r from-indigo-900/30 to-purple-900/30 border border-indigo-500/40 rounded-xl p-4">
+                      {/* LLM INTELLIGENT ANALYSIS */}
+                      {hairstyleDetails.llm_analysis && hairstyleDetails.llm_analysis.llm_generated && (
+                        <>
+                          {/* Compatibility Score */}
+                          {hairstyleDetails.llm_analysis.compatibility_score > 0 && (
+                            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4">
                             <div className="flex items-center justify-between">
                               <h3 className="text-lg font-semibold text-white">🎯 AI Compatibility Score</h3>
                               <div className="flex items-center">
@@ -694,10 +762,10 @@ const Results = () => {
                           </div>
                         )}
 
-                        {/* Intelligent Summary */}
-                        {hairstyleDetails.llm_analysis.intelligent_summary && (
-                          <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-500/40 rounded-xl p-4">
-                            <h3 className="text-lg font-semibold text-white mb-3">🧠 AI Analysis</h3>
+                          {/* Intelligent Summary */}
+                          {hairstyleDetails.llm_analysis.intelligent_summary && (
+                            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4">
+                              <h3 className="text-lg font-semibold text-blue-400 mb-3">🧠 AI Analysis</h3>
                             <p className="text-gray-300 leading-relaxed">
                               {hairstyleDetails.llm_analysis.intelligent_summary}
                             </p>
@@ -706,8 +774,8 @@ const Results = () => {
 
                         {/* Preference Insights */}
                         {hairstyleDetails.llm_analysis.preference_insights && hairstyleDetails.llm_analysis.preference_insights.length > 0 && (
-                          <div className="bg-green-900/20 border border-green-500/30 rounded-xl p-4">
-                            <h3 className="text-lg font-semibold text-white mb-3">✓ Preference Match Insights</h3>
+                          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4">
+                            <h3 className="text-lg font-semibold text-blue-400 mb-3">✓ Preference Match Insights</h3>
                             <ul className="space-y-2">
                               {hairstyleDetails.llm_analysis.preference_insights.map((insight, idx) => (
                                 <li key={idx} className="flex items-start">
@@ -721,8 +789,8 @@ const Results = () => {
 
                         {/* Lifestyle Fit */}
                         {hairstyleDetails.llm_analysis.lifestyle_fit && (
-                          <div className="bg-teal-900/20 border border-teal-500/30 rounded-xl p-4">
-                            <h3 className="text-lg font-semibold text-white mb-3">🌟 Lifestyle Fit</h3>
+                          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4">
+                            <h3 className="text-lg font-semibold text-blue-400 mb-3">🌟 Lifestyle Fit</h3>
                             <p className="text-gray-300 leading-relaxed">
                               {hairstyleDetails.llm_analysis.lifestyle_fit}
                             </p>
@@ -731,8 +799,8 @@ const Results = () => {
 
                         {/* Styling Intelligence */}
                         {hairstyleDetails.llm_analysis.styling_intelligence && hairstyleDetails.llm_analysis.styling_intelligence.length > 0 && (
-                          <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-xl p-4">
-                            <h3 className="text-lg font-semibold text-white mb-3">💡 Smart Styling Tips</h3>
+                          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4">
+                            <h3 className="text-lg font-semibold text-blue-400 mb-3">💡 Smart Styling Tips</h3>
                             <ul className="space-y-2">
                               {hairstyleDetails.llm_analysis.styling_intelligence.map((tip, idx) => (
                                 <li key={idx} className="text-gray-300 text-sm flex items-start">
@@ -746,8 +814,8 @@ const Results = () => {
 
                         {/* Product Recommendations from LLM */}
                         {hairstyleDetails.llm_analysis.product_recommendations && hairstyleDetails.llm_analysis.product_recommendations.length > 0 && (
-                          <div className="bg-orange-900/20 border border-orange-500/30 rounded-xl p-4">
-                            <h3 className="text-lg font-semibold text-white mb-3">🛍️ Personalized Product Recommendations</h3>
+                          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4">
+                            <h3 className="text-lg font-semibold text-blue-400 mb-3">🛍️ Personalized Product Recommendations</h3>
                             <ul className="space-y-2">
                               {hairstyleDetails.llm_analysis.product_recommendations.map((product, idx) => (
                                 <li key={idx} className="text-gray-300 text-sm flex items-start">
@@ -761,8 +829,8 @@ const Results = () => {
 
                         {/* Maintenance Reality */}
                         {hairstyleDetails.llm_analysis.maintenance_reality && hairstyleDetails.llm_analysis.maintenance_reality.length > 0 && (
-                          <div className="bg-cyan-900/20 border border-cyan-500/30 rounded-xl p-4">
-                            <h3 className="text-lg font-semibold text-white mb-3">🔧 Maintenance Reality</h3>
+                          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4">
+                            <h3 className="text-lg font-semibold text-blue-400 mb-3">🔧 Maintenance Reality</h3>
                             <ul className="space-y-2">
                               {hairstyleDetails.llm_analysis.maintenance_reality.map((item, idx) => (
                                 <li key={idx} className="text-gray-300 text-sm flex items-start">
@@ -776,8 +844,8 @@ const Results = () => {
 
                         {/* Professional Tips */}
                         {hairstyleDetails.llm_analysis.professional_tips && hairstyleDetails.llm_analysis.professional_tips.length > 0 && (
-                          <div className="bg-pink-900/20 border border-pink-500/30 rounded-xl p-4">
-                            <h3 className="text-lg font-semibold text-white mb-3">👨‍🔬 Professional Tips</h3>
+                          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4">
+                            <h3 className="text-lg font-semibold text-blue-400 mb-3">👨‍🔬 Professional Tips</h3>
                             <ul className="space-y-2">
                               {hairstyleDetails.llm_analysis.professional_tips.map((tip, idx) => (
                                 <li key={idx} className="text-gray-300 text-sm flex items-start">
@@ -794,8 +862,8 @@ const Results = () => {
                     {/* Fallback: Original Preference Match (if no LLM analysis) */}
                     {(!hairstyleDetails.llm_analysis || !hairstyleDetails.llm_analysis.llm_generated) && 
                      hairstyleDetails.preference_match && hairstyleDetails.preference_match.length > 0 && (
-                      <div className="bg-green-900/20 border border-green-500/30 rounded-xl p-4">
-                        <h3 className="text-lg font-semibold text-white mb-3">✓ How It Fits Your Preferences</h3>
+                      <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4">
+                        <h3 className="text-lg font-semibold text-blue-400 mb-3">✓ How It Fits Your Preferences</h3>
                         <ul className="space-y-2">
                           {hairstyleDetails.preference_match.map((match, idx) => (
                             <li key={idx} className="flex items-start">
@@ -809,8 +877,8 @@ const Results = () => {
 
                     {/* Recommended Products */}
                     {hairstyleDetails.recommended_products && hairstyleDetails.recommended_products.length > 0 && (
-                      <div className="bg-orange-900/20 border border-orange-500/30 rounded-xl p-4">
-                        <h3 className="text-lg font-semibold text-white mb-3">🛍️ Recommended Products</h3>
+                      <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4">
+                        <h3 className="text-lg font-semibold text-blue-400 mb-3">🛍️ Recommended Products</h3>
                         <ul className="space-y-2">
                           {hairstyleDetails.recommended_products.map((product, idx) => (
                             <li key={idx} className="text-gray-300 text-sm flex items-start">
@@ -824,8 +892,8 @@ const Results = () => {
 
                     {/* Maintenance Guide */}
                     {hairstyleDetails.maintenance_guide && hairstyleDetails.maintenance_guide.length > 0 && (
-                      <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4">
-                        <h3 className="text-lg font-semibold text-white mb-3">🔧 Maintenance Guide</h3>
+                      <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4">
+                        <h3 className="text-lg font-semibold text-blue-400 mb-3">🔧 Maintenance Guide</h3>
                         <ol className="space-y-2">
                           {hairstyleDetails.maintenance_guide.map((step, idx) => (
                             <li key={idx} className="text-gray-300 text-sm flex items-start">
@@ -839,8 +907,8 @@ const Results = () => {
 
                     {/* Styling Tips */}
                     {hairstyleDetails.styling_tips && hairstyleDetails.styling_tips.length > 0 && (
-                      <div className="bg-pink-900/20 border border-pink-500/30 rounded-xl p-4">
-                        <h3 className="text-lg font-semibold text-white mb-3">💡 Pro Styling Tips</h3>
+                      <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4">
+                        <h3 className="text-lg font-semibold text-blue-400 mb-3">💡 Pro Styling Tips</h3>
                         <ul className="space-y-2">
                           {hairstyleDetails.styling_tips.map((tip, idx) => (
                             <li key={idx} className="text-gray-300 text-sm flex items-start">
@@ -852,13 +920,14 @@ const Results = () => {
                       </div>
                     )}
                   </div>
+                  </div>
                 </div>
 
-                {/* Navigation buttons */}
-                <div className="flex items-center justify-between pt-6 border-t border-gray-700">
+                {/* Navigation buttons - Fixed at bottom */}
+                <div className="flex items-center justify-between p-6 pt-4 border-t border-white/10 flex-shrink-0">
                   <button
                     onClick={handlePrevHairstyle}
-                    className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg transition-colors duration-300"
+                    className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-lg transition-all duration-300 backdrop-blur-sm border border-white/20 hover:border-white/40"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -867,14 +936,14 @@ const Results = () => {
                   </button>
 
                   <div className="text-center">
-                    <p className="text-gray-400 text-sm">
+                    <p className="text-gray-300 text-sm font-medium">
                       {currentHairstyleIndex + 1} of {recommendations.recommendations.length}
                     </p>
                   </div>
 
                   <button
                     onClick={handleNextHairstyle}
-                    className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-6 py-3 rounded-lg transition-all duration-300"
+                    className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-3 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-purple-500/25 border border-blue-500/30"
                   >
                     Next Style
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -884,6 +953,48 @@ const Results = () => {
                 </div>
               </div>
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* Image Modal - Full screen view */}
+      {showImageModal && hairstyleDetails && (
+        <div 
+          className="fixed inset-0 bg-black/95 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+          onClick={() => setShowImageModal(false)}
+        >
+          <div className="relative max-w-5xl w-full">
+            {/* Close button */}
+            <button
+              onClick={() => setShowImageModal(false)}
+              className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors duration-300 flex items-center gap-2"
+            >
+              <span className="text-sm">Press ESC or click outside to close</span>
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            
+            {/* Image container */}
+            <div 
+              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-4 border border-white/20 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-xl font-semibold text-white mb-4 text-center">
+                {hairstyleDetails.overlay_url ? 
+                  `Your Look with ${recommendations.recommendations[currentHairstyleIndex].name}` : 
+                  'Style Reference'
+                }
+              </h3>
+              <div className="relative">
+                <img
+                  src={hairstyleDetails.overlay_url || hairstyleDetails.hairstyle?.image_url}
+                  alt="Full size hairstyle"
+                  className="w-full h-auto rounded-lg shadow-2xl"
+                  style={{ maxHeight: '80vh', objectFit: 'contain' }}
+                />
+              </div>
+            </div>
           </div>
         </div>
       )}

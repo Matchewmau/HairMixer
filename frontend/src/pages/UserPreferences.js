@@ -93,6 +93,11 @@ const UserPreferences = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [occasionsLoaded, setOccasionsLoaded] = useState(false);
+  
+  // Preference Profiles state
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [preferenceProfiles, setPreferenceProfiles] = useState([]);
+  const [loadingProfiles, setLoadingProfiles] = useState(false);
 
   useEffect(() => {
     if (!uploadResponse) {
@@ -301,6 +306,41 @@ const UserPreferences = () => {
         [key]: newValue
       }));
     }
+  };
+
+  // Load user's preference profiles
+  const loadPreferenceProfiles = async () => {
+    try {
+      setLoadingProfiles(true);
+      const response = await APIService.getPreferenceProfiles();
+      setPreferenceProfiles(response.profiles || []);
+    } catch (error) {
+      console.error('Failed to load preference profiles:', error);
+    } finally {
+      setLoadingProfiles(false);
+    }
+  };
+
+  // Apply selected preference profile
+  const applyPreferenceProfile = (profile) => {
+    setPreferences(prev => ({
+      ...prev,
+      gender: profile.gender || prev.gender,
+      hair_type: profile.hair_type || '',
+      hair_length: profile.hair_length || '',
+      volume: profile.volume || '',
+      hair_thickness: profile.hair_thickness || '',
+      hair_texture_detail: profile.hair_texture_detail || '',
+      lifestyle: profile.lifestyle || '',
+      maintenance: profile.maintenance || '',
+      styling_preference: profile.styling_preference || '',
+      hair_color: profile.hair_color || '',
+      hair_condition: profile.hair_condition || [],
+      // Keep faceshape from detection, don't override
+    }));
+    setShowProfileModal(false);
+    // Jump to final step (occasions) since most fields are filled
+    setCurrentStep(9);
   };
 
   // Step navigation functions
@@ -740,7 +780,7 @@ const UserPreferences = () => {
                 {/* Gender selection */}
                 <div>
                   <label className="block text-center text-lg font-medium text-gray-200 mb-6">
-                    👤 Select your gender (helps personalize recommendations)
+                    Select your gender (helps personalize recommendations)
                   </label>
                   <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto">
                     <button
@@ -765,6 +805,27 @@ const UserPreferences = () => {
                     >
                       <div className="text-4xl mb-3">👩</div>
                       <div className="font-medium text-lg">Female</div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Use Preference Profile Option */}
+                <div className="mt-8 pt-8 border-t border-gray-700">
+                  <div className="text-center">
+                    <p className="text-gray-400 text-sm mb-4">
+                      Already have a preference profile? Skip the manual input!
+                    </p>
+                    <button
+                      onClick={() => {
+                        loadPreferenceProfiles();
+                        setShowProfileModal(true);
+                      }}
+                      className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition duration-300 font-medium"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Use Preference Profile
                     </button>
                   </div>
                 </div>
@@ -1205,6 +1266,116 @@ const UserPreferences = () => {
           </div>
         </div>
       </div>
+
+      {/* Preference Profile Selection Modal */}
+      {showProfileModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl max-w-4xl w-full my-8">
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-white">Select Preference Profile</h2>
+                  <p className="text-gray-400 text-sm mt-1">Choose a saved profile to auto-fill your preferences</p>
+                </div>
+                <button
+                  onClick={() => setShowProfileModal(false)}
+                  className="text-gray-400 hover:text-white text-2xl"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="space-y-4 overflow-y-auto max-h-[500px]">
+                {loadingProfiles ? (
+                  <div className="text-center py-12">
+                    <div className="text-white text-lg">Loading profiles...</div>
+                  </div>
+                ) : preferenceProfiles.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {preferenceProfiles.map((profile) => (
+                      <div 
+                        key={profile.id}
+                        onClick={() => applyPreferenceProfile(profile)}
+                        className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 hover:border-purple-500/50 transition-all duration-200 cursor-pointer group"
+                      >
+                        {/* Header */}
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h3 className="text-base font-semibold text-white group-hover:text-purple-300 transition-colors mb-1">
+                              {profile.profile_name}
+                            </h3>
+                            {profile.description && (
+                              <p className="text-gray-400 text-xs line-clamp-2">{profile.description}</p>
+                            )}
+                          </div>
+                          {profile.is_default && (
+                            <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-xs font-medium rounded border border-purple-500/30">
+                              Default
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Preference Info */}
+                        <div className="space-y-2 mb-3 text-xs">
+                          <div className="flex items-center justify-between text-gray-300">
+                            <span className="text-gray-500">Gender:</span>
+                            <span className="capitalize">{profile.gender}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-gray-300">
+                            <span className="text-gray-500">Hair Type:</span>
+                            <span className="capitalize">{profile.hair_type}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-gray-300">
+                            <span className="text-gray-500">Length:</span>
+                            <span className="capitalize">{profile.hair_length}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-gray-300">
+                            <span className="text-gray-500">Lifestyle:</span>
+                            <span className="capitalize">{profile.lifestyle}</span>
+                          </div>
+                        </div>
+                        
+                        {/* Click hint */}
+                        <div className="pt-3 border-t border-slate-700">
+                          <p className="text-purple-400 text-xs text-center group-hover:text-purple-300 transition-colors">
+                            Click to use this profile
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <p className="text-gray-400 text-base mb-4">No preference profiles found</p>
+                    <p className="text-gray-500 text-sm">
+                      Create preference profiles in your Profile page to save time filling out preferences
+                    </p>
+                    <button
+                      onClick={() => setShowProfileModal(false)}
+                      className="mt-4 inline-flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-5 py-2.5 rounded-lg transition duration-200 font-medium"
+                    >
+                      Continue Manually
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {preferenceProfiles.length > 0 && (
+                <div className="mt-6 pt-4 border-t border-gray-700">
+                  <button
+                    onClick={() => setShowProfileModal(false)}
+                    className="w-full bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded-lg transition font-medium"
+                  >
+                    Cancel - Fill Manually
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

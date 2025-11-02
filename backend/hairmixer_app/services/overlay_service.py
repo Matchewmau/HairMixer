@@ -75,8 +75,15 @@ class OverlayService:
             )
             # When AI isn't viable, we need a style image for basic fallback.
             if not ai_viable and style_img_path is None:
+                logger.warning(
+                    f"No hairstyle image available for {style.name} "
+                    f"and AI is not configured. Cannot generate overlay."
+                )
                 raise ValueError(
-                    "Hairstyle image not available for overlay"
+                    "Hairstyle image not available and AI overlay is "
+                    "not configured. Please configure GEMINI_SECURE_1PSID "
+                    "and GEMINI_SECURE_1PSIDTS in your .env file to enable "
+                    "AI-generated overlays."
                 )
             style_name = getattr(style, 'name', None)
             self.processor.create_advanced_overlay(
@@ -84,7 +91,15 @@ class OverlayService:
             )
         else:
             if style_img_path is None:
-                raise ValueError("Hairstyle image not available for overlay")
+                logger.warning(
+                    f"No hairstyle image available for {style.name}. "
+                    f"Cannot generate basic overlay."
+                )
+                raise ValueError(
+                    "Hairstyle image not available for basic overlay. "
+                    "Use 'advanced' overlay type with AI configuration, "
+                    "or ensure hairstyles have image files."
+                )
             self.processor.create_basic_overlay(
                 user_img_path, style_img_path, out_abs
             )

@@ -4,7 +4,7 @@ from PIL import Image as PILImage
 import hashlib
 import json
 from .models import (
-    CustomUser, UserProfile, UploadedImage, UserPreference, 
+    CustomUser, UserProfile, PreferenceProfile, UploadedImage, UserPreference, 
     Hairstyle, HairstyleCategory, RecommendationLog, Feedback,
     AnalyticsEvent
 )
@@ -182,6 +182,34 @@ class UserPreferenceSerializer(serializers.ModelSerializer):
                     f"'{occasion}' is not a valid occasion"
                 )
         return value
+
+
+class PreferenceProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PreferenceProfile
+        fields = [
+            'id', 'profile_name', 'description', 'is_default',
+            'gender', 'hair_type', 'hair_length', 'volume',
+            'hair_thickness', 'hair_texture_detail', 'lifestyle',
+            'maintenance', 'styling_preference', 'hair_color',
+            'hair_condition', 'created_at', 'updated_at', 'last_used_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'last_used_at']
+    
+    def validate_profile_name(self, value):
+        # Check if profile name is unique for this user
+        user = self.context['request'].user
+        profile_id = self.instance.id if self.instance else None
+        
+        if PreferenceProfile.objects.filter(
+            user=user,
+            profile_name=value
+        ).exclude(id=profile_id).exists():
+            raise serializers.ValidationError(
+                "You already have a profile with this name."
+            )
+        return value
+
 
 class HairstyleCategorySerializer(serializers.ModelSerializer):
     class Meta:

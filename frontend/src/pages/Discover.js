@@ -10,7 +10,7 @@ const Discover = () => {
   const [selectedStyle, setSelectedStyle] = useState(null);
   const navigate = useNavigate();
 
-  // Mock hairstyle data organized by categories
+  // Static hairstyle data organized by categories with real descriptions and images
   const hairstyleCategories = {
     trending: {
       name: "Trending Now",
@@ -18,31 +18,63 @@ const Discover = () => {
       styles: [
         {
           id: 1,
-          name: "Modern Textured Bob",
+          name: "Butterfly Haircut",
           category: "trending",
-          length: "Medium",
+          length: "Medium to Long",
           maintenance: "Medium",
           theme: "Modern",
-          description: "A contemporary take on the classic bob with added texture and movement.",
-          features: ["Face-framing layers", "Textured finish", "Versatile styling"],
-          suitableFor: ["Oval", "Heart", "Square"],
+          image: "/discover/butterfly-haircut.jpg",
+          description: "The butterfly haircut features shorter layers around the crown that gradually blend into longer lengths, creating a beautiful winged effect. This viral TikTok trend adds volume and movement while maintaining length.",
+          features: ["Layered crown", "Seamless blending", "Volume boost", "Face-framing effect"],
+          suitableFor: ["Oval", "Round", "Heart", "Diamond"],
           stylingTime: "10-15 minutes",
-          maintenanceLevel: "Trim every 6-8 weeks",
-          tags: ["Professional", "Casual", "Trendy"]
+          maintenanceLevel: "Trim every 8-10 weeks",
+          tags: ["TikTok Trend", "Voluminous", "Romantic"]
         },
         {
           id: 2,
-          name: "Curtain Bangs Lob",
+          name: "Wolf Cut",
           category: "trending",
           length: "Medium",
           maintenance: "Low",
-          theme: "Casual",
-          description: "Long bob with soft curtain bangs for an effortless, chic look.",
-          features: ["Curtain bangs", "Long bob cut", "Natural flow"],
-          suitableFor: ["Oval", "Round", "Heart"],
+          theme: "Edgy",
+          image: "/discover/wolfcut.jpg",
+          description: "A hybrid of shag and mullet styles, the wolf cut features choppy layers throughout with shorter pieces on top and longer at the back. Perfect for those wanting an effortlessly cool, rock-inspired look.",
+          features: ["Shaggy layers", "Textured finish", "Choppy bangs", "Mullet-inspired"],
+          suitableFor: ["Oval", "Heart", "Square"],
           stylingTime: "5-10 minutes",
+          maintenanceLevel: "Trim every 10-12 weeks",
+          tags: ["Edgy", "Shaggy", "Low-maintenance"]
+        },
+        {
+          id: 3,
+          name: "Curtain Bangs with Long Layers",
+          category: "trending",
+          length: "Long",
+          maintenance: "Low",
+          theme: "Casual",
+          image: "/discover/Curtain-Bangs-with-Long-Layers.jpg",
+          description: "Soft, parted-down-the-middle bangs that frame the face beautifully, paired with long flowing layers. This 70s-inspired trend is flattering on everyone and easy to style.",
+          features: ["Center-parted bangs", "Face-framing", "Soft layers", "Versatile styling"],
+          suitableFor: ["All face shapes"],
+          stylingTime: "8-12 minutes",
+          maintenanceLevel: "Trim bangs every 4-6 weeks",
+          tags: ["70s Inspired", "Face-framing", "Versatile"]
+        },
+        {
+          id: 4,
+          name: "Modern Shag",
+          category: "trending",
+          length: "Medium",
+          maintenance: "Medium",
+          theme: "Retro-Modern",
+          image: "/discover/Modern-Shag.jpg",
+          description: "An updated take on the classic shag with modern texturizing techniques. Features lots of layers, texture, and movement for an effortlessly cool vibe that works with any hair type.",
+          features: ["Heavy layering", "Textured ends", "Wispy bangs option", "Volume throughout"],
+          suitableFor: ["Oval", "Heart", "Square"],
+          stylingTime: "10-15 minutes",
           maintenanceLevel: "Trim every 8-10 weeks",
-          tags: ["Effortless", "Chic", "Low-maintenance"]
+          tags: ["Textured", "Retro", "Modern"]
         }
       ]
     },
@@ -51,32 +83,64 @@ const Discover = () => {
       icon: "👑",
       styles: [
         {
-          id: 3,
+          id: 5,
           name: "Timeless Pixie Cut",
           category: "classic",
           length: "Short",
           maintenance: "High",
-          theme: "Professional",
-          description: "A sophisticated short cut that's both elegant and practical.",
-          features: ["Clean lines", "Structured shape", "Professional look"],
+          theme: "Sophisticated",
+          image: "/discover/timeless-pixiecut.jpg",
+          description: "A sophisticated short cut with tapered sides and back, and slightly longer top. Popularized by icons like Audrey Hepburn and Mia Farrow, this elegant style never goes out of fashion.",
+          features: ["Clean lines", "Tapered sides", "Textured top", "Versatile styling"],
           suitableFor: ["Oval", "Heart", "Oblong"],
-          stylingTime: "5 minutes",
+          stylingTime: "5-8 minutes",
           maintenanceLevel: "Trim every 4-6 weeks",
-          tags: ["Professional", "Elegant", "Low-styling"]
+          tags: ["Iconic", "Elegant", "Professional"]
         },
         {
-          id: 4,
-          name: "Classic Long Layers",
+          id: 6,
+          name: "Classic Bob",
+          category: "classic",
+          length: "Short to Medium",
+          maintenance: "Medium",
+          theme: "Timeless",
+          image: "/discover/Classic-Bob-Cut.jpg",
+          description: "The quintessential bob cut at chin or jaw length with clean, blunt ends. This versatile classic can be worn sleek and straight or with subtle waves for different occasions.",
+          features: ["Blunt cut", "One-length", "Clean lines", "Sleek finish"],
+          suitableFor: ["All face shapes"],
+          stylingTime: "10-15 minutes",
+          maintenanceLevel: "Trim every 6-8 weeks",
+          tags: ["Versatile", "Polished", "Timeless"]
+        },
+        {
+          id: 7,
+          name: "Long Layered Hair",
           category: "classic",
           length: "Long",
           maintenance: "Medium",
-          theme: "Versatile",
-          description: "Timeless layered cut that works for any occasion.",
-          features: ["Long layers", "Face-framing", "Volume boost"],
+          theme: "Traditional",
+          image: "https://images.unsplash.com/photo-1519699047748-de8e457a634e?w=500",
+          description: "Long hair with subtle layers throughout to add movement and prevent heaviness. This timeless style flatters all face shapes and can be dressed up or down effortlessly.",
+          features: ["Subtle layers", "Natural flow", "Face-framing", "Volume enhancement"],
           suitableFor: ["All face shapes"],
           stylingTime: "15-20 minutes",
           maintenanceLevel: "Trim every 10-12 weeks",
-          tags: ["Versatile", "Timeless", "Flattering"]
+          tags: ["Traditional", "Feminine", "Elegant"]
+        },
+        {
+          id: 8,
+          name: "French Bob",
+          category: "classic",
+          length: "Short",
+          maintenance: "High",
+          theme: "Chic",
+          image: "/discover/french-bob.jpg",
+          description: "A chic, chin-length bob with a slightly tousled texture and often paired with bangs. This Parisian-inspired cut exudes effortless sophistication and timeless elegance.",
+          features: ["Chin-length", "Slightly textured", "Optional bangs", "Effortless style"],
+          suitableFor: ["Oval", "Heart", "Diamond"],
+          stylingTime: "8-12 minutes",
+          maintenanceLevel: "Trim every 6-8 weeks",
+          tags: ["Parisian", "Chic", "Sophisticated"]
         }
       ]
     },
@@ -85,32 +149,64 @@ const Discover = () => {
       icon: "⚡",
       styles: [
         {
-          id: 5,
+          id: 9,
           name: "Asymmetrical Bob",
           category: "edgy",
           length: "Short",
           maintenance: "High",
-          theme: "Creative",
-          description: "Bold asymmetrical cut for those who want to make a statement.",
-          features: ["Asymmetrical length", "Sharp angles", "Modern edge"],
+          theme: "Contemporary",
+          image: "https://images.unsplash.com/photo-1522337660859-02fbefca4702?w=500",
+          description: "A bold bob with dramatically different lengths on each side. One side typically sits at jaw-level while the other is cut shorter, creating a striking, fashion-forward statement.",
+          features: ["Uneven lengths", "Sharp angles", "Modern edge", "Statement-making"],
           suitableFor: ["Oval", "Square", "Heart"],
           stylingTime: "10-15 minutes",
           maintenanceLevel: "Trim every 4-6 weeks",
-          tags: ["Bold", "Creative", "Statement"]
+          tags: ["Bold", "Fashion-forward", "Dramatic"]
         },
         {
-          id: 6,
-          name: "Undercut Pixie",
+          id: 10,
+          name: "Undercut with Long Top",
+          category: "edgy",
+          length: "Short to Medium",
+          maintenance: "High",
+          theme: "Edgy",
+          image: "/discover/undercut-longtop.jpg",
+          description: "Shaved or closely cropped sides and back with longer hair on top that can be styled in various ways. This contrasting style offers versatility and a bold, modern aesthetic.",
+          features: ["Shaved sides", "Long top section", "High contrast", "Versatile styling"],
+          suitableFor: ["Oval", "Heart", "Oblong", "Square"],
+          stylingTime: "5-15 minutes",
+          maintenanceLevel: "Trim every 3-4 weeks",
+          tags: ["Bold", "Versatile", "Modern"]
+        },
+        {
+          id: 11,
+          name: "Platinum Buzz Cut",
+          category: "edgy",
+          length: "Very Short",
+          maintenance: "High",
+          theme: "Bold",
+          image: "https://images.unsplash.com/photo-1526510747491-58f928ec870f?w=500",
+          description: "An ultra-short buzz cut often paired with platinum blonde or bold color. This fearless style is low-maintenance for styling but requires regular touch-ups to maintain the color and length.",
+          features: ["Ultra-short length", "Bold color option", "Clean aesthetic", "Confidence-boosting"],
+          suitableFor: ["Oval", "Heart", "Diamond"],
+          stylingTime: "2-3 minutes",
+          maintenanceLevel: "Trim every 2-3 weeks, color every 4-6 weeks",
+          tags: ["Fearless", "Low-styling", "Statement"]
+        },
+        {
+          id: 12,
+          name: "Mohawk Fade",
           category: "edgy",
           length: "Short",
           maintenance: "High",
-          theme: "Edgy",
-          description: "Daring pixie cut with undercut details for maximum impact.",
-          features: ["Undercut sides", "Textured top", "Bold contrast"],
-          suitableFor: ["Oval", "Heart", "Oblong"],
-          stylingTime: "5-10 minutes",
-          maintenanceLevel: "Trim every 3-4 weeks",
-          tags: ["Daring", "Bold", "High-impact"]
+          theme: "Punk-Inspired",
+          image: "/discover/fade-mohawk.jpg",
+          description: "A modern take on the mohawk with faded sides and a styled strip of hair down the center. Can be worn sleek or textured, offering a punk-rock edge with contemporary polish.",
+          features: ["Center strip", "Faded sides", "Textured top", "Statement style"],
+          suitableFor: ["Oval", "Oblong", "Heart"],
+          stylingTime: "10-20 minutes",
+          maintenanceLevel: "Trim every 2-4 weeks",
+          tags: ["Punk", "Bold", "Unique"]
         }
       ]
     },
@@ -119,32 +215,64 @@ const Discover = () => {
       icon: "🌿",
       styles: [
         {
-          id: 7,
+          id: 13,
           name: "Natural Beach Waves",
           category: "lowMaintenance",
-          length: "Medium",
+          length: "Medium to Long",
           maintenance: "Low",
           theme: "Casual",
-          description: "Effortless waves that look naturally beautiful with minimal styling.",
-          features: ["Natural texture", "Minimal styling", "Air-dry friendly"],
+          image: "https://images.unsplash.com/photo-1573007974656-b958089e9f7b?w=500",
+          description: "Loose, natural-looking waves that require minimal heat styling. Achieved through braiding, twisting, or sea salt spray for that effortless, sun-kissed beach look year-round.",
+          features: ["Natural texture", "Air-dry friendly", "Sea salt spray", "Effortless vibe"],
           suitableFor: ["All face shapes"],
           stylingTime: "2-5 minutes",
           maintenanceLevel: "Trim every 12-16 weeks",
-          tags: ["Natural", "Effortless", "Air-dry"]
+          tags: ["Natural", "Beachy", "Effortless"]
         },
         {
-          id: 8,
-          name: "Wash & Go Curls",
+          id: 14,
+          name: "Wash and Go Curls",
+          category: "lowMaintenance",
+          length: "Any",
+          maintenance: "Low",
+          theme: "Natural",
+          image: "/discover/wash-n-go-curls.jpg",
+          description: "Embrace your natural curl pattern with curl-enhancing products and minimal manipulation. This healthy approach celebrates natural texture while maintaining gorgeous, defined curls.",
+          features: ["Natural curls", "Curl-defining products", "No heat styling", "Healthy hair focus"],
+          suitableFor: ["Round", "Oval", "Heart", "Diamond"],
+          stylingTime: "3-8 minutes",
+          maintenanceLevel: "Trim every 10-14 weeks",
+          tags: ["Natural", "Curly", "Healthy"]
+        },
+        {
+          id: 15,
+          name: "Blunt Long Hair",
+          category: "lowMaintenance",
+          length: "Long",
+          maintenance: "Low",
+          theme: "Minimalist",
+          image: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=500",
+          description: "Simple, one-length long hair with blunt ends. This minimalist style requires little daily maintenance and can be worn straight, wavy, or in various updos with ease.",
+          features: ["One-length", "Blunt ends", "Versatile styling", "Minimal maintenance"],
+          suitableFor: ["All face shapes"],
+          stylingTime: "5-10 minutes",
+          maintenanceLevel: "Trim every 12-16 weeks",
+          tags: ["Simple", "Versatile", "Classic"]
+        },
+        {
+          id: 16,
+          name: "Shoulder-Length Straight",
           category: "lowMaintenance",
           length: "Medium",
           maintenance: "Low",
-          theme: "Natural",
-          description: "Embrace your natural curl pattern with this easy-care style.",
-          features: ["Natural curls", "No heat styling", "Curl-enhancing"],
-          suitableFor: ["Round", "Oval", "Heart"],
-          stylingTime: "3-5 minutes",
-          maintenanceLevel: "Trim every 10-14 weeks",
-          tags: ["Natural", "Curl-friendly", "No-heat"]
+          theme: "Practical",
+          image: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=500",
+          description: "Straight hair cut to shoulder length with minimal layers. This practical style air-dries well, requires minimal styling, and is perfect for busy lifestyles while still looking polished.",
+          features: ["Shoulder-length", "Straight cut", "Air-dry friendly", "Low styling"],
+          suitableFor: ["All face shapes"],
+          stylingTime: "5-8 minutes",
+          maintenanceLevel: "Trim every 10-12 weeks",
+          tags: ["Practical", "Easy", "Polished"]
         }
       ]
     }
@@ -287,10 +415,23 @@ const Discover = () => {
                 className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 hover:border-purple-500/40 hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-300 cursor-pointer group"
                 onClick={() => openStyleDetails(style)}
               >
-                {/* Style Image Placeholder */}
+                {/* Style Image */}
                 <div className="relative mb-6 overflow-hidden rounded-lg">
                   <div className="w-full h-56 bg-gradient-to-br from-purple-600/20 to-blue-600/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
-                    <div className="text-5xl">💇‍♀️</div>
+                    {style.image ? (
+                      <img 
+                        src={style.image} 
+                        alt={style.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextElementSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : (
+                      <div className="text-5xl">💇‍♀️</div>
+                    )}
+                    <div className="hidden text-5xl items-center justify-center w-full h-full bg-gradient-to-br from-purple-600/20 to-blue-600/20">💇‍♀️</div>
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 </div>
@@ -352,8 +493,21 @@ const Discover = () => {
               {/* Modal Content */}
               <div className="p-6 space-y-6">
                 {/* Style Image */}
-                <div className="w-full h-72 bg-gradient-to-br from-purple-600/20 to-blue-600/20 rounded-xl flex items-center justify-center border border-white/10">
-                  <div className="text-7xl">💇‍♀️</div>
+                <div className="w-full h-72 bg-gradient-to-br from-purple-600/20 to-blue-600/20 rounded-xl flex items-center justify-center border border-white/10 overflow-hidden">
+                  {selectedStyle.image ? (
+                    <img 
+                      src={selectedStyle.image} 
+                      alt={selectedStyle.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextElementSibling.style.display = 'flex';
+                      }}
+                    />
+                  ) : (
+                    <div className="text-7xl">💇‍♀️</div>
+                  )}
+                  <div className="hidden text-7xl items-center justify-center w-full h-full bg-gradient-to-br from-purple-600/20 to-blue-600/20">💇‍♀️</div>
                 </div>
 
                 {/* Description */}

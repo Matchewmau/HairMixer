@@ -23,6 +23,11 @@ from .user import (
     UserFavoritesView,
     UserHistoryView,
 )
+from .preference_profiles import (
+    PreferenceProfileListCreateView,
+    PreferenceProfileDetailView,
+    PreferenceProfileSetDefaultView,
+)
 from .misc import (
     FeedbackView,
     AnalyticsEventView,
@@ -64,6 +69,10 @@ __all__ = [
     'UserRecommendationsView',
     'UserFavoritesView',
     'UserHistoryView',
+    # preference profiles
+    'PreferenceProfileListCreateView',
+    'PreferenceProfileDetailView',
+    'PreferenceProfileSetDefaultView',
     # misc
     'FeedbackView',
     'AnalyticsEventView',

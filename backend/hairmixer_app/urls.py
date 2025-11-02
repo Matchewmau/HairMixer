@@ -90,6 +90,23 @@ urlpatterns = [
         name='user_history',
     ),
     
+    # Preference Profile endpoints
+    path(
+        'preference-profiles/',
+        views.PreferenceProfileListCreateView.as_view(),
+        name='preference_profiles_list',
+    ),
+    path(
+        'preference-profiles/<uuid:profile_id>/',
+        views.PreferenceProfileDetailView.as_view(),
+        name='preference_profile_detail',
+    ),
+    path(
+        'preference-profiles/<uuid:profile_id>/set-default/',
+        views.PreferenceProfileSetDefaultView.as_view(),
+        name='preference_profile_set_default',
+    ),
+    
     # Search and filter endpoints
     path('search/', views.SearchView.as_view(), name='search'),
     path(

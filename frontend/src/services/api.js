@@ -135,7 +135,7 @@ class APIService {
   }
 
   // Overlay generation
-  async generateOverlay(imageId, hairstyleId, overlayType = 'basic') {
+  async generateOverlay(imageId, hairstyleId, overlayType = 'advanced') {
     return this.request('/overlay/', {
       method: 'POST',
       body: JSON.stringify({
@@ -183,6 +183,53 @@ class APIService {
     return this.request('/auth/logout/', {
       method: 'POST',
       body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+  }
+
+  // Preference Profiles
+  async getPreferenceProfiles() {
+    return this.request('/preference-profiles/');
+  }
+
+  async createPreferenceProfile(profileData) {
+    return this.request('/preference-profiles/', {
+      method: 'POST',
+      body: JSON.stringify(profileData),
+    });
+  }
+
+  async getPreferenceProfile(profileId) {
+    return this.request(`/preference-profiles/${profileId}/`);
+  }
+
+  async updatePreferenceProfile(profileId, profileData) {
+    return this.request(`/preference-profiles/${profileId}/`, {
+      method: 'PUT',
+      body: JSON.stringify(profileData),
+    });
+  }
+
+  async deletePreferenceProfile(profileId) {
+    return this.request(`/preference-profiles/${profileId}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async setDefaultProfile(profileId) {
+    return this.request(`/preference-profiles/${profileId}/set-default/`, {
+      method: 'POST',
+    });
+  }
+
+  // User Profile
+  async getUserProfile() {
+    return this.request('/auth/profile/');
+  }
+
+  async updateUserProfile(profileData) {
+    return this.request('/auth/profile/', {
+      method: 'PUT',
+      body: JSON.stringify(profileData),
     });
   }
 }

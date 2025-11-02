@@ -8,6 +8,19 @@ class AuthService {
     );
   }
 
+  // Helper function to convert user data from snake_case to camelCase
+  normalizeUserData(user) {
+    if (!user) return null;
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: user.first_name || user.firstName || '',
+      lastName: user.last_name || user.lastName || '',
+      dateJoined: user.date_joined || user.dateJoined,
+      analysisCount: user.analysis_count || user.analysisCount || 0,
+    };
+  }
+
   async login(credentials) {
     try {
       const response = await fetch(`${this.baseURL}/auth/login/`, {
@@ -38,7 +51,8 @@ class AuthService {
         }
       }
       if (data.user) {
-        localStorage.setItem('user', JSON.stringify(data.user));
+        const normalizedUser = this.normalizeUserData(data.user);
+        localStorage.setItem('user', JSON.stringify(normalizedUser));
       }
 
       return { success: true, user: data.user };
@@ -78,7 +92,8 @@ class AuthService {
         }
       }
       if (data.user) {
-        localStorage.setItem('user', JSON.stringify(data.user));
+        const normalizedUser = this.normalizeUserData(data.user);
+        localStorage.setItem('user', JSON.stringify(normalizedUser));
       }
 
       return { success: true, user: data.user };
@@ -123,7 +138,9 @@ class AuthService {
       if (!this.useCookieAuth && !token) return null;
 
       if (storedUser) {
-        return JSON.parse(storedUser);
+        const user = JSON.parse(storedUser);
+        // Normalize in case old data is cached with snake_case
+        return this.normalizeUserData(user);
       }
 
       // If no stored user, fetch from API
@@ -139,7 +156,9 @@ class AuthService {
       const payload = await response.json();
       const user = payload && payload.user ? payload.user : null;
       if (user) {
-        localStorage.setItem('user', JSON.stringify(user));
+        const normalizedUser = this.normalizeUserData(user);
+        localStorage.setItem('user', JSON.stringify(normalizedUser));
+        return normalizedUser;
       }
       return user;
     } catch (error) {

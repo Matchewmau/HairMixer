@@ -98,3 +98,4 @@ backend/uploads/
 # ML and model files
 backend/hairmixer_app/ml/models/
 *.pth
+*.md

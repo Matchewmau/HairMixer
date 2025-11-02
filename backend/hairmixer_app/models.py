@@ -26,6 +26,170 @@ class UserProfile(models.Model):
     def __str__(self):
         return f"{self.user.email}'s Profile"
 
+
+class PreferenceProfile(models.Model):
+    """
+    User-created preference profiles for quick hairstyle recommendations.
+    Users can create multiple named profiles (e.g., "Professional Look", "Casual Style")
+    and select them when uploading images to skip the preference input step.
+    """
+    GENDER_CHOICES = [
+        ("male", "Male"),
+        ("female", "Female"),
+    ]
+    
+    HAIR_TYPE_CHOICES = [
+        ("straight", "Straight"),
+        ("wavy", "Wavy"),
+        ("curly", "Curly"),
+        ("coily", "Coily"),
+    ]
+    
+    HAIR_LENGTH_CHOICES = [
+        ("short", "Short"),
+        ("medium", "Medium"),
+        ("long", "Long"),
+    ]
+    
+    VOLUME_CHOICES = [
+        ("low", "Low"),
+        ("medium", "Medium"),
+        ("high", "High"),
+    ]
+    
+    HAIR_THICKNESS_CHOICES = [
+        ("thin", "Thin"),
+        ("medium", "Medium"),
+        ("thick", "Thick"),
+        ("very_thick", "Very Thick"),
+    ]
+    
+    HAIR_TEXTURE_DETAIL_CHOICES = [
+        ("fine", "Fine"),
+        ("normal", "Normal"),
+        ("thick", "Thick"),
+        ("smooth", "Smooth"),
+        ("coarse", "Coarse"),
+        ("silky", "Silky"),
+        ("frizzy", "Frizzy"),
+    ]
+    
+    HAIR_CONDITION_CHOICES = [
+        ("none", "None"),
+        ("excellent", "Excellent"),
+        ("good", "Good"),
+        ("fair", "Fair"),
+        ("damaged", "Damaged"),
+        ("dry_ends", "Dry Ends"),
+        ("oily_scalp", "Oily Scalp"),
+        ("dandruff", "Dandruff"),
+        ("frizzy", "Frizzy"),
+        ("split_ends", "Split Ends"),
+        ("thinning", "Thinning"),
+        ("sensitive_scalp", "Sensitive Scalp"),
+    ]
+    
+    LIFESTYLE_CHOICES = [
+        ("active", "Active"),
+        ("professional", "Professional"),
+        ("creative", "Creative"),
+        ("casual", "Casual"),
+        ("moderate", "Moderate"),
+        ("relaxed", "Relaxed"),
+    ]
+    
+    MAINTENANCE_CHOICES = [
+        ("low", "Low"),
+        ("medium", "Medium"),
+        ("high", "High"),
+    ]
+    
+    STYLING_PREFERENCE_CHOICES = [
+        ("natural", "Natural"),
+        ("casual", "Casual"),
+        ("classic", "Classic"),
+        ("polished", "Polished"),
+        ("elegant", "Elegant"),
+        ("glamorous", "Glamorous"),
+        ("trendy", "Trendy"),
+        ("edgy", "Edgy"),
+    ]
+    
+    HAIR_COLOR_CHOICES = [
+        ("black", "Black"),
+        ("brown", "Brown"),
+        ("blonde", "Blonde"),
+        ("red", "Red"),
+        ("auburn", "Auburn"),
+        ("gray", "Gray"),
+        ("white", "White"),
+        ("other", "Other"),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='preference_profiles')
+    
+    # Profile identification
+    profile_name = models.CharField(max_length=100, help_text="e.g., 'Professional Look', 'Casual Weekend'")
+    description = models.TextField(blank=True, help_text="Optional description of this profile")
+    is_default = models.BooleanField(default=False, help_text="Use this profile by default")
+    
+    # Hair & Style Preferences (matching UserPreferences.js)
+    gender = models.CharField(max_length=20, choices=GENDER_CHOICES, default="female")
+    hair_type = models.CharField(max_length=20, choices=HAIR_TYPE_CHOICES, default="straight")
+    hair_length = models.CharField(max_length=20, choices=HAIR_LENGTH_CHOICES, default="medium")
+    volume = models.CharField(max_length=20, choices=VOLUME_CHOICES, default="medium")
+    hair_thickness = models.CharField(max_length=20, choices=HAIR_THICKNESS_CHOICES, default="medium")
+    hair_texture_detail = models.CharField(max_length=20, choices=HAIR_TEXTURE_DETAIL_CHOICES, default="normal")
+    lifestyle = models.CharField(max_length=20, choices=LIFESTYLE_CHOICES, default="casual")
+    maintenance = models.CharField(max_length=20, choices=MAINTENANCE_CHOICES, default="medium")
+    styling_preference = models.CharField(max_length=20, choices=STYLING_PREFERENCE_CHOICES, default="natural")
+    hair_color = models.CharField(max_length=20, choices=HAIR_COLOR_CHOICES, default="brown")
+    hair_condition = models.JSONField(default=list, blank=True, help_text="Multiple hair conditions")
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-is_default', '-last_used_at', '-updated_at']
+        unique_together = ['user', 'profile_name']
+        indexes = [
+            models.Index(fields=['user', 'is_default']),
+            models.Index(fields=['user', '-last_used_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.email} - {self.profile_name}"
+    
+    def save(self, *args, **kwargs):
+        # If this profile is set as default, remove default flag from other profiles
+        if self.is_default:
+            PreferenceProfile.objects.filter(user=self.user, is_default=True).exclude(id=self.id).update(is_default=False)
+        super().save(*args, **kwargs)
+    
+    def to_dict(self):
+        """Convert profile to dictionary format"""
+        return {
+            'id': str(self.id),
+            'profile_name': self.profile_name,
+            'description': self.description,
+            'is_default': self.is_default,
+            'gender': self.gender,
+            'hair_type': self.hair_type,
+            'hair_length': self.hair_length,
+            'volume': self.volume,
+            'hair_thickness': self.hair_thickness,
+            'hair_texture_detail': self.hair_texture_detail,
+            'lifestyle': self.lifestyle,
+            'maintenance': self.maintenance,
+            'styling_preference': self.styling_preference,
+            'hair_color': self.hair_color,
+            'hair_condition': self.hair_condition,
+        }
+
+
 # Enhanced Hair Analysis Models
 class UploadedImage(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
