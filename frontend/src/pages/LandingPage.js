@@ -94,8 +94,7 @@ const LandingPage = () => {
                 >
                   Explore Styles
                 </Link>
-              </div>
-              
+              </div>      
               {/* How It Works - Compact Version */}
               <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8">
                 <div className="bg-white/5 backdrop-blur-sm rounded-lg p-6 border border-white/10 group hover:border-purple-500/30 transition-all duration-300">
@@ -126,6 +125,29 @@ const LandingPage = () => {
                   </div>
                   <h3 className="text-xl font-bold text-white mb-2">Get Results</h3>
                   <p className="text-gray-300">Receive personalized hairstyle recommendations</p>
+                </div>
+              </div>
+
+              {/* Scroll Down Indicator */}
+              <div className="mt-4 flex flex-col items-center animate-bounce">
+                <div className="text-gray-400 text-sm mb-2">Scroll to explore</div>
+                <div className="flex flex-col items-center">
+                  <div className="w-6 h-10 border-2 border-gray-400 rounded-full flex items-start justify-center p-2">
+                    <div className="w-1.5 h-2 bg-gray-400 rounded-full animate-scroll"></div>
+                  </div>
+                  <svg 
+                    className="w-6 h-6 text-gray-400 mt-2" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth={2} 
+                      d="M19 14l-7 7m0 0l-7-7m7 7V3" 
+                    />
+                  </svg>
                 </div>
               </div>
             </div>

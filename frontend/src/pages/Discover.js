@@ -8,6 +8,8 @@ const Discover = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedStyle, setSelectedStyle] = useState(null);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [modalImageUrl, setModalImageUrl] = useState('');
   const navigate = useNavigate();
 
   // Static hairstyle data organized by categories with real descriptions and images
@@ -302,6 +304,31 @@ const Discover = () => {
     checkAuth();
   }, []);
 
+  // Add keyboard support for closing image modal
+  useEffect(() => {
+    const handleEscKey = (e) => {
+      if (e.key === 'Escape' && showImageModal) {
+        setShowImageModal(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscKey);
+    return () => document.removeEventListener('keydown', handleEscKey);
+  }, [showImageModal]);
+
+  // Prevent background scrolling when modals are open
+  useEffect(() => {
+    if (selectedStyle || showImageModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [selectedStyle, showImageModal]);
+
   const handleLogout = async () => {
     try {
       await AuthService.logout();
@@ -329,6 +356,17 @@ const Discover = () => {
 
   const closeStyleDetails = () => {
     setSelectedStyle(null);
+  };
+
+  const openImageModal = (imageUrl, e) => {
+    e.stopPropagation(); // Prevent opening style details modal
+    setModalImageUrl(imageUrl);
+    setShowImageModal(true);
+  };
+
+  const closeImageModal = () => {
+    setShowImageModal(false);
+    setModalImageUrl('');
   };
 
   if (isLoading) {
@@ -417,21 +455,24 @@ const Discover = () => {
               >
                 {/* Style Image */}
                 <div className="relative mb-6 overflow-hidden rounded-lg">
-                  <div className="w-full h-56 bg-gradient-to-br from-purple-600/20 to-blue-600/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
+                  <div className="w-full h-64 bg-gradient-to-br from-purple-600/20 to-blue-600/20 flex items-center justify-center">
                     {style.image ? (
-                      <img 
-                        src={style.image} 
-                        alt={style.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                          e.target.nextElementSibling.style.display = 'flex';
-                        }}
-                      />
+                      <>
+                        <img 
+                          src={style.image} 
+                          alt={style.name}
+                          className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-500"
+                          style={{ objectPosition: 'center 20%' }}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextElementSibling.style.display = 'flex';
+                          }}
+                        />
+                        <div className="hidden text-5xl items-center justify-center w-full h-full bg-gradient-to-br from-purple-600/20 to-blue-600/20">💇‍♀️</div>
+                      </>
                     ) : (
                       <div className="text-5xl">💇‍♀️</div>
                     )}
-                    <div className="hidden text-5xl items-center justify-center w-full h-full bg-gradient-to-br from-purple-600/20 to-blue-600/20">💇‍♀️</div>
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 </div>
@@ -475,8 +516,14 @@ const Discover = () => {
 
         {/* Style Details Modal */}
         {selectedStyle && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-white/10 shadow-2xl">
+          <div 
+            className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
+            onClick={closeStyleDetails}
+          >
+            <div 
+              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-white/10 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
               {/* Modal Header */}
               <div className="flex items-center justify-between p-6 border-b border-white/10">
                 <h2 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">{selectedStyle.name}</h2>
@@ -493,21 +540,31 @@ const Discover = () => {
               {/* Modal Content */}
               <div className="p-6 space-y-6">
                 {/* Style Image */}
-                <div className="w-full h-72 bg-gradient-to-br from-purple-600/20 to-blue-600/20 rounded-xl flex items-center justify-center border border-white/10 overflow-hidden">
+                <div className="relative w-full h-80 bg-gradient-to-br from-purple-600/20 to-blue-600/20 rounded-xl flex items-center justify-center border border-white/10 overflow-hidden group/image">
                   {selectedStyle.image ? (
-                    <img 
-                      src={selectedStyle.image} 
-                      alt={selectedStyle.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.nextElementSibling.style.display = 'flex';
-                      }}
-                    />
+                    <>
+                      <img 
+                        src={selectedStyle.image} 
+                        alt={selectedStyle.name}
+                        className="w-full h-full object-cover object-center cursor-pointer hover:scale-105 transition-transform duration-300"
+                        style={{ objectPosition: 'center 20%' }}
+                        onClick={(e) => openImageModal(selectedStyle.image, e)}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextElementSibling.style.display = 'flex';
+                        }}
+                      />
+                      <div className="hidden text-7xl items-center justify-center w-full h-full bg-gradient-to-br from-purple-600/20 to-blue-600/20">💇‍♀️</div>
+                      {/* Click to enlarge indicator */}
+                      <div className="absolute inset-0 bg-black/0 group-hover/image:bg-black/20 transition-colors duration-300 flex items-center justify-center pointer-events-none">
+                        <div className="bg-white/90 backdrop-blur-sm text-gray-900 px-4 py-2 rounded-lg font-medium opacity-0 group-hover/image:opacity-100 transition-opacity duration-300">
+                          🔍 Click to view full size
+                        </div>
+                      </div>
+                    </>
                   ) : (
                     <div className="text-7xl">💇‍♀️</div>
                   )}
-                  <div className="hidden text-7xl items-center justify-center w-full h-full bg-gradient-to-br from-purple-600/20 to-blue-600/20">💇‍♀️</div>
                 </div>
 
                 {/* Description */}
@@ -576,6 +633,45 @@ const Discover = () => {
                       Save to Favorites
                     </button>
                   )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Image Modal - Full screen view */}
+        {showImageModal && modalImageUrl && (
+          <div 
+            className="fixed inset-0 bg-black/95 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+            onClick={closeImageModal}
+          >
+            <div className="relative max-w-5xl w-full">
+              {/* Close button */}
+              <button
+                onClick={closeImageModal}
+                className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors duration-300 flex items-center gap-2"
+              >
+                <span className="text-sm">Press ESC or click outside to close</span>
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              
+              {/* Image container */}
+              <div 
+                className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-4 border border-white/20 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-xl font-semibold text-white mb-4 text-center">
+                  Full Size View
+                </h3>
+                <div className="relative">
+                  <img
+                    src={modalImageUrl}
+                    alt="Full size hairstyle"
+                    className="w-full h-auto rounded-lg shadow-2xl"
+                    style={{ maxHeight: '80vh', objectFit: 'contain' }}
+                  />
                 </div>
               </div>
             </div>
