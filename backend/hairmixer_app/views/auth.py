@@ -233,8 +233,20 @@ def logout(request):
     try:
         refresh_token = request.data.get('refresh_token')
         if refresh_token:
-            token = RefreshToken(refresh_token)
-            token.blacklist()
+            try:
+                token = RefreshToken(refresh_token)
+                # Check if blacklist method exists before calling
+                if hasattr(token, 'blacklist'):
+                    token.blacklist()
+                else:
+                    logger.debug(
+                        "Token blacklist not available. "
+                        "Install rest_framework_simplejwt.token_blacklist "
+                        "to enable token blacklisting."
+                    )
+            except Exception as e:
+                # Token might be invalid/expired, but still allow logout
+                logger.debug(f"Token blacklist failed: {str(e)}")
 
         track_event_safe(
             analytics_service,

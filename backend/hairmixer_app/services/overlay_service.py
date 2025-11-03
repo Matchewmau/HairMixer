@@ -20,6 +20,7 @@ class OverlayService:
         uploaded: UploadedImage,
         style: Hairstyle,
         overlay_type: str = "basic",
+        hair_color: str = None,
     ) -> str:
         user_img_path = Path(settings.MEDIA_ROOT) / uploaded.image.name
 
@@ -87,7 +88,11 @@ class OverlayService:
                 )
             style_name = getattr(style, 'name', None)
             self.processor.create_advanced_overlay(
-                user_img_path, style_img_path, out_abs, style_name=style_name
+                user_img_path,
+                style_img_path,
+                out_abs,
+                style_name=style_name,
+                hair_color=hair_color,
             )
         else:
             if style_img_path is None:

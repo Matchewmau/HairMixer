@@ -34,7 +34,7 @@ const UserProfile = () => {
     styling_preference: 'natural',
     hair_color: 'brown',
     hair_condition: [],
-    occasion: 'casual',
+    occasions: [], // Changed from occasion (singular) to occasions (plural) and array for multiple selection
   });
   
   const navigate = useNavigate();
@@ -185,7 +185,7 @@ const UserProfile = () => {
         styling_preference: 'natural',
         hair_color: 'brown',
         hair_condition: [],
-        occasion: 'casual',
+        occasions: [],
       });
     } catch (error) {
       console.error('Failed to create profile:', error);
@@ -242,7 +242,7 @@ const UserProfile = () => {
       styling_preference: profile.styling_preference || 'natural',
       hair_color: profile.hair_color || 'brown',
       hair_condition: profile.hair_condition || [],
-      occasion: profile.occasion || 'casual',
+      occasions: profile.occasions || [],
     });
     setShowEditProfileModal(true);
   };
@@ -758,31 +758,35 @@ const UserProfile = () => {
                       <option value="other">Other</option>
                     </select>
                   </div>
+                </div>
 
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Occasion *</label>
-                    <select
-                      name="occasion"
-                      value={profileForm.occasion}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="casual">Casual</option>
-                      <option value="formal">Formal</option>
-                      <option value="professional">Professional</option>
-                      <option value="party">Party</option>
-                      <option value="wedding">Wedding</option>
-                      <option value="date">Date</option>
-                      <option value="everyday">Everyday</option>
-                      <option value="special_event">Special Event</option>
-                    </select>
+                <div>
+                  <label className="block text-gray-300 text-sm font-medium mb-2">Occasions * (Select multiple)</label>
+                  <div className="text-xs text-gray-400 mb-2">Select all occasions where you'd wear this hairstyle</div>
+                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 bg-slate-800 rounded-lg border border-slate-600">
+                    {['casual', 'professional', 'formal', 'party', 'wedding', 'date', 'everyday', 'special_event', 'sports', 'work'].map((occasion) => (
+                      <label key={occasion} className="flex items-center space-x-2 text-sm text-gray-300 hover:text-white cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Array.isArray(profileForm.occasions) && profileForm.occasions.includes(occasion)}
+                          onChange={(e) => {
+                            const newOccasions = e.target.checked
+                              ? [...(Array.isArray(profileForm.occasions) ? profileForm.occasions : []), occasion]
+                              : (Array.isArray(profileForm.occasions) ? profileForm.occasions : []).filter(o => o !== occasion);
+                            handleProfileFormChange({ target: { name: 'occasions', value: newOccasions } });
+                          }}
+                          className="form-checkbox h-4 w-4 text-purple-600 rounded"
+                        />
+                        <span className="capitalize">{occasion.replace('_', ' ')}</span>
+                      </label>
+                    ))}
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-gray-300 text-sm font-medium mb-2">Hair Condition (Optional - Select multiple if needed)</label>
                   <div className="text-xs text-gray-400 mb-2">Select any conditions that apply to your hair</div>
-                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 bg-slate-800 rounded-lg">
+                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 bg-slate-800 rounded-lg border border-slate-600">
                     {['none', 'excellent', 'good', 'fair', 'damaged', 'dry_ends', 'oily_scalp', 'dandruff', 'frizzy', 'split_ends', 'thinning', 'sensitive_scalp'].map((condition) => (
                       <label key={condition} className="flex items-center space-x-2 text-sm text-gray-300 hover:text-white cursor-pointer">
                         <input
@@ -806,7 +810,7 @@ const UserProfile = () => {
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={handleCreateProfile}
-                  disabled={!profileForm.profile_name}
+                  disabled={!profileForm.profile_name || !profileForm.occasions || profileForm.occasions.length === 0}
                   className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg transition font-medium"
                 >
                   Create Profile
@@ -1022,31 +1026,35 @@ const UserProfile = () => {
                       <option value="other">Other</option>
                     </select>
                   </div>
+                </div>
 
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Occasion *</label>
-                    <select
-                      name="occasion"
-                      value={profileForm.occasion}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="casual">Casual</option>
-                      <option value="formal">Formal</option>
-                      <option value="professional">Professional</option>
-                      <option value="party">Party</option>
-                      <option value="wedding">Wedding</option>
-                      <option value="date">Date</option>
-                      <option value="everyday">Everyday</option>
-                      <option value="special_event">Special Event</option>
-                    </select>
+                <div>
+                  <label className="block text-gray-300 text-sm font-medium mb-2">Occasions * (Select multiple)</label>
+                  <div className="text-xs text-gray-400 mb-2">Select all occasions where you'd wear this hairstyle</div>
+                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 bg-slate-800 rounded-lg border border-slate-600">
+                    {['casual', 'professional', 'formal', 'party', 'wedding', 'date', 'everyday', 'special_event', 'sports', 'work'].map((occasion) => (
+                      <label key={occasion} className="flex items-center space-x-2 text-sm text-gray-300 hover:text-white cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Array.isArray(profileForm.occasions) && profileForm.occasions.includes(occasion)}
+                          onChange={(e) => {
+                            const newOccasions = e.target.checked
+                              ? [...(Array.isArray(profileForm.occasions) ? profileForm.occasions : []), occasion]
+                              : (Array.isArray(profileForm.occasions) ? profileForm.occasions : []).filter(o => o !== occasion);
+                            handleProfileFormChange({ target: { name: 'occasions', value: newOccasions } });
+                          }}
+                          className="form-checkbox h-4 w-4 text-purple-600 rounded"
+                        />
+                        <span className="capitalize">{occasion.replace('_', ' ')}</span>
+                      </label>
+                    ))}
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-gray-300 text-sm font-medium mb-2">Hair Condition (Optional - Select multiple if needed)</label>
                   <div className="text-xs text-gray-400 mb-2">Select any conditions that apply to your hair</div>
-                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 bg-slate-800 rounded-lg">
+                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 bg-slate-800 rounded-lg border border-slate-600">
                     {['none', 'excellent', 'good', 'fair', 'damaged', 'dry_ends', 'oily_scalp', 'dandruff', 'frizzy', 'split_ends', 'thinning', 'sensitive_scalp'].map((condition) => (
                       <label key={condition} className="flex items-center space-x-2 text-sm text-gray-300 hover:text-white cursor-pointer">
                         <input
@@ -1070,7 +1078,7 @@ const UserProfile = () => {
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={handleEditProfile}
-                  disabled={!profileForm.profile_name}
+                  disabled={!profileForm.profile_name || !profileForm.occasions || profileForm.occasions.length === 0}
                   className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg transition font-medium"
                 >
                   Save Changes

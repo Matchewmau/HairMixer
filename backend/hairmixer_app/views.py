@@ -351,16 +351,28 @@ def login(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])  # Allow unauthenticated logout
 def logout(request):
     try:
         refresh_token = request.data.get('refresh_token')
         if refresh_token:
-            token = RefreshToken(refresh_token)
-            token.blacklist()
+            try:
+                # Try to blacklist token if blacklist app is available
+                token = RefreshToken(refresh_token)
+                if hasattr(token, 'blacklist'):
+                    token.blacklist()
+                else:
+                    logger.debug(
+                        "Token blacklist not available. "
+                        "Install rest_framework_simplejwt.token_blacklist "
+                        "to enable token blacklisting."
+                    )
+            except Exception as e:
+                # Token might be invalid/expired, but still allow logout
+                logger.debug(f"Token blacklist failed: {str(e)}")
         
-        # Log analytics event
-        if request.user.is_authenticated:
+        # Log analytics event only if user is authenticated
+        if request.user and request.user.is_authenticated:
             track_event_safe(
                 analytics_service,
                 user=request.user,
@@ -597,33 +609,57 @@ class SetPreferencesView(APIView):
     # Allow anonymous submissions
     # Authenticated users will be linked automatically
     permission_classes = [AllowAny]
-    authentication_classes = []
+    # Don't disable authentication - we want to link prefs to logged-in users
+    # authentication_classes = []
     
     def post(self, request):
         try:
             data = request.data
             logger.info(f"Received preferences data: {data}")
+            logger.info(
+                f"SetPreferences: User authenticated: "
+                f"{request.user.is_authenticated}, user: {request.user}"
+            )
             
             # Extract only valid fields that exist in the UserPreference model
             preference_data = {
+                'faceshape': data.get('faceshape', ''),
                 'hair_type': data.get('hair_type', ''),
                 'hair_length': data.get('hair_length', ''),
                 'lifestyle': data.get('lifestyle', ''),
                 'maintenance': data.get('maintenance', ''),
                 'occasions': data.get('occasions', []),
-                # Add other fields based on your model
                 'gender': data.get('gender', ''),
                 'hair_color': data.get('hair_color', ''),
                 'color_preference': data.get('color_preference', ''),
                 'budget_range': data.get('budget_range', ''),
+                'volume': data.get('volume', ''),
+                'styling_maintenance': data.get('styling_maintenance', ''),
+                'hair_texture_detail': data.get('hair_texture_detail', ''),
+                'styling_preference': data.get('styling_preference', ''),
+                'hair_condition': data.get('hair_condition', []),
+                'hair_thickness': data.get('hair_thickness', ''),
+                'wants_bangs': data.get('wants_bangs', False),
+                'hairstyle_family': data.get('hairstyle_family', ''),
+                'hairstyle_name': data.get('hairstyle_name', ''),
+                'avoid_styles': data.get('avoid_styles', []),
             }
             
+            hair_color_before = preference_data.get('hair_color')
+            logger.info(
+                f"Extracted hair_color from request: '{hair_color_before}'"
+            )
+            
             # Remove empty strings to avoid validation errors
-            preference_data = {
-                k: v
-                for k, v in preference_data.items()
-                if v != ''
-            }
+            # BUT keep empty lists for JSON fields and non-empty strings
+            filtered_data = {}
+            for k, v in preference_data.items():
+                if isinstance(v, list) or (v != '' and v is not None):
+                    filtered_data[k] = v
+            preference_data = filtered_data
+            
+            hair_color_after = preference_data.get('hair_color', 'NOT_IN_DICT')
+            logger.info(f"After filtering, hair_color: '{hair_color_after}'")
             
             # Ensure occasions is a list
             if not isinstance(preference_data.get('occasions', []), list):
@@ -769,6 +805,10 @@ class SetPreferencesView(APIView):
                 "Created user preference %s with data: %s",
                 preference.id,
                 preference_data,
+            )
+            logger.info(
+                f"Saved UserPreference hair_color='{preference.hair_color}', "
+                f"user={preference.user}"
             )
 
             return Response({
@@ -1170,8 +1210,42 @@ class OverlayView(APIView):
             uploaded = get_object_or_404(UploadedImage, id=image_id)
             style = get_object_or_404(Hairstyle, id=style_id)
 
+            # Get user's hair color preference from most recent preference
+            hair_color = None
+            if request.user.is_authenticated:
+                try:
+                    from .models import UserPreference
+                    
+                    # Get most recent preference with hair_color
+                    user_pref = (
+                        UserPreference.objects
+                        .filter(user=request.user)
+                        .exclude(hair_color='')
+                        .exclude(hair_color__isnull=True)
+                        .order_by('-created_at')
+                        .first()
+                    )
+                    
+                    if user_pref and user_pref.hair_color:
+                        hair_color = user_pref.hair_color.strip()
+                        logger.info(
+                            f"Using hair_color='{hair_color}' from "
+                            f"UserPreference (id={user_pref.id})"
+                        )
+                    else:
+                        logger.info(
+                            "No UserPreference with hair_color found"
+                        )
+                except Exception as e:
+                    logger.warning(
+                        f"Could not retrieve hair color: {e}",
+                        exc_info=True
+                    )
+            
+            logger.info(f"Final hair_color for overlay: '{hair_color}'")
+
             overlay_url = overlay_service.generate(
-                uploaded, style, overlay_type
+                uploaded, style, overlay_type, hair_color=hair_color
             )
 
             # Log analytics event

@@ -94,6 +94,7 @@ class AdvancedOverlayProcessor:
         style_img_path,
         output_path,
         style_name: Optional[str] = None,
+        hair_color: Optional[str] = None,
     ):
         """Create advanced overlay via Gemini Web API.
 
@@ -102,7 +103,7 @@ class AdvancedOverlayProcessor:
 
         Contract:
         - Inputs: user_img_path (str/Path), style_img_path (optional),
-          output_path (Path)
+          output_path (Path), style_name (optional), hair_color (optional)
         - Output: path string to saved PNG
         """
         try:
@@ -132,10 +133,21 @@ class AdvancedOverlayProcessor:
             # Build a prompt similar to reference: edit hair to a target style.
             # Use the provided style_name when available, otherwise generic.
             desired_style = style_name or "the selected hairstyle"
-            prompt = (
-                f"Edit the person's hair to {desired_style}. "
+            
+            # Build prompt with optional hair color specification
+            prompt_parts = [f"Edit the person's hair to {desired_style}."]
+            
+            # Add hair color to prompt if valid
+            if (hair_color and
+                    str(hair_color).strip() and
+                    str(hair_color).lower() not in ['none', 'no_pref', '']):
+                hair_color_clean = str(hair_color).strip()
+                prompt_parts.append(f"Use {hair_color_clean} hair color.")
+            
+            prompt_parts.append(
                 "Maintain natural look, lighting and proportions."
             )
+            prompt = " ".join(prompt_parts)
 
             # Initialize Gemini client
             client = GeminiClient(self.gemini_sid, self.gemini_sidts)

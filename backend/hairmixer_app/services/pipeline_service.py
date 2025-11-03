@@ -52,8 +52,35 @@ class RecommendationOverlayPipeline:
                 'recommendation': rec,
             }
         # Step 2: generate overlay
+        # Get hair color from user preferences
+        hair_color = getattr(prefs, 'hair_color', None)
+        # Treat empty string as None
+        if hair_color == '':
+            hair_color = None
+        
+        # If still no hair color and user is provided, try PreferenceProfile
+        if (not hair_color and user and
+                hasattr(user, 'is_authenticated') and user.is_authenticated):
+            try:
+                from ..models import PreferenceProfile
+                profile = PreferenceProfile.objects.filter(
+                    user=user, is_default=True
+                ).first()
+                if profile and profile.hair_color:
+                    hair_color = profile.hair_color
+                    logger.info(
+                        f"Pipeline: Using hair_color='{hair_color}' "
+                        f"from PreferenceProfile"
+                    )
+            except Exception as e:
+                logger.warning(f"Could not get hair_color from profile: {e}")
+        
+        logger.info(
+            f"Pipeline: Final hair_color='{hair_color}' "
+            f"from prefs id={prefs.id}"
+        )
         overlay_url = self.overlay_service.generate(
-            uploaded, style, overlay_type
+            uploaded, style, overlay_type, hair_color=hair_color
         )
         elapsed = (timezone.now() - start).total_seconds()
         return {

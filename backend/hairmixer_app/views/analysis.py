@@ -142,7 +142,7 @@ class UploadImageView(APIView):
 class SetPreferencesView(APIView):
     parser_classes = (JSONParser,)
     permission_classes = [AllowAny]
-    authentication_classes = []
+    # Allow both authenticated and anonymous users
 
     @extend_schema(
         request=UserPreferenceSerializer,
@@ -162,9 +162,9 @@ class SetPreferencesView(APIView):
     def post(self, request):
         try:
             data = request.data
-            logger.info(f"Received preferences data: {data}")
 
             preference_data = {
+                'faceshape': data.get('faceshape', ''),
                 'hair_type': data.get('hair_type', ''),
                 'hair_length': data.get('hair_length', ''),
                 'lifestyle': data.get('lifestyle', ''),
@@ -174,10 +174,24 @@ class SetPreferencesView(APIView):
                 'hair_color': data.get('hair_color', ''),
                 'color_preference': data.get('color_preference', ''),
                 'budget_range': data.get('budget_range', ''),
+                'volume': data.get('volume', ''),
+                'styling_maintenance': data.get('styling_maintenance', ''),
+                'hair_texture_detail': data.get('hair_texture_detail', ''),
+                'styling_preference': data.get('styling_preference', ''),
+                'hair_condition': data.get('hair_condition', []),
+                'hair_thickness': data.get('hair_thickness', ''),
+                'wants_bangs': data.get('wants_bangs', False),
+                'hairstyle_family': data.get('hairstyle_family', ''),
+                'hairstyle_name': data.get('hairstyle_name', ''),
+                'avoid_styles': data.get('avoid_styles', []),
             }
 
+            # Filter out empty strings but keep lists and False boolean
             preference_data = {
-                k: v for k, v in preference_data.items() if v != ''
+                k: v
+                for k, v in preference_data.items()
+                if isinstance(v, list) or isinstance(v, bool) or
+                (v != '' and v is not None)
             }
             if not isinstance(preference_data.get('occasions', []), list):
                 preference_data['occasions'] = []
@@ -487,8 +501,29 @@ class OverlayView(APIView):
             uploaded = get_object_or_404(UploadedImage, id=image_id)
             style = get_object_or_404(Hairstyle, id=style_id)
 
+            # Get user's hair color preference from most recent preference
+            hair_color = None
+            if request.user.is_authenticated:
+                try:
+                    from ..models import UserPreference
+                    
+                    user_pref = (
+                        UserPreference.objects
+                        .filter(user=request.user)
+                        .exclude(hair_color='')
+                        .exclude(hair_color__isnull=True)
+                        .order_by('-created_at')
+                        .first()
+                    )
+                    
+                    if user_pref and user_pref.hair_color:
+                        hair_color = user_pref.hair_color.strip()
+                        logger.info(f"Using hair_color: {hair_color}")
+                except Exception as e:
+                    logger.warning(f"Could not retrieve hair color: {e}")
+
             overlay_url = overlay_service.generate(
-                uploaded, style, overlay_type
+                uploaded, style, overlay_type, hair_color=hair_color
             )
 
             track_event_safe(
@@ -562,6 +597,24 @@ class AutoOverlayView(APIView):
 
             uploaded = get_object_or_404(UploadedImage, id=image_id)
             prefs = get_object_or_404(UserPreference, id=pref_id)
+            logger.info(
+                f"AutoOverlayView: UserPreference "
+                f"hair_color='{prefs.hair_color}'"
+            )
+            
+            # If UserPreference doesn't have hair_color, try to get it from
+            # PreferenceProfile
+            if (not prefs.hair_color or prefs.hair_color == '') and \
+               request.user.is_authenticated:
+                try:
+                    from ..models import PreferenceProfile
+                    profile = PreferenceProfile.objects.filter(
+                        user=request.user, is_default=True
+                    ).first()
+                    if profile and profile.hair_color:
+                        prefs.hair_color = profile.hair_color
+                except Exception as e:
+                    logger.warning(f"Could not get hair_color from profile: {e}")
 
             overlay_type = 'advanced'
             q_overlay = request.query_params.get('overlay')

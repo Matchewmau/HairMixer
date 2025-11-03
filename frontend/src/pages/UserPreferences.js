@@ -336,11 +336,12 @@ const UserPreferences = () => {
       styling_preference: profile.styling_preference || '',
       hair_color: profile.hair_color || '',
       hair_condition: profile.hair_condition || [],
+      occasions: profile.occasions || [],  // Apply occasions from profile
       // Keep faceshape from detection, don't override
     }));
     setShowProfileModal(false);
-    // Jump to final step (occasions) since most fields are filled
-    setCurrentStep(9);
+    // Jump to final step (hair condition) since all fields including occasions are filled
+    setCurrentStep(11);  // Changed from 9 to 11 to skip to the last step (hair condition)
   };
 
   // Step navigation functions

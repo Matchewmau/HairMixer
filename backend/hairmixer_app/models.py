@@ -146,6 +146,7 @@ class PreferenceProfile(models.Model):
     styling_preference = models.CharField(max_length=20, choices=STYLING_PREFERENCE_CHOICES, default="natural")
     hair_color = models.CharField(max_length=20, choices=HAIR_COLOR_CHOICES, default="brown")
     hair_condition = models.JSONField(default=list, blank=True, help_text="Multiple hair conditions")
+    occasions = models.JSONField(default=list, blank=True, help_text="Multiple occasions for styling")
     
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
@@ -187,6 +188,7 @@ class PreferenceProfile(models.Model):
             'styling_preference': self.styling_preference,
             'hair_color': self.hair_color,
             'hair_condition': self.hair_condition,
+            'occasions': self.occasions,
         }
 
 

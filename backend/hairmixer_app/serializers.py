@@ -192,7 +192,7 @@ class PreferenceProfileSerializer(serializers.ModelSerializer):
             'gender', 'hair_type', 'hair_length', 'volume',
             'hair_thickness', 'hair_texture_detail', 'lifestyle',
             'maintenance', 'styling_preference', 'hair_color',
-            'hair_condition', 'created_at', 'updated_at', 'last_used_at'
+            'hair_condition', 'occasions', 'created_at', 'updated_at', 'last_used_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'last_used_at']
     
@@ -207,6 +207,13 @@ class PreferenceProfileSerializer(serializers.ModelSerializer):
         ).exclude(id=profile_id).exists():
             raise serializers.ValidationError(
                 "You already have a profile with this name."
+            )
+        return value
+    
+    def validate_occasions(self, value):
+        if not value or len(value) == 0:
+            raise serializers.ValidationError(
+                "At least one occasion must be selected"
             )
         return value
 
