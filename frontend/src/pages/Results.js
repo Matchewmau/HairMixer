@@ -817,16 +817,16 @@ const Results = () => {
                     {/* Right side - Details (Scrollable) */}
                     <div className="space-y-2 sm:space-y-3 lg:space-y-4 overflow-y-auto pr-1 sm:pr-2 pb-20 sm:pb-24 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent" style={{ maxHeight: 'calc(100vh - 200px)' }}>
                       {/* Personalized Description */}
-                      <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 sm:p-3 border border-white/10">
-                        <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-blue-400 mb-1.5 sm:mb-2">✨ Why This Style Works for You</h3>
-                        <p className="text-xs sm:text-sm lg:text-base text-gray-300 leading-relaxed">
+                      <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 sm:p-3 lg:p-4 border border-white/10">
+                        <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-blue-400 mb-1.5 sm:mb-2 lg:mb-3">✨ Why This Style Works for You</h3>
+                        <p className="text-xs sm:text-sm lg:text-base text-gray-300 leading-relaxed text-justify">
                           {hairstyleDetails.personalized_description}
                         </p>
                         
                         {/* Face Shape Specific Benefits */}
                         {(uploadResponse?.face_shape?.shape || hairstyleDetails.face_shape) && (
-                          <div className="bg-white/5 border border-white/10 rounded-lg p-2 sm:p-2.5 mt-1.5 sm:mt-2">
-                            <p className="text-xs sm:text-sm text-gray-300">
+                          <div className="bg-white/5 border border-white/10 rounded-lg p-2 sm:p-2.5 lg:p-3 mt-1.5 sm:mt-2 lg:mt-3">
+                            <p className="text-xs sm:text-sm lg:text-base text-gray-300 leading-relaxed text-justify">
                               <strong className="text-blue-300">Perfect for your {uploadResponse?.face_shape?.shape || hairstyleDetails.face_shape} face:</strong> This hairstyle helps balance your facial proportions, highlights your best features, and creates a harmonious overall look that's tailored to your unique face shape.
                             </p>
                           </div>
@@ -835,208 +835,86 @@ const Results = () => {
 
                       {/* User Preferences Used */}
                       {(hairstyleDetails.user_preferences && Object.keys(hairstyleDetails.user_preferences).length > 0) ? (
-                        <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 sm:p-3 border border-white/10">
-                          <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-blue-400 mb-2 sm:mb-3">👤 Your Profile & Preferences</h3>
+                        <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 sm:p-3 lg:p-4 border border-white/10">
+                          <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-blue-400 mb-2 sm:mb-3 lg:mb-4">👤 Your Profile & Preferences</h3>
 
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-2 gap-2 sm:gap-2.5 lg:gap-3">
                             {hairstyleDetails.user_preferences.hair_type && (
-                              <div className="bg-white/5 rounded-lg p-2 border border-white/10">
-                                <h4 className="text-xs font-semibold text-purple-400 mb-0.5">Hair Type</h4>
-                                <p className="text-sm text-white font-medium capitalize">{hairstyleDetails.user_preferences.hair_type}</p>
+                              <div className="bg-white/5 rounded-lg p-2 lg:p-2.5 border border-white/10">
+                                <h4 className="text-xs font-semibold text-purple-400 mb-0.5 lg:mb-1">Hair Type</h4>
+                                <p className="text-sm lg:text-base text-white font-medium capitalize">{hairstyleDetails.user_preferences.hair_type}</p>
                               </div>
                             )}
                             {hairstyleDetails.user_preferences.hair_length && (
-                              <div className="bg-white/5 rounded-lg p-2 border border-white/10">
-                                <h4 className="text-xs font-semibold text-purple-400 mb-0.5">Length</h4>
-                                <p className="text-sm text-white font-medium capitalize">{hairstyleDetails.user_preferences.hair_length}</p>
+                              <div className="bg-white/5 rounded-lg p-2 lg:p-2.5 border border-white/10">
+                                <h4 className="text-xs font-semibold text-purple-400 mb-0.5 lg:mb-1">Length</h4>
+                                <p className="text-sm lg:text-base text-white font-medium capitalize">{hairstyleDetails.user_preferences.hair_length}</p>
                               </div>
                             )}
                             {hairstyleDetails.user_preferences.hair_thickness && (
-                              <div className="bg-white/5 rounded-lg p-2 border border-white/10">
-                                <h4 className="text-xs font-semibold text-purple-400 mb-0.5">Thickness</h4>
-                                <p className="text-sm text-white font-medium capitalize">{hairstyleDetails.user_preferences.hair_thickness}</p>
+                              <div className="bg-white/5 rounded-lg p-2 lg:p-2.5 border border-white/10">
+                                <h4 className="text-xs font-semibold text-purple-400 mb-0.5 lg:mb-1">Thickness</h4>
+                                <p className="text-sm lg:text-base text-white font-medium capitalize">{hairstyleDetails.user_preferences.hair_thickness}</p>
                               </div>
                             )}
                             {hairstyleDetails.user_preferences.hair_texture_detail && (
-                              <div className="bg-white/5 rounded-lg p-2 border border-white/10">
-                                <h4 className="text-xs font-semibold text-purple-400 mb-0.5">Texture</h4>
-                                <p className="text-sm text-white font-medium capitalize">{hairstyleDetails.user_preferences.hair_texture_detail}</p>
+                              <div className="bg-white/5 rounded-lg p-2 lg:p-2.5 border border-white/10">
+                                <h4 className="text-xs font-semibold text-purple-400 mb-0.5 lg:mb-1">Texture</h4>
+                                <p className="text-sm lg:text-base text-white font-medium capitalize">{hairstyleDetails.user_preferences.hair_texture_detail}</p>
                               </div>
                             )}
                             {hairstyleDetails.user_preferences.maintenance && (
-                              <div className="bg-white/5 rounded-lg p-2 border border-white/10">
-                                <h4 className="text-xs font-semibold text-purple-400 mb-0.5">Maintenance</h4>
-                                <p className="text-sm text-white font-medium capitalize">{hairstyleDetails.user_preferences.maintenance}</p>
+                              <div className="bg-white/5 rounded-lg p-2 lg:p-2.5 border border-white/10">
+                                <h4 className="text-xs font-semibold text-purple-400 mb-0.5 lg:mb-1">Maintenance</h4>
+                                <p className="text-sm lg:text-base text-white font-medium capitalize">{hairstyleDetails.user_preferences.maintenance}</p>
                               </div>
                             )}
                             {hairstyleDetails.user_preferences.lifestyle && (
-                              <div className="bg-white/5 rounded-lg p-2 border border-white/10">
-                                <h4 className="text-xs font-semibold text-purple-400 mb-0.5">Lifestyle</h4>
-                                <p className="text-sm text-white font-medium capitalize">{hairstyleDetails.user_preferences.lifestyle}</p>
+                              <div className="bg-white/5 rounded-lg p-2 lg:p-2.5 border border-white/10">
+                                <h4 className="text-xs font-semibold text-purple-400 mb-0.5 lg:mb-1">Lifestyle</h4>
+                                <p className="text-sm lg:text-base text-white font-medium capitalize">{hairstyleDetails.user_preferences.lifestyle}</p>
                               </div>
                             )}
                             {hairstyleDetails.user_preferences.gender && (
-                              <div className="bg-white/5 rounded-lg p-2 border border-white/10">
-                                <h4 className="text-xs font-semibold text-purple-400 mb-0.5">Gender</h4>
-                                <p className="text-sm text-white font-medium capitalize">{hairstyleDetails.user_preferences.gender}</p>
+                              <div className="bg-white/5 rounded-lg p-2 lg:p-2.5 border border-white/10">
+                                <h4 className="text-xs font-semibold text-purple-400 mb-0.5 lg:mb-1">Gender</h4>
+                                <p className="text-sm lg:text-base text-white font-medium capitalize">{hairstyleDetails.user_preferences.gender}</p>
                               </div>
                             )}
                             {hairstyleDetails.user_preferences.occasions && hairstyleDetails.user_preferences.occasions.length > 0 && (
-                              <div className="bg-white/5 rounded-lg p-2 border border-white/10 col-span-2">
-                                <h4 className="text-xs font-semibold text-purple-400 mb-0.5">Occasions</h4>
-                                <p className="text-sm text-white font-medium capitalize">{hairstyleDetails.user_preferences.occasions.join(', ')}</p>
+                              <div className="bg-white/5 rounded-lg p-2 lg:p-2.5 border border-white/10 col-span-2">
+                                <h4 className="text-xs font-semibold text-purple-400 mb-0.5 lg:mb-1">Occasions</h4>
+                                <p className="text-sm lg:text-base text-white font-medium capitalize">{hairstyleDetails.user_preferences.occasions.join(', ')}</p>
                               </div>
                             )}
                           </div>
                         </div>
                       ) : null}
 
-                      {/* LLM INTELLIGENT ANALYSIS */}
-                      {hairstyleDetails.llm_analysis && hairstyleDetails.llm_analysis.llm_generated && (
-                        <>
-                          {/* Compatibility Score */}
-                          {hairstyleDetails.llm_analysis.compatibility_score > 0 && (
-                            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
-                            <div className="flex items-center justify-between gap-2 sm:gap-3">
-                              <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-white">🎯 AI Compatibility Score</h3>
-                              <div className="flex items-center flex-shrink-0">
-                                <span className="text-2xl sm:text-4xl font-bold text-indigo-400">
-                                  {hairstyleDetails.llm_analysis.compatibility_score}
-                                </span>
-                                <span className="text-gray-400 text-lg sm:text-xl ml-1">/100</span>
-                              </div>
-                            </div>
-                            <div className="mt-2 bg-gray-700/50 rounded-full h-2.5 overflow-hidden">
-                              <div 
-                                className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-500"
-                                style={{ width: `${hairstyleDetails.llm_analysis.compatibility_score}%` }}
-                              />
-                            </div>
-                          </div>
-                        )}
-
-                          {/* Intelligent Summary */}
-                          {hairstyleDetails.llm_analysis.intelligent_summary && (
-                            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
-                              <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-blue-400 mb-1.5 sm:mb-2">🧠 AI Analysis</h3>
-                            <p className="text-xs sm:text-sm lg:text-base text-gray-300 leading-relaxed">
-                              {hairstyleDetails.llm_analysis.intelligent_summary}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Preference Insights */}
-                        {hairstyleDetails.llm_analysis.preference_insights && hairstyleDetails.llm_analysis.preference_insights.length > 0 && (
-                          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
-                            <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-blue-400 mb-1.5 sm:mb-2">✓ Preference Match Insights</h3>
-                            <ul className="space-y-2">
-                              {hairstyleDetails.llm_analysis.preference_insights.map((insight, idx) => (
-                                <li key={idx} className="flex items-start">
-                                  <span className="text-green-400 mr-2">•</span>
-                                  <span className="text-gray-300 text-sm">{insight}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {/* Lifestyle Fit */}
-                        {hairstyleDetails.llm_analysis.lifestyle_fit && (
-                          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
-                            <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-blue-400 mb-1.5 sm:mb-2">🌟 Lifestyle Fit</h3>
-                            <p className="text-xs sm:text-sm lg:text-base text-gray-300 leading-relaxed">
-                              {hairstyleDetails.llm_analysis.lifestyle_fit}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Styling Intelligence */}
-                        {hairstyleDetails.llm_analysis.styling_intelligence && hairstyleDetails.llm_analysis.styling_intelligence.length > 0 && (
-                          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
-                            <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-blue-400 mb-1.5 sm:mb-2">💡 Smart Styling Tips</h3>
-                            <ul className="space-y-2">
-                              {hairstyleDetails.llm_analysis.styling_intelligence.map((tip, idx) => (
-                                <li key={idx} className="text-gray-300 text-sm flex items-start">
-                                  <span className="text-yellow-400 mr-2">{idx + 1}.</span>
-                                  <span>{tip}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {/* Product Recommendations from LLM */}
-                        {hairstyleDetails.llm_analysis.product_recommendations && hairstyleDetails.llm_analysis.product_recommendations.length > 0 && (
-                          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
-                            <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-blue-400 mb-1.5 sm:mb-2">🛍️ Personalized Product Recommendations</h3>
-                            <ul className="space-y-2">
-                              {hairstyleDetails.llm_analysis.product_recommendations.map((product, idx) => (
-                                <li key={idx} className="text-gray-300 text-sm flex items-start">
-                                  <span className="text-orange-400 mr-2">{idx + 1}.</span>
-                                  <span>{product}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {/* Maintenance Reality */}
-                        {hairstyleDetails.llm_analysis.maintenance_reality && hairstyleDetails.llm_analysis.maintenance_reality.length > 0 && (
-                          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
-                            <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-blue-400 mb-1.5 sm:mb-2">🔧 Maintenance Reality</h3>
-                            <ul className="space-y-2">
-                              {hairstyleDetails.llm_analysis.maintenance_reality.map((item, idx) => (
-                                <li key={idx} className="text-gray-300 text-sm flex items-start">
-                                  <span className="text-cyan-400 mr-2">•</span>
-                                  <span>{item}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {/* Professional Tips */}
-                        {hairstyleDetails.llm_analysis.professional_tips && hairstyleDetails.llm_analysis.professional_tips.length > 0 && (
-                          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
-                            <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-blue-400 mb-1.5 sm:mb-2">👨‍🔬 Professional Tips</h3>
-                            <ul className="space-y-2">
-                              {hairstyleDetails.llm_analysis.professional_tips.map((tip, idx) => (
-                                <li key={idx} className="text-gray-300 text-sm flex items-start">
-                                  <span className="text-pink-400 mr-2">•</span>
-                                  <span>{tip}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {/* Fallback: Original Preference Match (if no LLM analysis) */}
-                    {(!hairstyleDetails.llm_analysis || !hairstyleDetails.llm_analysis.llm_generated) && 
-                     hairstyleDetails.preference_match && hairstyleDetails.preference_match.length > 0 && (
-                      <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
-                        <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-blue-400 mb-1.5 sm:mb-2">✓ How It Fits Your Preferences</h3>
-                        <ul className="space-y-2">
-                          {hairstyleDetails.preference_match.map((match, idx) => (
-                            <li key={idx} className="flex items-start">
-                              <span className="text-green-400 mr-2">•</span>
-                              <span className="text-gray-300 text-sm">{match}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                      {/* Preference Match - How it fits your preferences */}
+                      {hairstyleDetails.preference_match && hairstyleDetails.preference_match.length > 0 && (
+                        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-2 sm:p-3 lg:p-4">
+                          <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-blue-400 mb-2 sm:mb-3 lg:mb-4">✓ How It Fits Your Preferences</h3>
+                          <ul className="space-y-2 sm:space-y-2.5 lg:space-y-3">
+                            {hairstyleDetails.preference_match.map((match, idx) => (
+                              <li key={idx} className="flex items-start">
+                                <span className="text-green-400 mr-2 sm:mr-2.5 lg:mr-3 mt-0.5 flex-shrink-0">•</span>
+                                <span className="text-xs sm:text-sm lg:text-base text-gray-300 leading-relaxed text-justify">{match}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
 
                     {/* Recommended Products */}
                     {hairstyleDetails.recommended_products && hairstyleDetails.recommended_products.length > 0 && (
-                      <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
-                        <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-blue-400 mb-1.5 sm:mb-2">🛍️ Recommended Products</h3>
-                        <ul className="space-y-2">
+                      <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-2 sm:p-3 lg:p-4">
+                        <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-blue-400 mb-2 sm:mb-3 lg:mb-4">🛍️ Recommended Products</h3>
+                        <ul className="space-y-2 sm:space-y-2.5 lg:space-y-3">
                           {hairstyleDetails.recommended_products.map((product, idx) => (
-                            <li key={idx} className="text-gray-300 text-sm flex items-start">
-                              <span className="text-orange-400 mr-2">{idx + 1}.</span>
-                              <span>{product}</span>
+                            <li key={idx} className="flex items-start">
+                              <span className="text-orange-400 mr-2 sm:mr-2.5 lg:mr-3 flex-shrink-0 font-medium">{idx + 1}.</span>
+                              <span className="text-xs sm:text-sm lg:text-base text-gray-300 leading-relaxed text-justify">{product}</span>
                             </li>
                           ))}
                         </ul>
@@ -1045,13 +923,13 @@ const Results = () => {
 
                     {/* Maintenance Guide */}
                     {hairstyleDetails.maintenance_guide && hairstyleDetails.maintenance_guide.length > 0 && (
-                      <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
-                        <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-blue-400 mb-1.5 sm:mb-2">🔧 Maintenance Guide</h3>
-                        <ol className="space-y-2">
+                      <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-2 sm:p-3 lg:p-4">
+                        <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-blue-400 mb-2 sm:mb-3 lg:mb-4">🔧 Maintenance Guide</h3>
+                        <ol className="space-y-2 sm:space-y-2.5 lg:space-y-3">
                           {hairstyleDetails.maintenance_guide.map((step, idx) => (
-                            <li key={idx} className="text-gray-300 text-sm flex items-start">
-                              <span className="text-blue-400 font-medium mr-2">{idx + 1}.</span>
-                              <span>{step}</span>
+                            <li key={idx} className="flex items-start">
+                              <span className="text-blue-400 font-medium mr-2 sm:mr-2.5 lg:mr-3 flex-shrink-0">{idx + 1}.</span>
+                              <span className="text-xs sm:text-sm lg:text-base text-gray-300 leading-relaxed text-justify">{step}</span>
                             </li>
                           ))}
                         </ol>
@@ -1060,13 +938,13 @@ const Results = () => {
 
                     {/* Styling Tips */}
                     {hairstyleDetails.styling_tips && hairstyleDetails.styling_tips.length > 0 && (
-                      <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg sm:rounded-xl p-2 sm:p-3">
-                        <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-blue-400 mb-1.5 sm:mb-2">💡 Pro Styling Tips</h3>
-                        <ul className="space-y-2">
+                      <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-2 sm:p-3 lg:p-4">
+                        <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-blue-400 mb-2 sm:mb-3 lg:mb-4">💡 Pro Styling Tips</h3>
+                        <ul className="space-y-2 sm:space-y-2.5 lg:space-y-3">
                           {hairstyleDetails.styling_tips.map((tip, idx) => (
-                            <li key={idx} className="text-gray-300 text-sm flex items-start">
-                              <span className="text-pink-400 mr-2">→</span>
-                              <span>{tip}</span>
+                            <li key={idx} className="flex items-start">
+                              <span className="text-pink-400 mr-2 sm:mr-2.5 lg:mr-3 flex-shrink-0">→</span>
+                              <span className="text-xs sm:text-sm lg:text-base text-gray-300 leading-relaxed text-justify">{tip}</span>
                             </li>
                           ))}
                         </ul>
