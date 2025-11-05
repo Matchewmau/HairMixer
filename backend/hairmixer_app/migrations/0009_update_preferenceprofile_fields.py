@@ -1,5 +1,3 @@
-# Generated migration for PreferenceProfile model updates
-
 from django.db import migrations, models
 
 
@@ -7,8 +5,9 @@ def convert_hair_condition_to_list(apps, schema_editor):
     """Convert existing hair_condition CharField values to JSON arrays"""
     PreferenceProfile = apps.get_model('hairmixer_app', 'PreferenceProfile')
     for profile in PreferenceProfile.objects.all():
-        if profile.hair_condition and isinstance(profile.hair_condition, str):
-            # Convert single value to list
+        if profile.hair_condition and isinstance(
+            profile.hair_condition, str
+        ):
             profile.hair_condition = [profile.hair_condition]
             profile.save()
 
@@ -20,14 +19,11 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Step 1: Rename maintenance_level to maintenance
         migrations.RenameField(
             model_name='preferenceprofile',
             old_name='maintenance_level',
             new_name='maintenance',
         ),
-        
-        # Step 2: Add new fields with defaults
         migrations.AddField(
             model_name='preferenceprofile',
             name='hair_color',
@@ -88,15 +84,11 @@ class Migration(migrations.Migration):
                 max_length=20
             ),
         ),
-        
-        # Step 3: Rename hair_condition temporarily to preserve data
         migrations.RenameField(
             model_name='preferenceprofile',
             old_name='hair_condition',
             new_name='hair_condition_old',
         ),
-        
-        # Step 4: Add new JSONField for hair_condition
         migrations.AddField(
             model_name='preferenceprofile',
             name='hair_condition',
@@ -106,11 +98,10 @@ class Migration(migrations.Migration):
                 help_text='Multiple hair conditions'
             ),
         ),
-        
-        # Step 5: Run data migration to convert old values to new format
-        migrations.RunPython(convert_hair_condition_to_list, migrations.RunPython.noop),
-        
-        # Step 6: Remove old field and unused fields
+        migrations.RunPython(
+            convert_hair_condition_to_list,
+            migrations.RunPython.noop
+        ),
         migrations.RemoveField(
             model_name='preferenceprofile',
             name='hair_condition_old',
@@ -127,8 +118,6 @@ class Migration(migrations.Migration):
             model_name='preferenceprofile',
             name='preferred_colors',
         ),
-        
-        # Step 7: Alter other fields
         migrations.AlterField(
             model_name='preferenceprofile',
             name='gender',
