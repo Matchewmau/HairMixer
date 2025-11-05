@@ -9,6 +9,10 @@ import time
 
 logger = logging.getLogger(__name__)
 
+# Set deterministic behavior for consistent predictions
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
 
 class MobileNetV3FaceShapeClassifier(nn.Module):
     """MobileNetV3-Small model for face shape classification"""
@@ -206,6 +210,9 @@ class MobileNetModelLoader:
         
         try:
             t0 = time.perf_counter()
+            # Ensure model is in eval mode for deterministic predictions
+            self.model.eval()
+            
             try:
                 shape = tuple(input_tensor.shape)  # type: ignore[attr-defined]
                 batch_size = shape[0] if len(shape) > 0 else None

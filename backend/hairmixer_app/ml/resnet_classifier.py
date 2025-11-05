@@ -15,29 +15,54 @@ class ResNet50FaceShapeClassifier(nn.Module):
 
     def __init__(self, num_classes: int = 5, pretrained: bool = False):
         super().__init__()
-        # Avoid attempting to download weights by default
-        model = resnet50(weights=None if not pretrained else None)
-        in_features = model.fc.in_features  # 2048 for ResNet50
-        # Match checkpoint structure (indices with weights: 1,5,9,12)
-        model.fc = nn.Sequential(
-            nn.Dropout(p=0.0),                 # 0 (no weights)
+        # Create base ResNet50 and inherit its structure directly
+        base_model = resnet50(weights=None if not pretrained else None)
+        
+        # Copy all ResNet50 layers directly to this module (no wrapper)
+        self.conv1 = base_model.conv1
+        self.bn1 = base_model.bn1
+        self.relu = base_model.relu
+        self.maxpool = base_model.maxpool
+        self.layer1 = base_model.layer1
+        self.layer2 = base_model.layer2
+        self.layer3 = base_model.layer3
+        self.layer4 = base_model.layer4
+        self.avgpool = base_model.avgpool
+        
+        # Replace FC layer with custom head - EXACT architecture from training notebook
+        in_features = base_model.fc.in_features  # 2048 for ResNet50
+        self.fc = nn.Sequential(
+            nn.Dropout(p=0.5),                 # 0 - matches training
             nn.Linear(in_features, 2048),      # 1
             nn.ReLU(inplace=True),             # 2
             nn.BatchNorm1d(2048),              # 3
-            nn.Dropout(p=0.2),                 # 4
+            nn.Dropout(p=0.4),                 # 4 - matches training
             nn.Linear(2048, 1024),             # 5
             nn.ReLU(inplace=True),             # 6
             nn.BatchNorm1d(1024),              # 7
-            nn.Dropout(p=0.2),                 # 8
+            nn.Dropout(p=0.3),                 # 8 - matches training
             nn.Linear(1024, 512),              # 9
             nn.ReLU(inplace=True),             # 10
             nn.Dropout(p=0.2),                 # 11
             nn.Linear(512, num_classes),       # 12
         )
-        self.model = model
 
     def forward(self, x):
-        return self.model(x)
+        # ResNet50 forward pass
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+        
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        x = self.fc(x)
+        return x
 
 
 class ResNetModelLoader:
@@ -117,18 +142,27 @@ class ResNetModelLoader:
                     for k, v in state.items()
                 }
 
-            # Load with strict=False to allow minor head differences
+            # Load weights - use strict=True to catch mismatches
             missing, unexpected = self.model.load_state_dict(
-                state, strict=False
+                state, strict=True
             )
             if missing or unexpected:
-                logger.debug(
-                    "State dict mismatches",
+                logger.error(
+                    "⚠️  State dict MISMATCH! Model may not work correctly!",
                     extra={
                         "missing": missing[:20],
                         "unexpected": unexpected[:20],
                     },
                 )
+                logger.error(
+                    "Missing keys: %s",
+                    missing[:10] if missing else "none"
+                )
+                logger.error(
+                    "Unexpected keys: %s",
+                    unexpected[:10] if unexpected else "none"
+                )
+                return False
 
             self.model.to(self.device)
             self.model.eval()
@@ -180,6 +214,9 @@ class ResNetModelLoader:
 
         try:
             t0 = time.perf_counter()
+            # Ensure model is in eval mode for deterministic predictions
+            self.model.eval()
+            
             with torch.no_grad():
                 input_tensor = input_tensor.to(self.device)
                 outputs = self.model(input_tensor)
