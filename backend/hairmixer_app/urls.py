@@ -106,6 +106,18 @@ urlpatterns = [
         views.PreferenceProfileSetDefaultView.as_view(),
         name='preference_profile_set_default',
     ),
+
+    # Saved Hairstyles endpoints
+    path(
+        'saved-hairstyles/',
+        views.SavedHairstyleListCreateView.as_view(),
+        name='saved_hairstyles_list',
+    ),
+    path(
+        'saved-hairstyles/<uuid:saved_id>/',
+        views.SavedHairstyleDetailView.as_view(),
+        name='saved_hairstyle_detail',
+    ),
     
     # Search and filter endpoints
     path('search/', views.SearchView.as_view(), name='search'),

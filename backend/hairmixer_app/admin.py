@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser, UserProfile
+from .models import CustomUser, UserProfile, SavedHairstyle
 
 class UserProfileInline(admin.StackedInline):
     model = UserProfile
@@ -49,9 +49,30 @@ class UserProfileAdmin(admin.ModelAdmin):
     
     readonly_fields = ('created_at', 'updated_at')
 
+
+# Saved Hairstyle Admin
+class SavedHairstyleAdmin(admin.ModelAdmin):
+    list_display = (
+        'user',
+        'hairstyle_name',
+        'face_shape',
+        'saved_at'
+    )
+    list_filter = ('saved_at', 'face_shape')
+    search_fields = (
+        'user__email',
+        'hairstyle_name',
+        'hairstyle__name'
+    )
+    readonly_fields = ('saved_at',)
+    date_hierarchy = 'saved_at'
+    ordering = ('-saved_at',)
+
+
 # Register your models here
 admin.site.register(CustomUser, CustomUserAdmin)
 admin.site.register(UserProfile, UserProfileAdmin)
+admin.site.register(SavedHairstyle, SavedHairstyleAdmin)
 
 # Customize admin site header and title
 admin.site.site_header = "HairMixer Admin"

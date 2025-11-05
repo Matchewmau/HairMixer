@@ -4,9 +4,9 @@ from PIL import Image as PILImage
 import hashlib
 import json
 from .models import (
-    CustomUser, UserProfile, PreferenceProfile, UploadedImage, UserPreference, 
+    CustomUser, UserProfile, PreferenceProfile, UploadedImage, UserPreference,
     Hairstyle, HairstyleCategory, RecommendationLog, Feedback,
-    AnalyticsEvent
+    AnalyticsEvent, SavedHairstyle
 )
 from drf_spectacular.utils import extend_schema_field
 
@@ -21,6 +21,11 @@ class OverlayRequestSerializer(serializers.Serializer):
         choices=[('basic', 'basic'), ('advanced', 'advanced')],
         default='basic',
     )
+    use_hair_color = serializers.BooleanField(
+        default=False,
+        required=False,
+        help_text='Whether to use user preference hair color in prompt'
+    )
 
 class OverlayResponseSerializer(serializers.Serializer):
     overlay_url = serializers.CharField()
@@ -29,12 +34,31 @@ class OverlayResponseSerializer(serializers.Serializer):
     )
 
 class UserSerializer(serializers.ModelSerializer):
+    # Support both camelCase (frontend) and snake_case (backend)
+    firstName = serializers.CharField(
+        source='first_name',
+        required=False,
+        allow_blank=True
+    )
+    lastName = serializers.CharField(
+        source='last_name',
+        required=False,
+        allow_blank=True
+    )
+
     class Meta:
         model = CustomUser
-        fields = ['id', 'email', 'first_name', 'last_name', 'date_joined']
+        fields = [
+            'id', 'email', 'first_name', 'last_name',
+            'firstName', 'lastName', 'date_joined'
+        ]
         extra_kwargs = {
-            'password': {'write_only': True}
+            'password': {'write_only': True},
+            'email': {'read_only': True},  # Don't allow email changes
+            'first_name': {'required': False},
+            'last_name': {'required': False},
         }
+
 
 class UserRegistrationSerializer(serializers.Serializer):
     firstName = serializers.CharField(max_length=30)
@@ -331,3 +355,57 @@ class AnalyticsEventSerializer(serializers.ModelSerializer):
         model = AnalyticsEvent
         fields = ["event_type", "event_data", "session_id", "created_at"]
         read_only_fields = ["user", "ip_address", "user_agent"]
+
+
+class SavedHairstyleSerializer(serializers.ModelSerializer):
+    """Serializer for saved hairstyles with user preferences tracking"""
+    hairstyle_id = serializers.UUIDField(write_only=True)
+    hairstyle_details = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = SavedHairstyle
+        fields = [
+            'id', 'hairstyle_id', 'hairstyle_name',
+            'recommendation_data', 'user_preferences',
+            'face_shape', 'face_shape_confidence',
+            'overlay_url', 'personalized_description',
+            'saved_at', 'notes', 'hairstyle_details'
+        ]
+        read_only_fields = ['id', 'saved_at', 'hairstyle_details']
+
+    def get_hairstyle_details(self, obj):
+        """Include basic hairstyle details"""
+        if obj.hairstyle:
+            return {
+                'id': str(obj.hairstyle.id),
+                'name': obj.hairstyle.name,
+                'description': obj.hairstyle.description,
+                'image_url': (
+                    obj.hairstyle.image.url if obj.hairstyle.image
+                    else obj.hairstyle.image_url
+                ),
+                'category': (
+                    obj.hairstyle.category.name
+                    if obj.hairstyle.category else None
+                ),
+                'difficulty': obj.hairstyle.difficulty,
+                'maintenance': obj.hairstyle.maintenance,
+            }
+        return None
+
+    def create(self, validated_data):
+        hairstyle_id = validated_data.pop('hairstyle_id')
+        try:
+            hairstyle = Hairstyle.objects.get(id=hairstyle_id)
+            validated_data['hairstyle'] = hairstyle
+            # Store hairstyle name at save time
+            if not validated_data.get('hairstyle_name'):
+                validated_data['hairstyle_name'] = hairstyle.name
+        except Hairstyle.DoesNotExist:
+            raise serializers.ValidationError(
+                {"hairstyle_id": "Hairstyle not found"}
+            )
+
+        # Set user from request context
+        validated_data['user'] = self.context['request'].user
+        return super().create(validated_data)

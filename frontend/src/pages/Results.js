@@ -25,17 +25,22 @@ const Results = () => {
   // State for image modal
   const [showImageModal, setShowImageModal] = useState(false);
 
-  const loadSavedHairstyles = useCallback(() => {
+  // AbortController for canceling overlay generation
+  const [overlayAbortController, setOverlayAbortController] = useState(null);
+
+  // Track which hairstyles have been saved in this session
+  const [savedThisSession, setSavedThisSession] = useState(new Set());
+
+  const loadSavedHairstyles = useCallback(async () => {
     try {
       if (!user?.id) return;
-      
-      const storageKey = `saved_hairstyle_recommendations_user_${user.id}`;
-      const storedSaved = localStorage.getItem(storageKey);
-      if (storedSaved) {
-        setSavedHairstyles(JSON.parse(storedSaved));
-      }
+
+      // Load from backend API
+      const saved = await apiService.getSavedHairstyles();
+      setSavedHairstyles(saved || []);
     } catch (error) {
       console.error('Failed to load saved hairstyles:', error);
+      setSavedHairstyles([]);
     }
   }, [user?.id]);
 
@@ -77,46 +82,74 @@ const Results = () => {
     };
   }, [showTryHairstyleModal, showImageModal]);
 
-  const saveHairstyleRecommendation = (hairstyleId, hairstyleName, recommendation) => {
+  const saveHairstyleRecommendation = async (hairstyleId, hairstyleName, recommendation) => {
     try {
       if (!user?.id) {
         console.error('User must be logged in to save hairstyles');
         return;
       }
-      
-      const storageKey = `saved_hairstyle_recommendations_user_${user.id}`;
-      const storedSaved = localStorage.getItem(storageKey);
-      let currentSaved = storedSaved ? JSON.parse(storedSaved) : [];
-      
-      const isAlreadySaved = currentSaved.some(saved => saved.id === hairstyleId);
-      
-      if (isAlreadySaved) {
-        // Remove if already saved
-        currentSaved = currentSaved.filter(saved => saved.id !== hairstyleId);
-      } else {
-        // Save the full recommendation data
-        currentSaved.push({
-          id: hairstyleId,
-          name: hairstyleName,
-          recommendation: recommendation,
-          face_shape: uploadResponse?.face_shape?.shape || null,
-          face_shape_confidence: uploadResponse?.face_shape?.confidence || null,
-          user_preferences: preferences || null,
-          overlay_url: hairstyleDetails?.overlay_url || null,
-          personalized_description: hairstyleDetails?.personalized_description || null,
-          saved_at: new Date().toISOString()
-        });
+
+      // Check if already saved in this session - if so, unsave it
+      if (savedThisSession.has(hairstyleId)) {
+        // Find the saved hairstyle(s) for this hairstyle ID
+        const savedItems = savedHairstyles.filter(
+          saved => (saved.hairstyle_id === hairstyleId) || (saved.hairstyle?.id === hairstyleId)
+        );
+        
+        // Delete the most recent one
+        if (savedItems.length > 0) {
+          const mostRecent = savedItems[savedItems.length - 1];
+          await apiService.deleteSavedHairstyle(mostRecent.id);
+          
+          // Remove from session tracking
+          setSavedThisSession(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(hairstyleId);
+            return newSet;
+          });
+          
+          // Reload saved hairstyles
+          await loadSavedHairstyles();
+        }
+        return;
       }
-      
-      localStorage.setItem(storageKey, JSON.stringify(currentSaved));
-      setSavedHairstyles(currentSaved);
+
+      // Save the hairstyle
+      const savedData = {
+        hairstyle_id: hairstyleId,
+        hairstyle_name: hairstyleName,
+        recommendation_data: recommendation,
+        face_shape: uploadResponse?.face_shape?.shape || null,
+        face_shape_confidence: uploadResponse?.face_shape?.confidence || null,
+        user_preferences: preferences || {},
+        overlay_url: hairstyleDetails?.overlay_url || null,
+        personalized_description: hairstyleDetails?.personalized_description || null,
+      };
+
+      await apiService.saveHairstyle(savedData);
+
+      // Mark as saved in this session
+      setSavedThisSession(prev => new Set([...prev, hairstyleId]));
+
+      // Reload saved hairstyles
+      await loadSavedHairstyles();
     } catch (error) {
-      console.error('Failed to save hairstyle:', error);
+      console.error('Failed to save/unsave hairstyle:', error);
     }
   };
 
   const isHairstyleSaved = (hairstyleId) => {
-    return savedHairstyles.some(saved => saved.id === hairstyleId);
+    return savedHairstyles.some(
+      saved => (saved.hairstyle_id === hairstyleId) ||
+      (saved.hairstyle?.id === hairstyleId)
+    );
+  };
+
+  const getHairstyleSaveCount = (hairstyleId) => {
+    return savedHairstyles.filter(
+      saved => (saved.hairstyle_id === hairstyleId) ||
+      (saved.hairstyle?.id === hairstyleId)
+    ).length;
   };
 
   const checkAuth = async () => {
@@ -168,31 +201,48 @@ const Results = () => {
       
       // If not cached, fetch from API
       setLoadingDetails(true);
-      
+
       // Fetch detailed information
       const details = await apiService.getHairstyleDetailsWithAI(
         style.id,
         preferences?.id || null,
         uploadResponse?.image_id || null
       );
-      
-      // Generate overlay
+
+      // Generate overlay with AbortController for cancellation
       if (uploadResponse?.image_id && style?.id) {
         try {
+          // Create new AbortController for this overlay request
+          const controller = new AbortController();
+          setOverlayAbortController(controller);
+
           const resp = await apiService.generateOverlay(
             uploadResponse.image_id,
             style.id,
-            'advanced'
+            'advanced',
+            controller.signal, // Pass the abort signal
+            true // Use hair color from user preferences
           );
           details.overlay_url = resolveMediaUrl(resp.overlay_url);
+
+          // Clear the abort controller after successful completion
+          setOverlayAbortController(null);
         } catch (overlayError) {
+          if (overlayError.name === 'AbortError') {
+            console.log('Overlay generation was cancelled');
+            setDetailsError('Overlay generation was cancelled');
+            setLoadingDetails(false);
+            setOverlayAbortController(null);
+            return;
+          }
           console.warn('Overlay generation failed:', overlayError);
           details.overlay_url = null;
+          setOverlayAbortController(null);
         }
       }
-      
+
       setHairstyleDetails(details);
-      
+
       // Cache the details for future use
       setHairstyleDetailsCache(prev => ({
         ...prev,
@@ -203,6 +253,19 @@ const Results = () => {
       setDetailsError(e?.message || 'Failed to load hairstyle details');
     } finally {
       setLoadingDetails(false);
+      setOverlayAbortController(null);
+    }
+  };
+
+  const cancelOverlayGeneration = () => {
+    if (overlayAbortController) {
+      console.log('Cancelling overlay generation...');
+      overlayAbortController.abort();
+      setOverlayAbortController(null);
+      setLoadingDetails(false);
+      setShowTryHairstyleModal(false);
+      setHairstyleDetails(null);
+      setDetailsError('');
     }
   };
 
@@ -597,7 +660,13 @@ const Results = () => {
             {loadingDetails ? (
               <div className="p-8 sm:p-12 text-center">
                 <div className="inline-block animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-purple-500 mb-4"></div>
-                <p className="text-white text-base sm:text-lg">Loading hairstyle details...</p>
+                <p className="text-white text-base sm:text-lg mb-6">Loading hairstyle details and generating overlay...</p>
+                <button
+                  onClick={cancelOverlayGeneration}
+                  className="bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-lg transition-all duration-300 font-medium shadow-lg"
+                >
+                  Cancel
+                </button>
               </div>
             ) : detailsError ? (
               <div className="p-8 sm:p-12 text-center">
@@ -625,17 +694,23 @@ const Results = () => {
                         recommendations.recommendations[currentHairstyleIndex]
                       )}
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all duration-300 text-sm ${
-                        isHairstyleSaved(recommendations.recommendations[currentHairstyleIndex].id)
+                        savedThisSession.has(recommendations.recommendations[currentHairstyleIndex].id)
                           ? 'bg-green-600 text-white hover:bg-green-700'
+                          : isHairstyleSaved(recommendations.recommendations[currentHairstyleIndex].id)
+                          ? 'bg-blue-600 text-white hover:bg-blue-700'
                           : 'bg-white/10 text-gray-300 hover:bg-white/20 hover:text-white border border-white/20'
                       }`}
-                      aria-label="Save hairstyle recommendation"
+                      aria-label="Save or unsave hairstyle recommendation"
                     >
-                      <svg className="w-4 h-4" fill={isHairstyleSaved(recommendations.recommendations[currentHairstyleIndex].id) ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4" fill={savedThisSession.has(recommendations.recommendations[currentHairstyleIndex].id) || isHairstyleSaved(recommendations.recommendations[currentHairstyleIndex].id) ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                       </svg>
                       <span className="font-medium">
-                        {isHairstyleSaved(recommendations.recommendations[currentHairstyleIndex].id) ? 'Saved' : 'Save'}
+                        {savedThisSession.has(recommendations.recommendations[currentHairstyleIndex].id)
+                          ? 'Unsave'
+                          : isHairstyleSaved(recommendations.recommendations[currentHairstyleIndex].id) 
+                          ? `Save Again (${getHairstyleSaveCount(recommendations.recommendations[currentHairstyleIndex].id)} saved)` 
+                          : 'Save'}
                       </span>
                     </button>
                     <button

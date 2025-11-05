@@ -674,3 +674,74 @@ class CachedRecommendation(models.Model):
     
     def is_expired(self):
         return timezone.now() > self.expires_at
+
+
+class SavedHairstyle(models.Model):
+    """
+    Saved hairstyle recommendations with user preferences tracking.
+
+    This model allows users to save recommended hairstyles multiple times
+    with different preferences, enabling the system to gather data on
+    user's preferred hairstyles. The same hairstyle can be saved multiple
+    times with different preference contexts.
+    """
+    id = models.UUIDField(
+        primary_key=True, default=uuid.uuid4, editable=False
+    )
+    user = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='saved_hairstyles'
+    )
+    hairstyle = models.ForeignKey(
+        Hairstyle,
+        on_delete=models.CASCADE,
+        related_name='saved_by_users'
+    )
+
+    # Store the recommendation details at the time of saving
+    hairstyle_name = models.CharField(max_length=200)
+    recommendation_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Full recommendation object including "
+            "match scores, category, etc."
+        )
+    )
+
+    # User preferences at the time of saving
+    user_preferences = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="User preferences used to generate this recommendation"
+    )
+
+    # Face shape analysis at the time of saving
+    face_shape = models.CharField(max_length=50, blank=True, null=True)
+    face_shape_confidence = models.FloatField(null=True, blank=True)
+
+    # Overlay information
+    overlay_url = models.CharField(max_length=500, blank=True, null=True)
+    personalized_description = models.TextField(blank=True, null=True)
+
+    # Metadata
+    saved_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(
+        blank=True,
+        help_text="User's personal notes about this saved hairstyle"
+    )
+
+    class Meta:
+        ordering = ['-saved_at']
+        indexes = [
+            models.Index(fields=['user', '-saved_at']),
+            models.Index(fields=['hairstyle', '-saved_at']),
+            models.Index(fields=['user', 'hairstyle']),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.user.email} saved "
+            f"{self.hairstyle_name} at {self.saved_at}"
+        )

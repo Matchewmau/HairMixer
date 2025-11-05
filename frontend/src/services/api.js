@@ -17,6 +17,7 @@ class APIService {
         ...options.headers,
       },
       body: options.body,
+      signal: options.signal, // Add signal for AbortController
     };
 
     try {
@@ -39,6 +40,11 @@ class APIService {
         error.status = response.status;
         error.data = errorData;
         throw error;
+      }
+      
+      // Handle 204 No Content responses (e.g., DELETE operations)
+      if (response.status === 204) {
+        return null;
       }
       
       return await response.json();
@@ -135,14 +141,16 @@ class APIService {
   }
 
   // Overlay generation
-  async generateOverlay(imageId, hairstyleId, overlayType = 'advanced') {
+  async generateOverlay(imageId, hairstyleId, overlayType = 'advanced', signal = null, useHairColor = false) {
     return this.request('/overlay/', {
       method: 'POST',
       body: JSON.stringify({
         image_id: imageId,
         hairstyle_id: hairstyleId,
         overlay_type: overlayType,
+        use_hair_color: useHairColor,
       }),
+      signal: signal, // Add signal for AbortController
     });
   }
 
@@ -218,6 +226,35 @@ class APIService {
   async setDefaultProfile(profileId) {
     return this.request(`/preference-profiles/${profileId}/set-default/`, {
       method: 'POST',
+    });
+  }
+
+  // Saved Hairstyles
+  async getSavedHairstyles() {
+    return this.request('/saved-hairstyles/');
+  }
+
+  async saveHairstyle(hairstyleData) {
+    return this.request('/saved-hairstyles/', {
+      method: 'POST',
+      body: JSON.stringify(hairstyleData),
+    });
+  }
+
+  async getSavedHairstyle(savedId) {
+    return this.request(`/saved-hairstyles/${savedId}/`);
+  }
+
+  async updateSavedHairstyle(savedId, hairstyleData) {
+    return this.request(`/saved-hairstyles/${savedId}/`, {
+      method: 'PUT',
+      body: JSON.stringify(hairstyleData),
+    });
+  }
+
+  async deleteSavedHairstyle(savedId) {
+    return this.request(`/saved-hairstyles/${savedId}/`, {
+      method: 'DELETE',
     });
   }
 

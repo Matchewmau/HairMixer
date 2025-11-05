@@ -22,6 +22,8 @@ from .user import (
     UserRecommendationsView,
     UserFavoritesView,
     UserHistoryView,
+    SavedHairstyleListCreateView,
+    SavedHairstyleDetailView,
 )
 from .preference_profiles import (
     PreferenceProfileListCreateView,
@@ -69,6 +71,8 @@ __all__ = [
     'UserRecommendationsView',
     'UserFavoritesView',
     'UserHistoryView',
+    'SavedHairstyleListCreateView',
+    'SavedHairstyleDetailView',
     # preference profiles
     'PreferenceProfileListCreateView',
     'PreferenceProfileDetailView',

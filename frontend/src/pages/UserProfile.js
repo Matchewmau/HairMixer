@@ -82,23 +82,38 @@ const UserProfile = () => {
     checkAuth();
   }, [navigate, loadPreferenceProfiles]);
 
-  const loadSavedHairstyles = useCallback(() => {
+  const loadSavedHairstyles = useCallback(async () => {
     if (!user?.id) return;
-    
-    const storageKey = `saved_hairstyle_recommendations_user_${user.id}`;
-    const storedSaved = localStorage.getItem(storageKey);
-    if (storedSaved) {
-      setSavedHairstyles(JSON.parse(storedSaved));
+
+    try {
+      const saved = await apiService.getSavedHairstyles();
+      setSavedHairstyles(saved || []);
+    } catch (error) {
+      console.error('Failed to load saved hairstyles:', error);
+      setSavedHairstyles([]);
     }
   }, [user?.id]);
 
-  const removeSavedHairstyle = (hairstyleId) => {
+  const removeSavedHairstyle = async (savedId) => {
     if (!user?.id) return;
-    
-    const updatedSaved = savedHairstyles.filter(saved => saved.id !== hairstyleId);
-    setSavedHairstyles(updatedSaved);
-    const storageKey = `saved_hairstyle_recommendations_user_${user.id}`;
-    localStorage.setItem(storageKey, JSON.stringify(updatedSaved));
+
+    try {
+      console.log('Deleting saved hairstyle with ID:', savedId);
+      await apiService.deleteSavedHairstyle(savedId);
+      
+      // Immediately update the UI by filtering out the deleted item
+      setSavedHairstyles(prev => prev.filter(saved => saved.id !== savedId));
+      
+      // Close modal if it's the currently viewed item
+      if (selectedSaved?.id === savedId) {
+        closeSavedModal();
+      }
+    } catch (error) {
+      console.error('Failed to remove saved hairstyle:', error);
+      alert('Failed to delete hairstyle. Please try again.');
+      // Reload to ensure consistency
+      await loadSavedHairstyles();
+    }
   };
 
   const handleViewSaved = (saved) => {
@@ -504,7 +519,7 @@ const UserProfile = () => {
                       <div className="relative h-48 overflow-hidden bg-gradient-to-br from-purple-600/20 to-blue-600/20">
                         <img 
                           src={saved.overlay_url}
-                          alt={saved.name}
+                          alt={saved.hairstyle_name || saved.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                       </div>
@@ -513,7 +528,7 @@ const UserProfile = () => {
                     <div className="p-4">
                       <div className="flex items-start justify-between mb-3">
                         <h3 className="text-white font-semibold text-lg flex-1 pr-2 group-hover:text-blue-400 transition-colors">
-                          {saved.name}
+                          {saved.hairstyle_name || saved.name}
                         </h3>
                         <button
                           onClick={(e) => {
@@ -1106,7 +1121,7 @@ const UserProfile = () => {
               {/* Header */}
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold text-white">
-                  {selectedSaved.name}
+                  {selectedSaved.hairstyle_name || selectedSaved.name}
                 </h2>
                 <button
                   onClick={closeSavedModal}
@@ -1126,7 +1141,7 @@ const UserProfile = () => {
                     <div className="flex justify-center">
                       <img
                         src={selectedSaved.overlay_url}
-                        alt={`${selectedSaved.name} overlay preview`}
+                        alt={`${selectedSaved.hairstyle_name || selectedSaved.name} overlay preview`}
                         className="max-w-md w-full rounded-lg shadow-lg"
                       />
                     </div>
@@ -1140,6 +1155,15 @@ const UserProfile = () => {
                     <p className="text-gray-300 leading-relaxed whitespace-pre-line">
                       {selectedSaved.personalized_description}
                     </p>
+                    
+                    {/* Face Shape Specific Benefits */}
+                    {selectedSaved.face_shape && (
+                      <div className="bg-white/5 border border-white/10 rounded-lg p-3 mt-3">
+                        <p className="text-sm text-gray-300">
+                          <strong className="text-blue-300">Perfect for your {selectedSaved.face_shape} face:</strong> This hairstyle helps balance your facial proportions, highlights your best features, and creates a harmonious overall look that's tailored to your unique face shape.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1147,58 +1171,210 @@ const UserProfile = () => {
                 {selectedSaved.face_shape && (
                   <div className="bg-green-900/20 border border-green-500/30 rounded-xl p-4">
                     <h3 className="text-lg font-semibold text-white mb-2">Face Shape Analysis</h3>
-                    <p className="text-green-300 capitalize">
-                      Your face shape: <span className="font-semibold">{selectedSaved.face_shape}</span>
-                    </p>
-                    <p className="text-gray-400 text-sm mt-1">
-                      This hairstyle was selected based on your unique facial features
-                    </p>
-                  </div>
-                )}
-
-                {/* User Preferences Used */}
-                {selectedSaved.user_preferences && (
-                  <div className="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4">
-                    <h3 className="text-lg font-semibold text-white mb-3">👤 Your Preferences</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      {selectedSaved.user_preferences.gender && (
-                        <div className="text-sm">
-                          <span className="text-gray-400">Gender:</span>
-                          <span className="text-purple-300 ml-2 capitalize">{selectedSaved.user_preferences.gender}</span>
-                        </div>
-                      )}
-                      {selectedSaved.user_preferences.hair_texture && (
-                        <div className="text-sm">
-                          <span className="text-gray-400">Hair Texture:</span>
-                          <span className="text-purple-300 ml-2 capitalize">{selectedSaved.user_preferences.hair_texture}</span>
-                        </div>
-                      )}
-                      {selectedSaved.user_preferences.hair_length && (
-                        <div className="text-sm">
-                          <span className="text-gray-400">Hair Length:</span>
-                          <span className="text-purple-300 ml-2 capitalize">{selectedSaved.user_preferences.hair_length}</span>
-                        </div>
-                      )}
-                      {selectedSaved.user_preferences.lifestyle && (
-                        <div className="text-sm">
-                          <span className="text-gray-400">Lifestyle:</span>
-                          <span className="text-purple-300 ml-2 capitalize">{selectedSaved.user_preferences.lifestyle}</span>
-                        </div>
-                      )}
-                      {selectedSaved.user_preferences.hair_condition && (
-                        <div className="text-sm">
-                          <span className="text-gray-400">Hair Condition:</span>
-                          <span className="text-purple-300 ml-2 capitalize">{selectedSaved.user_preferences.hair_condition}</span>
-                        </div>
-                      )}
-                      {selectedSaved.user_preferences.maintenance_level && (
-                        <div className="text-sm">
-                          <span className="text-gray-400">Maintenance:</span>
-                          <span className="text-purple-300 ml-2 capitalize">{selectedSaved.user_preferences.maintenance_level}</span>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-green-300 capitalize text-lg">
+                          <span className="font-semibold">{selectedSaved.face_shape}</span>
+                        </p>
+                        <p className="text-gray-400 text-sm mt-1">
+                          Selected based on your unique facial features
+                        </p>
+                      </div>
+                      {selectedSaved.face_shape_confidence && (
+                        <div className="text-right">
+                          <span className="text-green-400 font-bold text-xl">
+                            {Math.round(selectedSaved.face_shape_confidence * 100)}%
+                          </span>
+                          <p className="text-xs text-gray-400">Confidence</p>
                         </div>
                       )}
                     </div>
                   </div>
+                )}
+
+                {/* User Preferences Used */}
+                {selectedSaved.user_preferences && Object.keys(selectedSaved.user_preferences).length > 0 && (
+                  <div className="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4">
+                    <h3 className="text-lg font-semibold text-white mb-3">👤 Your Profile & Preferences</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      {selectedSaved.user_preferences.hair_type && (
+                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
+                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Hair Type</h4>
+                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.hair_type}</p>
+                        </div>
+                      )}
+                      {selectedSaved.user_preferences.hair_length && (
+                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
+                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Length</h4>
+                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.hair_length}</p>
+                        </div>
+                      )}
+                      {selectedSaved.user_preferences.hair_thickness && (
+                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
+                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Thickness</h4>
+                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.hair_thickness}</p>
+                        </div>
+                      )}
+                      {selectedSaved.user_preferences.hair_texture_detail && (
+                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
+                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Texture</h4>
+                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.hair_texture_detail}</p>
+                        </div>
+                      )}
+                      {selectedSaved.user_preferences.hair_texture && (
+                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
+                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Hair Texture</h4>
+                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.hair_texture}</p>
+                        </div>
+                      )}
+                      {selectedSaved.user_preferences.maintenance && (
+                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
+                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Maintenance</h4>
+                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.maintenance}</p>
+                        </div>
+                      )}
+                      {selectedSaved.user_preferences.maintenance_level && (
+                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
+                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Maintenance Level</h4>
+                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.maintenance_level}</p>
+                        </div>
+                      )}
+                      {selectedSaved.user_preferences.lifestyle && (
+                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
+                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Lifestyle</h4>
+                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.lifestyle}</p>
+                        </div>
+                      )}
+                      {selectedSaved.user_preferences.gender && (
+                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
+                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Gender</h4>
+                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.gender}</p>
+                        </div>
+                      )}
+                      {selectedSaved.user_preferences.hair_color && (
+                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
+                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Hair Color</h4>
+                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.hair_color}</p>
+                        </div>
+                      )}
+                      {selectedSaved.user_preferences.styling_preference && (
+                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
+                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Style Preference</h4>
+                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.styling_preference}</p>
+                        </div>
+                      )}
+                      {selectedSaved.user_preferences.hair_condition && (
+                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
+                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Hair Condition</h4>
+                          <p className="text-sm text-white font-medium capitalize">
+                            {Array.isArray(selectedSaved.user_preferences.hair_condition) 
+                              ? selectedSaved.user_preferences.hair_condition.join(', ')
+                              : selectedSaved.user_preferences.hair_condition}
+                          </p>
+                        </div>
+                      )}
+                      {selectedSaved.user_preferences.occasions && selectedSaved.user_preferences.occasions.length > 0 && (
+                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10 col-span-2">
+                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Occasions</h4>
+                          <p className="text-sm text-white font-medium capitalize">
+                            {selectedSaved.user_preferences.occasions.join(', ')}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Hairstyle Details from recommendation_data */}
+                {selectedSaved.recommendation_data && (
+                  <>
+                    {/* Match Score */}
+                    {selectedSaved.recommendation_data.match_score && (
+                      <div className="bg-gradient-to-r from-green-900/30 to-emerald-900/30 border border-green-500/30 rounded-xl p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="text-lg font-semibold text-white mb-1">Match Score</h3>
+                            <p className="text-gray-300 text-sm">Compatibility with your preferences</p>
+                          </div>
+                          <div className="text-4xl font-bold text-green-400">
+                            {Math.round(selectedSaved.recommendation_data.match_score * 100)}%
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Styling Tips */}
+                    {selectedSaved.recommendation_data.styling_tips && (
+                      <div className="bg-pink-900/20 border border-pink-500/30 rounded-xl p-4">
+                        <h3 className="text-lg font-semibold text-white mb-3">💡 Styling Tips</h3>
+                        <p className="text-gray-300 leading-relaxed whitespace-pre-line">
+                          {selectedSaved.recommendation_data.styling_tips}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Maintenance Guide */}
+                    {selectedSaved.recommendation_data.maintenance_guide && (
+                      <div className="bg-orange-900/20 border border-orange-500/30 rounded-xl p-4">
+                        <h3 className="text-lg font-semibold text-white mb-3">🛠️ Maintenance Guide</h3>
+                        <p className="text-gray-300 leading-relaxed whitespace-pre-line">
+                          {selectedSaved.recommendation_data.maintenance_guide}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Product Recommendations */}
+                    {selectedSaved.recommendation_data.product_recommendations && selectedSaved.recommendation_data.product_recommendations.length > 0 && (
+                      <div className="bg-indigo-900/20 border border-indigo-500/30 rounded-xl p-4">
+                        <h3 className="text-lg font-semibold text-white mb-3">🧴 Recommended Products</h3>
+                        <ul className="space-y-2">
+                          {selectedSaved.recommendation_data.product_recommendations.map((product, idx) => (
+                            <li key={idx} className="text-gray-300 flex items-start">
+                              <span className="text-indigo-400 mr-2">•</span>
+                              <span>{product}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Style Attributes */}
+                    {(selectedSaved.recommendation_data.difficulty || selectedSaved.recommendation_data.estimated_time || selectedSaved.recommendation_data.maintenance) && (
+                      <div className="bg-cyan-900/20 border border-cyan-500/30 rounded-xl p-4">
+                        <h3 className="text-lg font-semibold text-white mb-3">📊 Style Details</h3>
+                        <div className="grid grid-cols-3 gap-3">
+                          {selectedSaved.recommendation_data.difficulty && (
+                            <div className="text-center">
+                              <p className="text-cyan-400 text-xs font-semibold uppercase mb-1">Difficulty</p>
+                              <p className="text-white capitalize">{selectedSaved.recommendation_data.difficulty}</p>
+                            </div>
+                          )}
+                          {selectedSaved.recommendation_data.estimated_time && (
+                            <div className="text-center">
+                              <p className="text-cyan-400 text-xs font-semibold uppercase mb-1">Time</p>
+                              <p className="text-white">{selectedSaved.recommendation_data.estimated_time} min</p>
+                            </div>
+                          )}
+                          {selectedSaved.recommendation_data.maintenance && (
+                            <div className="text-center">
+                              <p className="text-cyan-400 text-xs font-semibold uppercase mb-1">Maintenance</p>
+                              <p className="text-white capitalize">{selectedSaved.recommendation_data.maintenance}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Category */}
+                    {selectedSaved.recommendation_data.category && (
+                      <div className="bg-violet-900/20 border border-violet-500/30 rounded-xl p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-400 text-sm">Category</span>
+                          <span className="text-violet-300 font-semibold">{selectedSaved.recommendation_data.category}</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {/* Saved Date */}

@@ -239,22 +239,27 @@ class AuthService {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    // Preserve the signal for abort controller support
+    const fetchOptions = {
+      ...options,
+      headers,
+      credentials: this.useCookieAuth ? 'include' : (options.credentials || 'same-origin'),
+    };
+
     try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-        credentials: this.useCookieAuth ? 'include' : (options.credentials || 'same-origin'),
-      });
+      const response = await fetch(url, fetchOptions);
 
       // If token expired, try to refresh
       if (!this.useCookieAuth && response.status === 401 && this.getRefreshToken()) {
         token = await this.refreshAccessToken();
         headers.Authorization = `Bearer ${token}`;
         
+        // Make sure to pass the signal on retry as well
         return fetch(url, {
           ...options,
           headers,
           credentials: options.credentials || 'same-origin',
+          signal: options.signal, // Explicitly preserve abort signal
         });
       }
 

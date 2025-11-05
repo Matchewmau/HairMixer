@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import AuthService from '../services/AuthService';
+import APIService from '../services/api';
 
 const Discover = () => {
   const [user, setUser] = useState(null);
@@ -12,71 +13,163 @@ const Discover = () => {
   const [modalImageUrl, setModalImageUrl] = useState('');
   const navigate = useNavigate();
 
+  // Try Hairstyle Modal States
+  const [showTryModal, setShowTryModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const [stream, setStream] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [overlayResult, setOverlayResult] = useState(null);
+  const [overlayError, setOverlayError] = useState('');
+  const [abortController, setAbortController] = useState(null);
+  
+  // Result Modal States
+  const [showResultModal, setShowResultModal] = useState(false);
+  
+  const fileInputRef = useRef(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+
   // Static hairstyle data organized by categories with real descriptions and images
   const hairstyleCategories = {
-    trending: {
-      name: "Trending Now",
-      icon: "🔥",
+    natural: {
+      name: "Natural Styles",
+      icon: "🌿",
       styles: [
         {
           id: 1,
-          name: "Butterfly Haircut",
-          category: "trending",
+          name: "Natural Afro",
+          category: "natural",
+          gender: "male",
           length: "Medium to Long",
-          maintenance: "Medium",
-          theme: "Modern",
-          image: "/discover/butterfly-haircut.jpg",
-          description: "The butterfly haircut features shorter layers around the crown that gradually blend into longer lengths, creating a beautiful winged effect. This viral TikTok trend adds volume and movement while maintaining length.",
-          features: ["Layered crown", "Seamless blending", "Volume boost", "Face-framing effect"],
-          suitableFor: ["Oval", "Round", "Heart", "Diamond"],
-          stylingTime: "10-15 minutes",
-          maintenanceLevel: "Trim every 8-10 weeks",
-          tags: ["TikTok Trend", "Voluminous", "Romantic"]
+          maintenance: "High",
+          theme: "Authentic & Bold",
+          image: "/discover/natural_afro_male.jpg",
+          description: "A hairstyle that embraces the natural texture and volume of coily or kinky hair, allowing it to grow outwards and upwards into a rounded shape. It's a statement of identity and requires significant moisture and care to prevent breakage.",
+          features: ["Full volume", "Natural curl pattern", "Rounded shape", "Requires moisture"],
+          suitableFor: ["Oval", "Round", "Square"],
+          stylingTime: "10-20 minutes (daily moisturizing)",
+          maintenanceLevel: "Regular deep conditioning (weekly), trims every 4-6 weeks",
+          tags: ["Afro-textured", "Voluminous", "Coily", "Natural Hair Movement"]
         },
         {
           id: 2,
-          name: "Wolf Cut",
-          category: "trending",
-          length: "Medium",
+          name: "Surfer Hair (Beachy Waves)",
+          category: "natural",
+          gender: "male",
+          length: "Medium to Long",
           maintenance: "Low",
-          theme: "Edgy",
-          image: "/discover/wolfcut.jpg",
-          description: "A hybrid of shag and mullet styles, the wolf cut features choppy layers throughout with shorter pieces on top and longer at the back. Perfect for those wanting an effortlessly cool, rock-inspired look.",
-          features: ["Shaggy layers", "Textured finish", "Choppy bangs", "Mullet-inspired"],
-          suitableFor: ["Oval", "Heart", "Square"],
-          stylingTime: "5-10 minutes",
-          maintenanceLevel: "Trim every 10-12 weeks",
-          tags: ["Edgy", "Shaggy", "Low-maintenance"]
+          theme: "Relaxed & Carefree",
+          image: "/discover/surfer_hair_male.jpg",
+          description: "A low-maintenance, tousled hairstyle that looks wind-swept and sun-kissed. It's defined by natural-looking waves and texture, often enhanced with sea salt spray to mimic the effect of a day at the beach.",
+          features: ["Tousled texture", "Natural waves", "Windswept look", "Often sun-kissed"],
+          suitableFor: ["Oval", "Square", "Heart"],
+          stylingTime: "5-10 minutes (air dry with spray)",
+          maintenanceLevel: "Trim every 8-12 weeks",
+          tags: ["Beachy", "Wavy", "Low-maintenance", "Tousled"]
         },
         {
           id: 3,
-          name: "Curtain Bangs with Long Layers",
-          category: "trending",
-          length: "Long",
-          maintenance: "Low",
-          theme: "Casual",
-          image: "/discover/Curtain-Bangs-with-Long-Layers.jpg",
-          description: "Soft, parted-down-the-middle bangs that frame the face beautifully, paired with long flowing layers. This 70s-inspired trend is flattering on everyone and easy to style.",
-          features: ["Center-parted bangs", "Face-framing", "Soft layers", "Versatile styling"],
-          suitableFor: ["All face shapes"],
-          stylingTime: "8-12 minutes",
-          maintenanceLevel: "Trim bangs every 4-6 weeks",
-          tags: ["70s Inspired", "Face-framing", "Versatile"]
+          name: "Wash-and-Go",
+          category: "natural",
+          gender: "female",
+          length: "Short to Long (depends on curl type)",
+          maintenance: "Medium",
+          theme: "Effortless & Authentic",
+          image: "/discover/wash_and_go_female.jpg",
+          description: "A styling method for naturally curly or coily hair that involves cleansing, conditioning, and applying styling products (like gel or cream) to wet hair to define the natural curl pattern without heat or manipulation. The hair is then air-dried or diffused.",
+          features: ["Defined natural curls", "No heat required", "Embraces texture", "Requires specific products"],
+          suitableFor: ["All (for curly/coily hair)"],
+          stylingTime: "20-40 minutes (plus drying time)",
+          maintenanceLevel: "Wash day routine every 3-7 days",
+          tags: ["Curly Girl Method", "Natural Curls", "Defined", "Heatless"]
         },
         {
           id: 4,
-          name: "Modern Shag",
-          category: "trending",
-          length: "Medium",
-          maintenance: "Medium",
-          theme: "Retro-Modern",
-          image: "/discover/Modern-Shag.jpg",
-          description: "An updated take on the classic shag with modern texturizing techniques. Features lots of layers, texture, and movement for an effortlessly cool vibe that works with any hair type.",
-          features: ["Heavy layering", "Textured ends", "Wispy bangs option", "Volume throughout"],
-          suitableFor: ["Oval", "Heart", "Square"],
-          stylingTime: "10-15 minutes",
+          name: "Long Layers",
+          category: "natural",
+          gender: "female",
+          length: "Long",
+          maintenance: "Low to Medium",
+          theme: "Flowing & Versatile",
+          image: "/discover/long_layers_female.jpg",
+          description: "A simple, classic cut for long hair that adds movement, removes weight, and enhances natural texture (whether straight or wavy). The layers are typically soft and blended, allowing the hair to fall naturally with shape.",
+          features: ["Adds movement", "Reduces bulk", "Enhances natural texture", "Versatile"],
+          suitableFor: ["Oval", "Square", "Round"],
+          stylingTime: "5-15 minutes (air dry or quick blow-dry)",
           maintenanceLevel: "Trim every 8-10 weeks",
-          tags: ["Textured", "Retro", "Modern"]
+          tags: ["Low-maintenance", "Versatile", "Flowing", "Blended"]
+        }
+      ]
+    },
+    casual: {
+      name: "Casual Styles",
+      icon: "☀️",
+      styles: [
+        {
+          id: 5,
+          name: "Messy Quiff",
+          category: "casual",
+          gender: "male",
+          length: "Short to Medium",
+          maintenance: "Medium",
+          theme: "Effortless & Modern",
+          image: "/discover/messy_quiff_male.jpg",
+          description: "A relaxed version of the classic quiff, this style features volume and height at the front, but with a deliberately tousled and textured finish. The sides are typically shorter, and the top is styled loosely with fingers rather than a comb.",
+          features: ["Textured volume", "Tousled top", "Short sides", "Effortless look"],
+          suitableFor: ["Oval", "Round", "Square"],
+          stylingTime: "5-10 minutes",
+          maintenanceLevel: "Trim every 3-5 weeks",
+          tags: ["Textured", "Voluminous", "Relaxed", "Modern"]
+        },
+        {
+          id: 6,
+          name: "Buzz Cut",
+          category: "casual",
+          gender: "male",
+          length: "Very Short",
+          maintenance: "Low (styling) / High (upkeep)",
+          theme: "Minimalist & Sharp",
+          image: "/discover/buzz_cut_male.jpg",
+          description: "A very short hairstyle where the hair is clipped close to the head using clippers. It's a no-fuss, masculine style that is extremely easy to style (it requires none) but needs frequent trims to maintain the clean look.",
+          features: ["Extremely short", "Uniform length", "No styling needed", "Highlights facial features"],
+          suitableFor: ["Oval", "Square", "Rectangular"],
+          stylingTime: "0 minutes",
+          maintenanceLevel: "Trim every 2-3 weeks",
+          tags: ["Minimalist", "Low-maintenance", "Military", "Sharp"]
+        },
+        {
+          id: 7,
+          name: "Messy Bun",
+          category: "casual",
+          gender: "female",
+          length: "Medium to Long",
+          maintenance: "Low",
+          theme: "Effortless & Practical",
+          image: "/discover/messy_bun_female.jpg",
+          description: "A popular and quick updo where the hair is gathered into a bun, but with a deliberately loose, undone, and textured finish. Strands are often left out to frame the face, making it a go-to for a relaxed, everyday look.",
+          features: ["Tousled texture", "Quick updo", "Effortless", "Face-framing strands"],
+          suitableFor: ["All"],
+          stylingTime: "2-5 minutes",
+          maintenanceLevel: "As needed",
+          tags: ["Updo", "Relaxed", "Quick-style", "Undone"]
+        },
+        {
+          id: 8,
+          name: "Shoulder-Length Shag",
+          category: "casual",
+          gender: "female",
+          length: "Medium",
+          maintenance: "Low to Medium",
+          theme: "Retro & Textured",
+          image: "/discover/shoulder_shag_female.jpg",
+          description: "A modern take on the '70s shag, this cut features heavy layers, lots of texture, and often a fringe (like curtain bangs). It's designed to enhance natural waves and create a rock-and-roll, lived-in vibe with minimal effort.",
+          features: ["Heavy layers", "Choppy texture", "Volume at the crown", "Often includes fringe"],
+          suitableFor: ["Oval", "Heart", "Square"],
+          stylingTime: "5-15 minutes (scrunch with spray)",
+          maintenanceLevel: "Trim every 6-8 weeks",
+          tags: ["Layered", "Textured", "Retro", "Beachy"]
         }
       ]
     },
@@ -85,196 +178,278 @@ const Discover = () => {
       icon: "👑",
       styles: [
         {
-          id: 5,
-          name: "Timeless Pixie Cut",
+          id: 9,
+          name: "Side Part",
           category: "classic",
-          length: "Short",
-          maintenance: "High",
-          theme: "Sophisticated",
-          image: "/discover/timeless-pixiecut.jpg",
-          description: "A sophisticated short cut with tapered sides and back, and slightly longer top. Popularized by icons like Audrey Hepburn and Mia Farrow, this elegant style never goes out of fashion.",
-          features: ["Clean lines", "Tapered sides", "Textured top", "Versatile styling"],
-          suitableFor: ["Oval", "Heart", "Oblong"],
-          stylingTime: "5-8 minutes",
-          maintenanceLevel: "Trim every 4-6 weeks",
-          tags: ["Iconic", "Elegant", "Professional"]
-        },
-        {
-          id: 6,
-          name: "Classic Bob",
-          category: "classic",
+          gender: "male",
           length: "Short to Medium",
           maintenance: "Medium",
-          theme: "Timeless",
-          image: "/discover/Classic-Bob-Cut.jpg",
-          description: "The quintessential bob cut at chin or jaw length with clean, blunt ends. This versatile classic can be worn sleek and straight or with subtle waves for different occasions.",
-          features: ["Blunt cut", "One-length", "Clean lines", "Sleek finish"],
-          suitableFor: ["All face shapes"],
-          stylingTime: "10-15 minutes",
-          maintenanceLevel: "Trim every 6-8 weeks",
-          tags: ["Versatile", "Polished", "Timeless"]
-        },
-        {
-          id: 7,
-          name: "Long Layered Hair",
-          category: "classic",
-          length: "Long",
-          maintenance: "Medium",
-          theme: "Traditional",
-          image: "https://images.unsplash.com/photo-1519699047748-de8e457a634e?w=500",
-          description: "Long hair with subtle layers throughout to add movement and prevent heaviness. This timeless style flatters all face shapes and can be dressed up or down effortlessly.",
-          features: ["Subtle layers", "Natural flow", "Face-framing", "Volume enhancement"],
-          suitableFor: ["All face shapes"],
-          stylingTime: "15-20 minutes",
-          maintenanceLevel: "Trim every 10-12 weeks",
-          tags: ["Traditional", "Feminine", "Elegant"]
-        },
-        {
-          id: 8,
-          name: "French Bob",
-          category: "classic",
-          length: "Short",
-          maintenance: "High",
-          theme: "Chic",
-          image: "/discover/french-bob.jpg",
-          description: "A chic, chin-length bob with a slightly tousled texture and often paired with bangs. This Parisian-inspired cut exudes effortless sophistication and timeless elegance.",
-          features: ["Chin-length", "Slightly textured", "Optional bangs", "Effortless style"],
-          suitableFor: ["Oval", "Heart", "Diamond"],
-          stylingTime: "8-12 minutes",
-          maintenanceLevel: "Trim every 6-8 weeks",
-          tags: ["Parisian", "Chic", "Sophisticated"]
-        }
-      ]
-    },
-    edgy: {
-      name: "Edgy & Bold",
-      icon: "⚡",
-      styles: [
-        {
-          id: 9,
-          name: "Asymmetrical Bob",
-          category: "edgy",
-          length: "Short",
-          maintenance: "High",
-          theme: "Contemporary",
-          image: "https://images.unsplash.com/photo-1522337660859-02fbefca4702?w=500",
-          description: "A bold bob with dramatically different lengths on each side. One side typically sits at jaw-level while the other is cut shorter, creating a striking, fashion-forward statement.",
-          features: ["Uneven lengths", "Sharp angles", "Modern edge", "Statement-making"],
-          suitableFor: ["Oval", "Square", "Heart"],
-          stylingTime: "10-15 minutes",
-          maintenanceLevel: "Trim every 4-6 weeks",
-          tags: ["Bold", "Fashion-forward", "Dramatic"]
+          theme: "Timeless & Professional",
+          image: "/discover/side_part_male.jpg",
+          description: "A timeless men's hairstyle defined by a neat part on one side of the head. The hair on top has length and is combed over, while the sides are tapered or faded. It's a clean, polished look suitable for any occasion.",
+          features: ["Defined part", "Tapered sides", "Combed-over top", "Polished finish"],
+          suitableFor: ["Oval", "Square", "Round"],
+          stylingTime: "5-10 minutes",
+          maintenanceLevel: "Trim every 3-4 weeks",
+          tags: ["Professional", "Timeless", "Vintage", "Groomed"]
         },
         {
           id: 10,
-          name: "Undercut with Long Top",
-          category: "edgy",
-          length: "Short to Medium",
+          name: "Pompadour",
+          category: "classic",
+          gender: "male",
+          length: "Medium (on top)",
           maintenance: "High",
-          theme: "Edgy",
-          image: "/discover/undercut-longtop.jpg",
-          description: "Shaved or closely cropped sides and back with longer hair on top that can be styled in various ways. This contrasting style offers versatility and a bold, modern aesthetic.",
-          features: ["Shaved sides", "Long top section", "High contrast", "Versatile styling"],
-          suitableFor: ["Oval", "Heart", "Oblong", "Square"],
-          stylingTime: "5-15 minutes",
+          theme: "Retro & Bold",
+          image: "/discover/pompadour_male.jpg",
+          description: "An iconic hairstyle featuring short sides and a long top that is swept upwards and back from the forehead, creating significant volume (the 'pomp'). It requires blow-drying and pomade to hold its dramatic shape.",
+          features: ["High volume at front", "Short sides", "Slicked back", "Statement look"],
+          suitableFor: ["Oval", "Square", "Round"],
+          stylingTime: "10-15 minutes",
           maintenanceLevel: "Trim every 3-4 weeks",
-          tags: ["Bold", "Versatile", "Modern"]
+          tags: ["Vintage", "Rockabilly", "Voluminous", "High-maintenance"]
         },
         {
           id: 11,
-          name: "Platinum Buzz Cut",
-          category: "edgy",
-          length: "Very Short",
-          maintenance: "High",
-          theme: "Bold",
-          image: "https://images.unsplash.com/photo-1526510747491-58f928ec870f?w=500",
-          description: "An ultra-short buzz cut often paired with platinum blonde or bold color. This fearless style is low-maintenance for styling but requires regular touch-ups to maintain the color and length.",
-          features: ["Ultra-short length", "Bold color option", "Clean aesthetic", "Confidence-boosting"],
-          suitableFor: ["Oval", "Heart", "Diamond"],
-          stylingTime: "2-3 minutes",
-          maintenanceLevel: "Trim every 2-3 weeks, color every 4-6 weeks",
-          tags: ["Fearless", "Low-styling", "Statement"]
+          name: "Classic Bob",
+          category: "classic",
+          gender: "female",
+          length: "Short (chin-length)",
+          maintenance: "Medium",
+          theme: "Timeless & Chic",
+          image: "/discover/classic_bob_female.jpg",
+          description: "A timeless cut where the hair is typically cut straight around the head at about jaw-level, often with a fringe. The 'classic' bob is precise, polished, and can be worn straight and sleek or with a slight bend.",
+          features: ["Chin-length", "Precise line", "Often with fringe", "Polished look"],
+          suitableFor: ["Oval", "Heart", "Square"],
+          stylingTime: "10-15 minutes (for sleek look)",
+          maintenanceLevel: "Trim every 4-6 weeks to maintain shape",
+          tags: ["Chic", "Polished", "Geometric", "Timeless"]
         },
         {
           id: 12,
-          name: "Mohawk Fade",
-          category: "edgy",
-          length: "Short",
-          maintenance: "High",
-          theme: "Punk-Inspired",
-          image: "/discover/fade-mohawk.jpg",
-          description: "A modern take on the mohawk with faded sides and a styled strip of hair down the center. Can be worn sleek or textured, offering a punk-rock edge with contemporary polish.",
-          features: ["Center strip", "Faded sides", "Textured top", "Statement style"],
-          suitableFor: ["Oval", "Oblong", "Heart"],
-          stylingTime: "10-20 minutes",
-          maintenanceLevel: "Trim every 2-4 weeks",
-          tags: ["Punk", "Bold", "Unique"]
+          name: "French Twist",
+          category: "classic",
+          gender: "female",
+          length: "Medium to Long",
+          maintenance: "Medium",
+          theme: "Elegant & Sophisticated",
+          image: "/discover/french_twist_female.jpg",
+          description: "A sophisticated updo where hair is gathered, twisted vertically, and pinned neatly against the back of the head. It creates a sleek, polished 'roll' that is a go-to style for formal events and professional settings.",
+          features: ["Vertical roll", "Sleek and polished", "Formal updo", "Securely pinned"],
+          suitableFor: ["All"],
+          stylingTime: "10-15 minutes",
+          maintenanceLevel: "Requires practice and pins",
+          tags: ["Updo", "Formal", "Elegant", "Timeless"]
         }
       ]
     },
-    lowMaintenance: {
-      name: "Low Maintenance",
-      icon: "🌿",
+    elegant: {
+      name: "Elegant Styles",
+      icon: "✨",
       styles: [
         {
           id: 13,
-          name: "Natural Beach Waves",
-          category: "lowMaintenance",
-          length: "Medium to Long",
-          maintenance: "Low",
-          theme: "Casual",
-          image: "https://images.unsplash.com/photo-1573007974656-b958089e9f7b?w=500",
-          description: "Loose, natural-looking waves that require minimal heat styling. Achieved through braiding, twisting, or sea salt spray for that effortless, sun-kissed beach look year-round.",
-          features: ["Natural texture", "Air-dry friendly", "Sea salt spray", "Effortless vibe"],
-          suitableFor: ["All face shapes"],
-          stylingTime: "2-5 minutes",
-          maintenanceLevel: "Trim every 12-16 weeks",
-          tags: ["Natural", "Beachy", "Effortless"]
+          name: "Slick Back",
+          category: "elegant",
+          gender: "male",
+          length: "Medium (on top)",
+          maintenance: "High",
+          theme: "Sharp & Sophisticated",
+          image: "/discover/slick_back_male.jpg",
+          description: "A sharp, polished hairstyle where the hair on top is combed straight back from the forehead, lying flat against the head. It typically features shorter sides (an undercut or fade) and requires a high-shine pomade for a sleek, wet look.",
+          features: ["Combed straight back", "High-shine finish", "Undercut or fade sides", "Polished"],
+          suitableFor: ["Oval", "Square"],
+          stylingTime: "5-10 minutes",
+          maintenanceLevel: "Trim every 3-4 weeks",
+          tags: ["Formal", "Polished", "High-shine", "Sharp"]
         },
         {
           id: 14,
-          name: "Wash and Go Curls",
-          category: "lowMaintenance",
-          length: "Any",
-          maintenance: "Low",
-          theme: "Natural",
-          image: "/discover/wash-n-go-curls.jpg",
-          description: "Embrace your natural curl pattern with curl-enhancing products and minimal manipulation. This healthy approach celebrates natural texture while maintaining gorgeous, defined curls.",
-          features: ["Natural curls", "Curl-defining products", "No heat styling", "Healthy hair focus"],
-          suitableFor: ["Round", "Oval", "Heart", "Diamond"],
-          stylingTime: "3-8 minutes",
-          maintenanceLevel: "Trim every 10-14 weeks",
-          tags: ["Natural", "Curly", "Healthy"]
+          name: "Taper Fade with Comb Over",
+          category: "elegant",
+          gender: "male",
+          length: "Short to Medium",
+          maintenance: "Medium",
+          theme: "Modern & Refined",
+          image: "/discover/taper_comb_over_male.jpg",
+          description: "A modern and clean hairstyle that combines two classic elements. The taper fade provides a gradual, clean blend on the sides and back, while the longer top is neatly combed to one side, creating a defined part.",
+          features: ["Gradual taper fade", "Defined side part", "Neatly combed top", "Clean and sharp"],
+          suitableFor: ["All"],
+          stylingTime: "5-10 minutes",
+          maintenanceLevel: "Trim every 3-4 weeks",
+          tags: ["Professional", "Sharp", "Modern-classic", "Faded"]
         },
         {
           id: 15,
-          name: "Blunt Long Hair",
-          category: "lowMaintenance",
-          length: "Long",
-          maintenance: "Low",
-          theme: "Minimalist",
-          image: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=500",
-          description: "Simple, one-length long hair with blunt ends. This minimalist style requires little daily maintenance and can be worn straight, wavy, or in various updos with ease.",
-          features: ["One-length", "Blunt ends", "Versatile styling", "Minimal maintenance"],
-          suitableFor: ["All face shapes"],
-          stylingTime: "5-10 minutes",
-          maintenanceLevel: "Trim every 12-16 weeks",
-          tags: ["Simple", "Versatile", "Classic"]
+          name: "Chignon",
+          category: "elegant",
+          gender: "female",
+          length: "Medium to Long",
+          maintenance: "Medium",
+          theme: "Graceful & Timeless",
+          image: "/discover/chignon_female.jpg",
+          description: "A classic and elegant updo, typically worn at the nape of the neck. The hair is gathered into a low ponytail, then looped, twisted, or tucked into a sleek, graceful knot. It's a popular choice for weddings and formal events.",
+          features: ["Low bun at nape", "Sleek and smooth", "Graceful knot", "Formal updo"],
+          suitableFor: ["All"],
+          stylingTime: "10-15 minutes",
+          maintenanceLevel: "Requires pins and hairspray",
+          tags: ["Formal", "Updo", "Bridal", "Sophisticated"]
         },
         {
           id: 16,
-          name: "Shoulder-Length Straight",
-          category: "lowMaintenance",
-          length: "Medium",
-          maintenance: "Low",
-          theme: "Practical",
-          image: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=500",
-          description: "Straight hair cut to shoulder length with minimal layers. This practical style air-dries well, requires minimal styling, and is perfect for busy lifestyles while still looking polished.",
-          features: ["Shoulder-length", "Straight cut", "Air-dry friendly", "Low styling"],
-          suitableFor: ["All face shapes"],
-          stylingTime: "5-8 minutes",
-          maintenanceLevel: "Trim every 10-12 weeks",
-          tags: ["Practical", "Easy", "Polished"]
+          name: "Classic Updo",
+          category: "elegant",
+          gender: "female",
+          length: "Medium to Long",
+          maintenance: "High",
+          theme: "Formal & Ornate",
+          image: "/discover/classic_updo_female.jpg",
+          description: "A formal hairstyle where the hair is swept up and secured away from the face and neck. This can range from intricate twists, braids, and curls to a voluminous, structured bun. It's designed for special occasions and black-tie events.",
+          features: ["Hair swept off neck", "Intricate design (twists, pins)", "Voluminous", "Formal"],
+          suitableFor: ["All"],
+          stylingTime: "30-60+ minutes (often professional)",
+          maintenanceLevel: "Special occasion style",
+          tags: ["Formal", "Black-tie", "Bridal", "Ornate"]
+        }
+      ]
+    },
+    glamorous: {
+      name: "Glamorous Styles",
+      icon: "💎",
+      styles: [
+        {
+          id: 17,
+          name: "Quiff with High Shine",
+          category: "glamorous",
+          gender: "male",
+          length: "Medium (on top)",
+          maintenance: "High",
+          theme: "Dapper & Show-Stopping",
+          image: "/discover/shiny_quiff_male.jpg",
+          description: "This is a statement-making quiff that focuses on both volume and a wet-look, high-shine finish. It's styled using a blow-dryer for maximum height and a strong-hold, glossy pomade to catch the light.",
+          features: ["Maximum volume", "High-shine finish", "Shorter sides", "Statement look"],
+          suitableFor: ["Oval", "Square", "Round"],
+          stylingTime: "10-15 minutes",
+          maintenanceLevel: "Trim every 3-4 weeks",
+          tags: ["High-shine", "Voluminous", "Statement", "Red carpet"]
+        },
+        {
+          id: 18,
+          name: "Long Wavy Hair",
+          category: "glamorous",
+          gender: "male",
+          length: "Long",
+          maintenance: "Medium",
+          theme: "Rugged & Romantic",
+          image: "/discover/long_wavy_male.jpg",
+          description: "Long, flowing hair on men, often with a natural wave or curl. When styled for a glamorous look, it's healthy, shiny, and intentionally styled (either defined waves or a 'hero' sweep back) rather than just unkempt. Think red-carpet movie star.",
+          features: ["Shoulder-length or longer", "Natural waves enhanced", "Healthy shine", "Can be tied or worn down"],
+          suitableFor: ["Oval", "Square", "Heart"],
+          stylingTime: "10-20 minutes (for definition)",
+          maintenanceLevel: "Regular conditioning; trims every 10-12 weeks",
+          tags: ["Flowing", "Wavy", "Rugged", "Romantic"]
+        },
+        {
+          id: 19,
+          name: "Hollywood Waves",
+          category: "glamorous",
+          gender: "female",
+          length: "Medium to Long",
+          maintenance: "High",
+          theme: "Vintage & Red Carpet",
+          image: "/discover/hollywood_waves_female.jpg",
+          description: "A classic red-carpet hairstyle characterized by soft, uniform, and highly polished waves. The hair is typically deep-parted to one side and cascades over one shoulder, with a high-gloss finish.",
+          features: ["Uniform S-shaped waves", "High-shine", "Deep side part", "Polished and structured"],
+          suitableFor: ["All"],
+          stylingTime: "30-60 minutes",
+          maintenanceLevel: "Special occasion style",
+          tags: ["Red carpet", "Vintage", "Polished", "Wavy"]
+        },
+        {
+          id: 20,
+          name: "Voluminous Blowout",
+          category: "glamorous",
+          gender: "female",
+          length: "Medium to Long",
+          maintenance: "High",
+          theme: "Bouncy & Luxe",
+          image: "/discover/voluminous_blowout_female.jpg",
+          description: "A salon-quality blowout designed to create maximum volume, body, and movement. It involves using a round brush and blow-dryer to lift the roots and create soft, bouncy, shiny hair that looks full and healthy.",
+          features: ["Maximum volume", "Bouncy movement", "High-shine", "Smooth finish"],
+          suitableFor: ["All"],
+          stylingTime: "20-45 minutes",
+          maintenanceLevel: "Requires heat styling",
+          tags: ["Bouncy", "Voluminous", "Luxe", "High-shine"]
+        }
+      ]
+    },
+    trendy: {
+      name: "Trendy Styles",
+      icon: "🔥",
+      styles: [
+        {
+          id: 21,
+          name: "Textured Crop (French Crop)",
+          category: "trendy",
+          gender: "male",
+          length: "Short",
+          maintenance: "Low to Medium",
+          theme: "Modern & Edgy",
+          image: "/discover/textured_crop_male.jpg",
+          description: "A very popular modern cut featuring a short, textured top with a distinct fringe, contrasted by faded or undercut sides. The top is styled forward to create a messy, textured look. It's low-maintenance and stylish.",
+          features: ["Textured top", "Short fringe (bangs)", "High fade or undercut", "Easy to style"],
+          suitableFor: ["Oval", "Square", "Diamond"],
+          stylingTime: "2-5 minutes (with matte clay or paste)",
+          maintenanceLevel: "Trim every 3-4 weeks",
+          tags: ["Faded", "Textured", "Fringe", "Contemporary"]
+        },
+        {
+          id: 22,
+          name: "Modern Mullet",
+          category: "trendy",
+          gender: "male",
+          length: "Short (sides) / Long (back)",
+          maintenance: "Medium",
+          theme: "Retro-Revival & Bold",
+          image: "/discover/modern_mullet_male.jpg",
+          description: "A modern reinterpretation of the '80s classic. This version is more subtle, often featuring a taper fade on the sides, a textured top, and a less-dramatic, more blended length in the back. It's 'business in the front, party in the back' with a fashion-forward twist.",
+          features: ["Short faded sides", "Longer back", "Textured top", "Retro-revival"],
+          suitableFor: ["Oval", "Square", "Round"],
+          stylingTime: "5-10 minutes",
+          maintenanceLevel: "Trim every 4-6 weeks to maintain shape",
+          tags: ["Retro", "Edgy", "Faded", "Statement"]
+        },
+        {
+          id: 23,
+          name: "Wolf Cut",
+          category: "trendy",
+          gender: "female",
+          length: "Medium to Long",
+          maintenance: "Medium",
+          theme: "Wild & Edgy",
+          image: "/discover/wolf_cut_female.jpg",
+          description: "A viral hybrid of a shag and a mullet. It features short, choppy layers on top for volume and longer, thinned-out layers in the back. It's defined by its wild texture and is often paired with curtain bangs.",
+          features: ["Shag-mullet hybrid", "Heavy, choppy layers", "Volume at the crown", "Untamed texture"],
+          suitableFor: ["Oval", "Heart", "Square"],
+          stylingTime: "10-15 minutes (with texturizing spray)",
+          maintenanceLevel: "Trim every 6-8 weeks",
+          tags: ["Viral", "Layered", "Edgy", "Textured"]
+        },
+        {
+          id: 24,
+          name: "Bixie Cut",
+          category: "trendy",
+          gender: "female",
+          length: "Short",
+          maintenance: "Low to Medium",
+          theme: "Playful & Versatile",
+          image: "/discover/bixie_cut_female.jpg",
+          description: "A hybrid cut that blends the length and shape of a short bob with the layers and texture of a pixie cut. It's longer than a pixie but shorter than a bob, offering a soft, versatile, and low-maintenance short style.",
+          features: ["Bob-pixie hybrid", "Soft, feathered layers", "Textured", "Low-maintenance"],
+          suitableFor: ["Oval", "Heart", "Round"],
+          stylingTime: "5-10 minutes",
+          maintenanceLevel: "Trim every 4-6 weeks",
+          tags: ["Short hair", "Hybrid", "Layered", "Versatile"]
         }
       ]
     }
@@ -282,10 +457,12 @@ const Discover = () => {
 
   const categories = [
     { key: 'all', name: 'All Styles', icon: '🎨' },
-    { key: 'trending', name: 'Trending', icon: '🔥' },
+    { key: 'natural', name: 'Natural', icon: '🌿' },
+    { key: 'casual', name: 'Casual', icon: '☀️' },
     { key: 'classic', name: 'Classic', icon: '👑' },
-    { key: 'edgy', name: 'Edgy', icon: '⚡' },
-    { key: 'lowMaintenance', name: 'Low Maintenance', icon: '🌿' }
+    { key: 'elegant', name: 'Elegant', icon: '✨' },
+    { key: 'glamorous', name: 'Glamorous', icon: '💎' },
+    { key: 'trendy', name: 'Trendy', icon: '🔥' }
   ];
 
   useEffect(() => {
@@ -304,6 +481,192 @@ const Discover = () => {
     checkAuth();
   }, []);
 
+  // Cleanup camera on unmount
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [stream]);
+
+  // Camera functions
+  const startCamera = async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'user',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
+      });
+      setStream(mediaStream);
+      setShowCamera(true);
+      
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+        }
+      }, 100);
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      alert('Could not access camera. Please make sure you have granted camera permissions.');
+    }
+  };
+
+  const stopCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+    setShowCamera(false);
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      const context = canvas.getContext('2d');
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      canvas.toBlob((blob) => {
+        const file = new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' });
+        setSelectedFile(file);
+        setPreviewUrl(URL.createObjectURL(file));
+        stopCamera();
+      }, 'image/jpeg', 0.95);
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+      setSelectedFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+    } else {
+      alert('Please select a valid image file');
+    }
+  };
+
+  const handleTryStyle = () => {
+    setShowTryModal(true);
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setOverlayResult(null);
+    setOverlayError('');
+  };
+
+  const closeTryModal = () => {
+    setShowTryModal(false);
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setOverlayResult(null);
+    setOverlayError('');
+    setIsProcessing(false);
+    stopCamera();
+  };
+
+  const closeResultModal = () => {
+    setShowResultModal(false);
+    setOverlayResult(null);
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    
+    // Cancel any ongoing overlay generation
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+    }
+  };
+
+  const handleGenerateOverlay = async () => {
+    if (!selectedFile || !selectedStyle) {
+      alert('Please select an image first');
+      return;
+    }
+
+    setIsProcessing(true);
+    setOverlayError('');
+    setOverlayResult(null);
+
+    // Create new AbortController for this request
+    const controller = new AbortController();
+    setAbortController(controller);
+
+    try {
+      // Step 1: Upload image
+      const uploadResponse = await APIService.uploadImage(selectedFile);
+      
+      if (!uploadResponse.face_detected) {
+        setOverlayError('No face detected in the image. Please try another photo.');
+        setIsProcessing(false);
+        return;
+      }
+
+      // Step 2: Search for hairstyle by name in the database
+      // Since static IDs don't match DB IDs, we need to search by name
+      // Backend expects 'q' parameter for search query
+      const searchResponse = await APIService.searchHairstyles({ 
+        q: selectedStyle.name,
+        per_page: 1 
+      });
+      
+      if (!searchResponse.results || searchResponse.results.length === 0) {
+        setOverlayError(`The hairstyle "${selectedStyle.name}" is not yet available in our database. Please try another style.`);
+        setIsProcessing(false);
+        return;
+      }
+
+      const dbHairstyle = searchResponse.results[0];
+
+      // Step 3: Generate overlay with the correct database ID
+      const overlayResponse = await APIService.generateOverlay(
+        uploadResponse.image_id,
+        dbHairstyle.id,
+        'advanced',
+        controller.signal
+      );
+
+      setOverlayResult(overlayResponse);
+      setIsProcessing(false);
+      setAbortController(null);
+      
+      // Close the try modal and open the result modal
+      setShowTryModal(false);
+      setShowResultModal(true);
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('Overlay generation cancelled');
+        setOverlayError('Overlay generation cancelled');
+      } else {
+        console.error('Failed to generate overlay:', error);
+        setOverlayError(error.message || 'Failed to generate overlay. Please try again.');
+      }
+      setIsProcessing(false);
+      setAbortController(null);
+    }
+  };
+
+  const handleCancelOverlay = () => {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+    }
+    setIsProcessing(false);
+    setOverlayError('Overlay generation cancelled');
+  };
+
+  const resolveMediaUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    const serverOrigin = APIService.baseURL.replace(/\/api\/?$/, '');
+    return `${serverOrigin}${url}`;
+  };
+
   // Add keyboard support for closing image modal
   useEffect(() => {
     const handleEscKey = (e) => {
@@ -318,7 +681,7 @@ const Discover = () => {
 
   // Prevent background scrolling when modals are open
   useEffect(() => {
-    if (selectedStyle || showImageModal) {
+    if (selectedStyle || showImageModal || showResultModal) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -327,7 +690,7 @@ const Discover = () => {
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [selectedStyle, showImageModal]);
+  }, [selectedStyle, showImageModal, showResultModal]);
 
   const handleLogout = async () => {
     try {
@@ -623,16 +986,11 @@ const Discover = () => {
                 {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row gap-4 pt-4">
                   <button
-                    onClick={() => navigate('/upload')}
-                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-4 px-6 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-purple-500/25 border border-blue-500/30"
+                    onClick={handleTryStyle}
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-4 px-6 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-purple-500/25 border border-blue-500/30"
                   >
                     Try This Style
                   </button>
-                  {user && (
-                    <button className="flex-1 bg-white/10 hover:bg-white/20 text-white py-4 px-6 rounded-lg font-semibold transition-all duration-300 backdrop-blur-sm border border-white/20 hover:border-white/40">
-                      Save to Favorites
-                    </button>
-                  )}
                 </div>
               </div>
             </div>
@@ -672,6 +1030,279 @@ const Discover = () => {
                     className="w-full h-auto rounded-lg shadow-2xl"
                     style={{ maxHeight: '80vh', objectFit: 'contain' }}
                   />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Try Hairstyle Modal */}
+        {showTryModal && selectedStyle && (
+          <div 
+            className="fixed inset-0 bg-black/90 backdrop-blur-md z-[70] flex items-center justify-center p-4"
+            onClick={closeTryModal}
+          >
+            <div 
+              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-white/10 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-6 border-b border-white/10 sticky top-0 bg-gradient-to-br from-slate-800 to-slate-900 z-10">
+                <h2 className="text-2xl font-bold text-white">Try {selectedStyle.name}</h2>
+                <button
+                  onClick={closeTryModal}
+                  className="text-gray-400 hover:text-white transition-colors duration-300 p-2 hover:bg-white/10 rounded-lg"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-6 space-y-6">
+                {!previewUrl && !showCamera && !overlayResult && (
+                  <>
+                    <div className="text-center mb-4 sm:mb-6 px-2">
+                      <p className="text-gray-300 text-base sm:text-lg mb-2">Upload your photo to see how this style looks on you!</p>
+                      <p className="text-gray-400 text-xs sm:text-sm">Choose a clear front-facing photo for best results</p>
+                    </div>
+
+                    {/* Upload Options */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex flex-col items-center justify-center p-6 sm:p-8 bg-white/5 hover:bg-white/10 border-2 border-dashed border-white/20 hover:border-blue-500/50 rounded-xl transition-all duration-300 group"
+                      >
+                        <svg className="w-12 h-12 sm:w-16 sm:h-16 text-blue-400 mb-3 sm:mb-4 group-hover:scale-110 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span className="text-white font-semibold text-base sm:text-lg mb-1 sm:mb-2">Upload Photo</span>
+                        <span className="text-gray-400 text-xs sm:text-sm">Choose from your device</span>
+                      </button>
+
+                      <button
+                        onClick={startCamera}
+                        className="flex flex-col items-center justify-center p-6 sm:p-8 bg-white/5 hover:bg-white/10 border-2 border-dashed border-white/20 hover:border-purple-500/50 rounded-xl transition-all duration-300 group"
+                      >
+                        <svg className="w-12 h-12 sm:w-16 sm:h-16 text-purple-400 mb-3 sm:mb-4 group-hover:scale-110 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span className="text-white font-semibold text-base sm:text-lg mb-1 sm:mb-2">Take Photo</span>
+                        <span className="text-gray-400 text-xs sm:text-sm">Use your camera</span>
+                      </button>
+                    </div>
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                  </>
+                )}
+
+                {/* Camera View */}
+                {showCamera && (
+                  <div className="space-y-4">
+                    <div className="relative bg-black rounded-xl overflow-hidden">
+                      <div className="w-full max-h-[60vh] md:max-h-[500px] flex items-center justify-center">
+                        <video
+                          ref={videoRef}
+                          autoPlay
+                          playsInline
+                          className="max-w-full max-h-[60vh] md:max-h-[500px] w-auto h-auto object-contain"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                      <button
+                        onClick={capturePhoto}
+                        className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-3 px-4 sm:px-6 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 text-sm sm:text-base"
+                      >
+                        📸 Capture Photo
+                      </button>
+                      <button
+                        onClick={stopCamera}
+                        className="px-4 sm:px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg font-semibold transition-all duration-300 border border-white/20 text-sm sm:text-base"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Preview and Generate */}
+                {previewUrl && !overlayResult && (
+                  <div className="space-y-4">
+                    <div className="relative bg-black rounded-xl overflow-hidden">
+                      <div className="w-full max-h-[60vh] md:max-h-[500px] flex items-center justify-center">
+                        <img
+                          src={previewUrl}
+                          alt="Preview"
+                          className="max-w-full max-h-[60vh] md:max-h-[500px] w-auto h-auto object-contain rounded-lg"
+                        />
+                      </div>
+                    </div>
+
+                    {overlayError && (
+                      <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4">
+                        <p className="text-red-300 text-sm">{overlayError}</p>
+                      </div>
+                    )}
+
+                    <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                      {!isProcessing ? (
+                        <>
+                          <button
+                            onClick={handleGenerateOverlay}
+                            className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-3 px-4 sm:px-6 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg text-sm sm:text-base"
+                          >
+                            ✨ Generate Hairstyle Preview
+                          </button>
+                          <button
+                            onClick={() => {
+                              setPreviewUrl(null);
+                              setSelectedFile(null);
+                              setOverlayError('');
+                            }}
+                            className="px-4 sm:px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg font-semibold transition-all duration-300 border border-white/20 text-sm sm:text-base"
+                          >
+                            Choose Different Photo
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={handleCancelOverlay}
+                          className="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-300 py-3 px-4 sm:px-6 rounded-lg font-semibold transition-all duration-300 border border-red-500/50 text-sm sm:text-base"
+                        >
+                          ⏹️ Cancel Generation
+                        </button>
+                      )}
+                    </div>
+
+                    {isProcessing && (
+                      <div className="bg-blue-500/20 border border-blue-500/50 rounded-lg p-4 sm:p-6 text-center">
+                        <div className="flex flex-col items-center space-y-3 sm:space-y-4">
+                          <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-4 border-blue-500 border-t-transparent"></div>
+                          <div className="space-y-1 sm:space-y-2">
+                            <p className="text-white font-semibold text-sm sm:text-base">Generating your hairstyle preview...</p>
+                            <p className="text-gray-300 text-xs sm:text-sm">This may take a moment. Please wait.</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+
+              </div>
+            </div>
+
+            {/* Hidden canvas for camera capture */}
+            <canvas ref={canvasRef} style={{ display: 'none' }} />
+          </div>
+        )}
+
+        {/* Result Modal - Shows after overlay generation */}
+        {showResultModal && overlayResult && selectedStyle && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+            <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-white/10">
+              {/* Modal Header */}
+              <div className="sticky top-0 bg-gradient-to-r from-gray-900 to-gray-800 border-b border-white/10 p-4 sm:p-6 z-10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">
+                      ✨ Your New Look!
+                    </h2>
+                    <p className="text-gray-400 text-sm sm:text-base">
+                      {selectedStyle.name} Preview
+                    </p>
+                  </div>
+                  <button
+                    onClick={closeResultModal}
+                    className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
+                  >
+                    <svg className="w-6 h-6 sm:w-8 sm:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-4 sm:p-6 space-y-6">
+                {/* Image Comparison */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                  {/* Original Photo */}
+                  <div className="space-y-2 sm:space-y-3">
+                    <h3 className="text-white font-semibold text-center text-base sm:text-lg">
+                      Original Photo
+                    </h3>
+                    <div className="relative bg-black rounded-xl overflow-hidden shadow-lg h-[60vh] md:h-[500px] flex items-center justify-center">
+                      <img
+                        src={previewUrl}
+                        alt="Original"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Styled Photo */}
+                  <div className="space-y-2 sm:space-y-3">
+                    <h3 className="text-white font-semibold text-center text-base sm:text-lg">
+                      With {selectedStyle.name}
+                    </h3>
+                    <div className="relative bg-black rounded-xl overflow-hidden shadow-lg h-[60vh] md:h-[500px] flex items-center justify-center">
+                      <img
+                        src={resolveMediaUrl(overlayResult.overlay_url)}
+                        alt="With hairstyle"
+                        className="w-full h-full object-contain"
+                      />
+                      {/* Overlay badge */}
+                      <div className="absolute top-3 right-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-3 py-1 rounded-full text-xs sm:text-sm font-semibold shadow-lg">
+                        ✨ AI Generated
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Info Box */}
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 sm:p-6">
+                  <div className="flex items-start space-x-3">
+                    <svg className="w-6 h-6 text-blue-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div className="flex-1">
+                      <h4 className="text-white font-semibold mb-2 text-sm sm:text-base">About This Preview</h4>
+                      <p className="text-gray-300 text-xs sm:text-sm leading-relaxed">
+                        This is an AI-generated preview to help you visualize how <span className="font-semibold text-white">{selectedStyle.name}</span> might look on you. 
+                        Actual results may vary based on your hair type, texture, and stylist expertise. 
+                        We recommend consulting with a professional stylist for the best results.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                  <button
+                    onClick={() => {
+                      closeResultModal();
+                      handleTryStyle();
+                    }}
+                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-3 px-4 sm:px-6 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg text-sm sm:text-base"
+                  >
+                    🔄 Try Another Photo
+                  </button>
+                  <button
+                    onClick={closeResultModal}
+                    className="px-4 sm:px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg font-semibold transition-all duration-300 border border-white/20 text-sm sm:text-base"
+                  >
+                    Close
+                  </button>
                 </div>
               </div>
             </div>

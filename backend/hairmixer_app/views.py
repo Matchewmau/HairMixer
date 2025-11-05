@@ -417,19 +417,39 @@ def logout(request):
         )
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PUT', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def user_profile(request):
     try:
-        user_data = UserSerializer(request.user).data
-        return Response({
-            'user': user_data
-        }, status=status.HTTP_200_OK)
+        if request.method == 'GET':
+            user_data = UserSerializer(request.user).data
+            return Response({
+                'user': user_data
+            }, status=status.HTTP_200_OK)
+        
+        elif request.method in ['PUT', 'PATCH']:
+            # Update user profile
+            serializer = UserSerializer(
+                request.user,
+                data=request.data,
+                partial=(request.method == 'PATCH')
+            )
+            
+            if serializer.is_valid():
+                serializer.save()
+                return Response({
+                    'user': serializer.data,
+                    'message': 'Profile updated successfully'
+                }, status=status.HTTP_200_OK)
+            
+            return Response({
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
     
     except Exception as e:
         logger.error(f"User profile error: {str(e)}")
         return Response({
-            'message': 'Failed to fetch user profile',
+            'message': 'Failed to process user profile',
             'error': 'An unexpected error occurred'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -1200,6 +1220,7 @@ class OverlayView(APIView):
             image_id = req_ser.validated_data["image_id"]
             style_id = req_ser.validated_data["hairstyle_id"]
             overlay_type = req_ser.validated_data["overlay_type"]
+            use_hair_color = req_ser.validated_data.get("use_hair_color", False)
             
             if not image_id or not style_id:
                 return Response(
@@ -1210,40 +1231,18 @@ class OverlayView(APIView):
             uploaded = get_object_or_404(UploadedImage, id=image_id)
             style = get_object_or_404(Hairstyle, id=style_id)
 
-            # Get user's hair color preference from most recent preference
+            # Conditionally use hair color from user preferences
             hair_color = None
-            if request.user.is_authenticated:
+            if use_hair_color and request.user.is_authenticated:
                 try:
-                    from .models import UserPreference
-                    
-                    # Get most recent preference with hair_color
-                    user_pref = (
-                        UserPreference.objects
-                        .filter(user=request.user)
-                        .exclude(hair_color='')
-                        .exclude(hair_color__isnull=True)
-                        .order_by('-created_at')
-                        .first()
-                    )
-                    
-                    if user_pref and user_pref.hair_color:
-                        hair_color = user_pref.hair_color.strip()
-                        logger.info(
-                            f"Using hair_color='{hair_color}' from "
-                            f"UserPreference (id={user_pref.id})"
-                        )
-                    else:
-                        logger.info(
-                            "No UserPreference with hair_color found"
-                        )
-                except Exception as e:
-                    logger.warning(
-                        f"Could not retrieve hair color: {e}",
-                        exc_info=True
-                    )
+                    preference = UserPreference.objects.get(user=request.user)
+                    hair_color = preference.hair_color if preference.hair_color else None
+                    logger.info(f"Using hair_color from preferences: {hair_color}")
+                except UserPreference.DoesNotExist:
+                    logger.info("No user preferences found, proceeding without hair color")
+            else:
+                logger.info("Not using hair color (Discover page or unauthenticated)")
             
-            logger.info(f"Final hair_color for overlay: '{hair_color}'")
-
             overlay_url = overlay_service.generate(
                 uploaded, style, overlay_type, hair_color=hair_color
             )
@@ -2347,7 +2346,7 @@ class PreferenceProfileSetDefaultView(APIView):
     POST: Set a preference profile as the default
     """
     permission_classes = [IsAuthenticated]
-    
+
     def post(self, request, profile_id):
         try:
             profile = PreferenceProfile.objects.get(
@@ -2357,7 +2356,7 @@ class PreferenceProfileSetDefaultView(APIView):
             # Set this as default (will automatically unset other defaults)
             profile.is_default = True
             profile.save()
-            
+
             serializer = PreferenceProfileSerializer(profile)
             return Response(serializer.data)
         except PreferenceProfile.DoesNotExist:
