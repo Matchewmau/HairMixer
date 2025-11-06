@@ -501,8 +501,10 @@ class OverlayView(APIView):
             uploaded = get_object_or_404(UploadedImage, id=image_id)
             style = get_object_or_404(Hairstyle, id=style_id)
 
-            # Get user's hair color preference from most recent preference
+            # Get user's hair attributes from most recent preference
             hair_color = None
+            hair_type = None
+            hair_length = None
             if request.user.is_authenticated:
                 try:
                     from ..models import UserPreference
@@ -510,20 +512,39 @@ class OverlayView(APIView):
                     user_pref = (
                         UserPreference.objects
                         .filter(user=request.user)
-                        .exclude(hair_color='')
-                        .exclude(hair_color__isnull=True)
                         .order_by('-created_at')
                         .first()
                     )
                     
-                    if user_pref and user_pref.hair_color:
-                        hair_color = user_pref.hair_color.strip()
-                        logger.info(f"Using hair_color: {hair_color}")
+                    if user_pref:
+                        hair_color = (
+                            user_pref.hair_color.strip()
+                            if user_pref.hair_color else None
+                        )
+                        hair_type = (
+                            user_pref.hair_type.strip()
+                            if user_pref.hair_type else None
+                        )
+                        hair_length = (
+                            user_pref.hair_length.strip()
+                            if user_pref.hair_length else None
+                        )
+                        logger.info(
+                            f"Using hair attributes: color={hair_color}, "
+                            f"type={hair_type}, length={hair_length}"
+                        )
                 except Exception as e:
-                    logger.warning(f"Could not retrieve hair color: {e}")
+                    logger.warning(
+                        f"Could not retrieve hair attributes: {e}"
+                    )
 
             overlay_url = overlay_service.generate(
-                uploaded, style, overlay_type, hair_color=hair_color
+                uploaded,
+                style,
+                overlay_type,
+                hair_color=hair_color,
+                hair_type=hair_type,
+                hair_length=hair_length
             )
 
             track_event_safe(

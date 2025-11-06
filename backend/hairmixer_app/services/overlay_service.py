@@ -21,6 +21,8 @@ class OverlayService:
         style: Hairstyle,
         overlay_type: str = "basic",
         hair_color: str = None,
+        hair_type: str = None,
+        hair_length: str = None,
     ) -> str:
         user_img_path = Path(settings.MEDIA_ROOT) / uploaded.image.name
 
@@ -93,6 +95,8 @@ class OverlayService:
                 out_abs,
                 style_name=style_name,
                 hair_color=hair_color,
+                hair_type=hair_type,
+                hair_length=hair_length,
             )
         else:
             if style_img_path is None:

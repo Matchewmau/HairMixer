@@ -1231,20 +1231,32 @@ class OverlayView(APIView):
             uploaded = get_object_or_404(UploadedImage, id=image_id)
             style = get_object_or_404(Hairstyle, id=style_id)
 
-            # Conditionally use hair color from user preferences
+            # Conditionally use hair attributes from user preferences
             hair_color = None
+            hair_type = None
+            hair_length = None
             if use_hair_color and request.user.is_authenticated:
                 try:
                     preference = UserPreference.objects.get(user=request.user)
                     hair_color = preference.hair_color if preference.hair_color else None
-                    logger.info(f"Using hair_color from preferences: {hair_color}")
+                    hair_type = preference.hair_type if preference.hair_type else None
+                    hair_length = preference.hair_length if preference.hair_length else None
+                    logger.info(
+                        f"Using hair attributes from preferences: "
+                        f"color={hair_color}, type={hair_type}, length={hair_length}"
+                    )
                 except UserPreference.DoesNotExist:
-                    logger.info("No user preferences found, proceeding without hair color")
+                    logger.info("No user preferences found, proceeding without hair attributes")
             else:
-                logger.info("Not using hair color (Discover page or unauthenticated)")
+                logger.info("Not using hair attributes (Discover page or unauthenticated)")
             
             overlay_url = overlay_service.generate(
-                uploaded, style, overlay_type, hair_color=hair_color
+                uploaded, 
+                style, 
+                overlay_type, 
+                hair_color=hair_color,
+                hair_type=hair_type,
+                hair_length=hair_length
             )
 
             # Log analytics event

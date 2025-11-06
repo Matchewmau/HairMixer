@@ -87,6 +87,11 @@ class HairstyleDetailWithAIView(APIView):
             face_shape = 'oval'
             face_shape_confidence = 0.0
             
+            logger.info(
+                f"Hairstyle detail request: hairstyle_id={hairstyle_id}, "
+                f"preference_id={preference_id}, image_id={image_id}"
+            )
+            
             # Try to get user preferences
             if preference_id:
                 try:
@@ -97,33 +102,83 @@ class HairstyleDetailWithAIView(APIView):
                         'maintenance': preference.maintenance,
                         'lifestyle': preference.lifestyle,
                         'gender': preference.gender,
-                        'occasions': preference.occasions,
+                        'occasions': preference.occasions or [],
                         'hair_thickness': preference.hair_thickness,
                         'hair_texture_detail': preference.hair_texture_detail,
                         'wants_bangs': preference.wants_bangs,
+                        'volume': preference.volume,
+                        'styling_preference': preference.styling_preference,
+                        'styling_maintenance': preference.styling_maintenance,
+                        'hair_color': preference.hair_color,
+                        'hair_condition': preference.hair_condition or [],
                     }
                     if preference.faceshape:
                         face_shape = preference.faceshape
                         face_shape_confidence = (
                             preference.faceshape_confidence or 0.0
                         )
+                        logger.info(
+                            f"Face shape from preference: {face_shape} "
+                            f"(confidence: {face_shape_confidence:.2%})"
+                        )
+                    else:
+                        logger.warning(
+                            f"Preference {preference_id} found but no "
+                            f"face shape stored"
+                        )
                 except UserPreference.DoesNotExist:
                     logger.warning(f"Preference {preference_id} not found")
             
-            # Try to get face analysis from image
+            # Try to get face analysis from image via RecommendationLog
             if image_id and not preference_id:
                 try:
-                    image = UploadedImage.objects.get(id=image_id)
-                    # Try to get face shape from image analysis
-                    if hasattr(image, 'faceanalysis'):
-                        analysis = image.faceanalysis
-                        if analysis.face_shape:
-                            face_shape = analysis.face_shape
-                            face_shape_confidence = (
-                                analysis.face_shape_confidence or 0.0
-                            )
-                except UploadedImage.DoesNotExist:
-                    logger.warning(f"Image {image_id} not found")
+                    from ..models import RecommendationLog
+                    
+                    # Get the most recent recommendation log for this image
+                    # This contains the exact preference and face shape used
+                    rec_log = RecommendationLog.objects.filter(
+                        uploaded_id=image_id,
+                        status='completed'
+                    ).order_by('-created_at').first()
+                    
+                    if rec_log:
+                        # Use face shape from recommendation log (most accurate)
+                        face_shape = rec_log.face_shape
+                        face_shape_confidence = rec_log.face_shape_confidence
+                        
+                        # Get user preferences from the recommendation
+                        if rec_log.preference:
+                            pref = rec_log.preference
+                            user_preferences = {
+                                'hair_type': pref.hair_type,
+                                'hair_length': pref.hair_length,
+                                'maintenance': pref.maintenance,
+                                'lifestyle': pref.lifestyle,
+                                'gender': pref.gender,
+                                'occasions': pref.occasions or [],
+                                'hair_thickness': pref.hair_thickness,
+                                'hair_texture_detail': pref.hair_texture_detail,
+                                'wants_bangs': pref.wants_bangs,
+                                'volume': pref.volume,
+                                'styling_preference': pref.styling_preference,
+                                'styling_maintenance': pref.styling_maintenance,
+                                'hair_color': pref.hair_color,
+                                'hair_condition': pref.hair_condition or [],
+                            }
+                        
+                        logger.info(
+                            f"Using data from RecommendationLog "
+                            f"(ID: {rec_log.id}): face_shape={face_shape} "
+                            f"(confidence: {face_shape_confidence:.2%})"
+                        )
+                    else:
+                        logger.warning(
+                            f"No recommendation log found for image {image_id}"
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"Error retrieving recommendation log: {str(e)}"
+                    )
             
             # Create cache key
             cache_key = f"hairstyle_detail_{hairstyle_id}"
@@ -155,12 +210,11 @@ class HairstyleDetailWithAIView(APIView):
             # Serialize hairstyle
             hairstyle_data = HairstyleSerializer(hairstyle).data
             
-            # Combine data
+            # Combine data (user_preferences removed from response)
             result = {
                 'hairstyle': hairstyle_data,
                 'face_shape': face_shape,
                 'face_shape_confidence': face_shape_confidence,
-                'user_preferences': user_preferences,
                 'ai_generated': ai_details.get('success', False),
                 'personalized_description': ai_details.get(
                     'personalized_description',

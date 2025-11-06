@@ -95,6 +95,8 @@ class AdvancedOverlayProcessor:
         output_path,
         style_name: Optional[str] = None,
         hair_color: Optional[str] = None,
+        hair_type: Optional[str] = None,
+        hair_length: Optional[str] = None,
     ):
         """Create advanced overlay via Gemini Web API.
 
@@ -103,7 +105,8 @@ class AdvancedOverlayProcessor:
 
         Contract:
         - Inputs: user_img_path (str/Path), style_img_path (optional),
-          output_path (Path), style_name (optional), hair_color (optional)
+          output_path (Path), style_name (optional), hair_color (optional),
+          hair_type (optional), hair_length (optional)
         - Output: path string to saved PNG
         """
         try:
@@ -134,18 +137,38 @@ class AdvancedOverlayProcessor:
             # Use the provided style_name when available, otherwise generic.
             desired_style = style_name or "the selected hairstyle"
             
-            # Build prompt with or without hair color based on parameter
+            # Log received hair attributes for debugging
+            logger.info(
+                f"Overlay received attributes: style={desired_style}, "
+                f"type={hair_type}, color={hair_color}, length={hair_length}"
+            )
+            
+            # Build prompt components
+            hair_attributes = []
+            if hair_type:
+                hair_attributes.append(f"{hair_type} hair")
             if hair_color:
-                # Include hair color in prompt (Results page)
+                hair_attributes.append(f"{hair_color} color")
+            if hair_length:
+                hair_attributes.append(f"{hair_length} length")
+            
+            # Build prompt with available attributes
+            if hair_attributes:
+                # Include user's hair attributes in prompt (Results page)
+                attributes_str = ", ".join(hair_attributes)
                 prompt = (
-                    f"Edit the person's hair to {desired_style} with {hair_color} hair color. "
-                    "Maintain natural look, lighting and proportions."
+                    f"Edit the person's hair to {desired_style} with "
+                    f"{attributes_str}. Add natural hair texture and maintain "
+                    "realistic appearance. Preserve natural lighting, face "
+                    "features, and proportions."
                 )
             else:
-                # Let AI determine natural hair color from image (Discover page)
+                # Let AI determine natural attributes (Discover page)
                 prompt = (
                     f"Edit the person's hair to {desired_style}. "
-                    "Maintain natural look, lighting and proportions."
+                    "Add natural hair texture and maintain realistic "
+                    "appearance. Preserve natural lighting, face features, "
+                    "and proportions."
                 )
 
             # Initialize Gemini client

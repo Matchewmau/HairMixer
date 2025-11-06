@@ -94,9 +94,21 @@ class GeminiHairstyleService:
             
             # Parse response
             result = self._parse_response(response.text)
+            
+            # Ensure all required sections exist with fallback content
+            result = self._ensure_complete_sections(
+                result,
+                hairstyle_name,
+                hairstyle_description,
+                user_preferences
+            )
+            
             result['success'] = True
             
-            logger.info(f"Successfully generated details for hairstyle: {hairstyle_name}")
+            logger.info(
+                f"Successfully generated details for hairstyle: "
+                f"{hairstyle_name}"
+            )
             return result
             
         except Exception as e:
@@ -122,7 +134,7 @@ class GeminiHairstyleService:
     ) -> str:
         """Build a comprehensive prompt for Gemini API"""
         
-        # Extract user preferences
+        # Extract user preferences with defaults
         hair_type = user_preferences.get('hair_type', 'wavy')
         hair_length = user_preferences.get('hair_length', 'medium')
         maintenance = user_preferences.get('maintenance', 'medium')
@@ -132,57 +144,110 @@ class GeminiHairstyleService:
         hair_thickness = user_preferences.get('hair_thickness', 'medium')
         hair_texture = user_preferences.get('hair_texture_detail', '')
         wants_bangs = user_preferences.get('wants_bangs', False)
+        volume = user_preferences.get('volume', 'medium')
+        styling_preference = user_preferences.get('styling_preference', 'natural')
+        hair_color = user_preferences.get('hair_color', 'brown')
+        hair_condition = user_preferences.get('hair_condition', [])
+        
+        # Log the actual values being used for debugging
+        logger.info(
+            f"Building prompt with face_shape='{face_shape}' "
+            f"(confidence={face_shape_confidence:.2f}), "
+            f"hair_type='{hair_type}', gender='{gender}'"
+        )
+        
+        # Format lists and strings for display
+        condition_str = (
+            ', '.join(hair_condition) if hair_condition else 'Healthy'
+        )
+        tags_str = ', '.join(hairstyle_tags) if hairstyle_tags else 'N/A'
+        occasions_hairstyle_str = (
+            ', '.join(hairstyle_occasions) if hairstyle_occasions else 'N/A'
+        )
+        occasions_user_str = (
+            ', '.join(occasions) if occasions else 'Not specified'
+        )
+        texture_str = hair_texture if hair_texture else 'Not specified'
+        bangs_str = 'Yes' if wants_bangs else 'No'
+        confidence_pct = int(face_shape_confidence * 100)
         
         prompt = f"""You are a professional hairstylist and beauty consultant. Generate detailed, personalized information about a hairstyle recommendation.
 
 **Hairstyle Information:**
 - Name: {hairstyle_name}
 - Base Description: {hairstyle_description}
-- Tags: {', '.join(hairstyle_tags) if hairstyle_tags else 'N/A'}
-- Suitable Occasions: {', '.join(hairstyle_occasions) if hairstyle_occasions else 'N/A'}
+- Tags: {tags_str}
+- Suitable Occasions: {occasions_hairstyle_str}
 
 **User Profile:**
-- Face Shape: {face_shape} (detected with {int(face_shape_confidence * 100)}% confidence)
+- Face Shape: {face_shape} (AI-detected with {confidence_pct}% confidence using ResNet50 model)
+- Gender: {gender}
 - Hair Type: {hair_type}
 - Current/Desired Hair Length: {hair_length}
+- Hair Color: {hair_color}
 - Hair Thickness: {hair_thickness}
-- Hair Texture: {hair_texture if hair_texture else 'Not specified'}
-- Prefers Bangs: {'Yes' if wants_bangs else 'No'}
+- Hair Volume: {volume}
+- Hair Texture: {texture_str}
+- Hair Condition: {condition_str}
+- Prefers Bangs: {bangs_str}
+- Styling Preference: {styling_preference}
 - Maintenance Preference: {maintenance}
 - Lifestyle: {lifestyle}
-- Gender: {gender}
-- Preferred Occasions: {', '.join(occasions) if occasions else 'Not specified'}
+- Preferred Occasions: {occasions_user_str}
 
 Please provide the following information in a clear, structured format:
 
 **1. PERSONALIZED_DESCRIPTION:**
-Write a 2-3 sentence personalized description of how this hairstyle will look on this specific person, considering their face shape, hair type, and preferences. Make it engaging and positive.
+Write a 2-3 sentence personalized description of how this hairstyle will look on this specific person, considering their face shape, hair type, and preferences. Make it engaging and positive. IMPORTANT: Use the EXACT face shape provided above ({face_shape}) in your response.
 
 **2. PREFERENCE_MATCH:**
-In 3-4 bullet points, explain specifically how this hairstyle matches the user's preferences and lifestyle. Be specific about face shape compatibility, maintenance level, and lifestyle fit.
+In 1-4 bullet points, explain specifically how this hairstyle matches the user's preferences and lifestyle. Be specific about face shape compatibility (remember: their face shape is {face_shape}), maintenance level, and lifestyle fit.
 
 **3. RECOMMENDED_PRODUCTS:**
-List 5-7 specific hair products needed to achieve and maintain this style. Include:
-- Product name and type (e.g., "Volumizing Mousse", "Texturizing Spray")
+List 3-6 specific hair products needed to achieve and maintain this style. 
+IMPORTANT: Each product must have:
+- Product type name (e.g., "Heat Protectant Spray", "Volumizing Mousse")
 - Brief purpose (one sentence)
-Format as: "• Product Name - Purpose"
+Format EXACTLY as: "Product Type - Brief purpose"
+
+Example:
+• Heat Protectant Spray - Shields hair from heat damage during styling
+• Volumizing Mousse - Adds body and helps hold the wave
+• Texturizing Spray - Creates natural, piecey definition
 
 **4. MAINTENANCE_GUIDE:**
-Provide detailed maintenance instructions in 4-5 steps. Include:
-- Daily routine
-- Weekly care
-- Touch-up frequency
-- Expected time commitment
-Format as numbered steps.
+Provide 3-5 complete maintenance steps. Each step must be detailed and actionable.
+Include:
+- Daily styling routine (with time estimate)
+- Weekly care routine
+- Touch-up schedule (how often to visit salon)
+Format as: "1. Step Title: Detailed instructions..."
+
+Example:
+1. Daily Styling (15-20 min): Apply heat protectant to damp hair, blow-dry...
+2. Weekly Deep Condition: Once per week, apply deep conditioning mask...
+3. Professional Touch-Ups: Visit salon every 6-8 weeks for trim...
 
 **5. STYLING_TIPS:**
-Provide 4-5 professional styling tips specific to this hairstyle and hair type. Include:
-- Techniques for best results
-- Common mistakes to avoid
-- Pro tricks for longevity
-Format as bullet points starting with "• "
+Provide 4-6 professional styling tips specific to this hairstyle and hair type.
+Format as bullet points starting with "• " or "→ "
 
-Format your response EXACTLY as shown above with clear section headers (use ** for headers). Be specific, practical, and professional. Keep the tone friendly and encouraging."""
+Example:
+• Section hair before styling for more even results
+• Use lower heat settings to prevent damage
+• Let curls cool before touching them
+
+CRITICAL: Format your response EXACTLY as shown above with clear section 
+headers marked with **. You MUST include ALL 5 SECTIONS:
+1. PERSONALIZED_DESCRIPTION
+2. PREFERENCE_MATCH
+3. RECOMMENDED_PRODUCTS
+4. MAINTENANCE_GUIDE
+5. STYLING_TIPS
+
+Do NOT skip any section. Do NOT include user preference data or profile 
+information in your response. Be specific, practical, and professional. 
+Keep the tone friendly and encouraging."""
 
         return prompt
     
@@ -240,13 +305,100 @@ Format your response EXACTLY as shown above with clear section headers (use ** f
             # Process last section
             if current_section and current_content:
                 self._process_section(result, current_section, current_content)
-            
+
+            # Log which sections were found/missing
+            expected_sections = [
+                'personalized_description', 'preference_match',
+                'products', 'maintenance_guide', 'styling_tips'
+            ]
+            missing_sections = [
+                s for s in expected_sections
+                if s not in result or not result[s]
+            ]
+            if missing_sections:
+                logger.warning(
+                    f"Missing or empty sections in Gemini response: "
+                    f"{missing_sections}"
+                )
+
         except Exception as e:
             logger.error(f"Error parsing Gemini response: {str(e)}")
-        
+
+        return result
+
+    def _ensure_complete_sections(
+        self,
+        result: Dict,
+        hairstyle_name: str,
+        hairstyle_description: str,
+        user_preferences: Dict
+    ) -> Dict:
+        """
+        Ensure all required sections have content,
+        filling missing sections with fallback content
+        """
+
+        hair_type = user_preferences.get('hair_type', 'wavy')
+        maintenance = user_preferences.get('maintenance', 'medium')
+
+        # Check and fill personalized_description
+        if not result.get('personalized_description'):
+            result['personalized_description'] = (
+                f"{hairstyle_name} is a versatile style that works "
+                f"beautifully with {hair_type} hair. {hairstyle_description}"
+            )
+            logger.info("Added fallback personalized_description")
+
+        # Check and fill preference_match
+        if not result.get('preference_match'):
+            result['preference_match'] = [
+                f"Matches your {maintenance} maintenance preference",
+                "Compatible with your detected face shape",
+                "Suits your lifestyle and daily routine",
+                "Versatile for various occasions"
+            ]
+            logger.info("Added fallback preference_match")
+
+        # Check and fill products
+        if not result.get('products'):
+            result['products'] = [
+                "Shampoo and Conditioner - For daily cleansing",
+                "Styling Cream or Mousse - To achieve the look",
+                "Heat Protectant - Protects from styling tools",
+                "Hair Serum or Oil - For shine and smoothness",
+                "Finishing Spray - To hold the style"
+            ]
+            logger.info("Added fallback products")
+
+        # Check and fill maintenance_guide
+        if not result.get('maintenance_guide'):
+            result['maintenance_guide'] = [
+                "Daily Styling (10-15 min): Apply product to damp hair "
+                "and style as desired",
+                "Weekly Care: Deep condition once per week to maintain "
+                "hair health",
+                "Regular Trims: Visit salon every 6-8 weeks to maintain "
+                "shape",
+                "Touch-Ups: Adjust styling as needed throughout the day"
+            ]
+            logger.info("Added fallback maintenance_guide")
+
+        # Check and fill styling_tips
+        if not result.get('styling_tips'):
+            result['styling_tips'] = [
+                "Work with your natural hair texture",
+                "Use heat protection when styling with hot tools",
+                "Don't over-wash to maintain natural oils",
+                "Adjust products based on weather and humidity",
+                "Practice different techniques to find what works best"
+            ]
+            logger.info("Added fallback styling_tips")
+
         return result
     
-    def _process_section(self, result: Dict, section: str, content: List[str]) -> None:
+    def _process_section(
+        self, result: Dict, section: str, content: List[str]
+    ) -> None:
         """Process a section of the response"""
         
         full_content = ' '.join(content).strip()
@@ -259,11 +411,38 @@ Format your response EXACTLY as shown above with clear section headers (use ** f
             items = []
             for line in full_content.split('\n'):
                 line = line.strip()
-                if line.startswith('•') or line.startswith('-') or line.startswith('*'):
-                    items.append(line.lstrip('•-* ').strip())
-                elif line and not line.startswith('**'):
+                
+                # Skip empty lines and section headers
+                if not line or line.startswith('**'):
+                    continue
+                
+                # Skip common formatting artifacts
+                if any(skip in line.lower() for skip in [
+                    'example:', 'format as:', 'include:', 
+                    'important:', 'note:'
+                ]):
+                    continue
+                
+                # Extract bullet point content
+                if line.startswith(('•', '-', '*', '→')):
+                    clean_line = line.lstrip('•-*→ ').strip()
+                    if clean_line and len(clean_line) > 10:
+                        items.append(clean_line)
+                elif line and len(line) > 10:
                     # Sometimes items don't have bullets
                     items.append(line)
+            
+            # Validate specific sections
+            if section == 'products':
+                # Filter out non-product items
+                items = [
+                    item for item in items 
+                    if not any(skip in item.lower() for skip in [
+                        'touch-up frequency', 'expected time',
+                        'weekly care', 'daily routine'
+                    ])
+                ]
+            
             result[section] = items
         
         elif section == 'maintenance_guide':
@@ -271,13 +450,26 @@ Format your response EXACTLY as shown above with clear section headers (use ** f
             items = []
             for line in full_content.split('\n'):
                 line = line.strip()
-                # Remove numbers at start (1., 2., etc.)
-                if line and (line[0].isdigit() or line.startswith('•') or line.startswith('-')):
+                
+                # Skip empty lines and section headers
+                if not line or line.startswith('**'):
+                    continue
+                
+                # Skip formatting instructions
+                if any(skip in line.lower() for skip in [
+                    'example:', 'format as:', 'include:'
+                ]):
+                    continue
+                
+                # Extract numbered step content
+                if line and (line[0].isdigit() or line.startswith(('•', '-'))):
+                    # Remove numbering and bullets
                     clean_line = line.lstrip('0123456789.-•* ').strip()
-                    if clean_line:
+                    if clean_line and len(clean_line) > 20:
                         items.append(clean_line)
-                elif line and not line.startswith('**'):
+                elif line and len(line) > 20:
                     items.append(line)
+            
             result[section] = items
     
     def _generate_fallback_details(
