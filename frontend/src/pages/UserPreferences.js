@@ -73,6 +73,7 @@ const UserPreferences = () => {
     hair_thickness: existingPreferences?.hair_thickness || '',
     wants_bangs: existingPreferences?.wants_bangs || false,
     hair_color: existingPreferences?.hair_color || '',
+    color_preference: existingPreferences?.color_preference || '',  // For "other" color option
     gender: existingPreferences?.gender || '',
     
     // Hairstyle preferences
@@ -465,7 +466,7 @@ const UserPreferences = () => {
       required: false
     },
     hair_color: {
-      options: ['black', 'brown', 'blonde', 'red', 'auburn', 'gray', 'white', 'other'],  // Added auburn
+      options: ['natural', 'black', 'brown', 'blonde', 'red', 'auburn', 'gray', 'white', 'other'],  // Added natural
       label: 'Hair Color',
       required: true
     },
@@ -1114,6 +1115,7 @@ const UserPreferences = () => {
               <div className="space-y-8">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
+                    { value: 'natural', label: 'Natural', emoji: '🌿', color: 'from-green-600 to-green-800', description: 'Keep your current color' },
                     { value: 'black', label: 'Black', emoji: '⬛', color: 'from-gray-900 to-black' },
                     { value: 'brown', label: 'Brown', emoji: '🟤', color: 'from-amber-800 to-amber-900' },
                     { value: 'blonde', label: 'Blonde', emoji: '🟡', color: 'from-yellow-400 to-yellow-600' },
@@ -1121,22 +1123,81 @@ const UserPreferences = () => {
                     { value: 'auburn', label: 'Auburn', emoji: '🟫', color: 'from-orange-800 to-red-900' },
                     { value: 'gray', label: 'Gray', emoji: '⚪', color: 'from-gray-400 to-gray-600' },
                     { value: 'white', label: 'White', emoji: '⚪', color: 'from-gray-200 to-gray-400' },
-                    { value: 'other', label: 'Other', emoji: '🎨', color: 'from-purple-500 to-pink-500' }
+                    { value: 'other', label: 'Custom Color', emoji: '🎨', color: 'from-purple-500 to-pink-500', description: 'Enter your own color' }
                   ].map((color) => (
                     <button
                       key={color.value}
-                      onClick={() => handlePreferenceChange('hair_color', color.value)}
+                      onClick={() => {
+                        if (color.value === 'other') {
+                          const customColor = prompt('✨ Enter your hair color\n\nExamples: blue, pink, purple, highlights, ombre, silver, etc.');
+                          if (customColor && customColor.trim()) {
+                            handlePreferenceChange('hair_color', color.value);
+                            // Store custom color in color_preference field
+                            setPreferences(prev => ({
+                              ...prev,
+                              color_preference: customColor.trim()
+                            }));
+                          }
+                        } else {
+                          handlePreferenceChange('hair_color', color.value);
+                          // Clear color_preference if switching from 'other'
+                          if (preferences.color_preference) {
+                            setPreferences(prev => ({
+                              ...prev,
+                              color_preference: ''
+                            }));
+                          }
+                        }
+                      }}
                       className={`p-6 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
                         preferences.hair_color === color.value
                           ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
                           : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
                       }`}
+                      title={color.description || ''}
                     >
                       <div className="text-4xl mb-3">{color.emoji}</div>
                       <div className="font-medium text-lg">{color.label}</div>
+                      {color.value === 'other' && preferences.hair_color === 'other' && preferences.color_preference && (
+                        <div className="text-xs text-purple-300 mt-2 font-semibold bg-purple-900/30 px-2 py-1 rounded">
+                          "{preferences.color_preference}"
+                        </div>
+                      )}
+                      {color.value === 'natural' && preferences.hair_color === 'natural' && (
+                        <div className="text-xs text-green-300 mt-2 opacity-75">✓ No color change</div>
+                      )}
                     </button>
                   ))}
                 </div>
+                {preferences.hair_color === 'other' && !preferences.color_preference && (
+                  <div className="bg-yellow-500/10 border border-yellow-500/50 text-yellow-300 px-4 py-3 rounded-lg text-center">
+                    <span className="font-medium">💡 Click "Custom Color" again to specify your hair color</span>
+                  </div>
+                )}
+                {preferences.hair_color && preferences.hair_color !== 'other' && (
+                  <div className="bg-green-500/10 border border-green-500/30 text-green-300 px-4 py-3 rounded-lg text-center">
+                    <span className="font-medium">✓ Selected: {preferences.hair_color.charAt(0).toUpperCase() + preferences.hair_color.slice(1)}</span>
+                  </div>
+                )}
+                {preferences.hair_color === 'other' && preferences.color_preference && (
+                  <div className="bg-purple-500/10 border border-purple-500/30 text-purple-300 px-4 py-3 rounded-lg text-center">
+                    <span className="font-medium">✨ Your custom color: "{preferences.color_preference}"</span>
+                    <button
+                      onClick={() => {
+                        const newColor = prompt('✨ Enter your hair color\n\nExamples: blue, pink, purple, highlights, ombre, silver, etc.', preferences.color_preference);
+                        if (newColor && newColor.trim()) {
+                          setPreferences(prev => ({
+                            ...prev,
+                            color_preference: newColor.trim()
+                          }));
+                        }
+                      }}
+                      className="ml-3 text-xs underline hover:text-purple-200"
+                    >
+                      Change
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

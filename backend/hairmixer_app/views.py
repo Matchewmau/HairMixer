@@ -1237,16 +1237,35 @@ class OverlayView(APIView):
             hair_length = None
             if use_hair_color and request.user.is_authenticated:
                 try:
-                    preference = UserPreference.objects.get(user=request.user)
-                    hair_color = preference.hair_color if preference.hair_color else None
-                    hair_type = preference.hair_type if preference.hair_type else None
-                    hair_length = preference.hair_length if preference.hair_length else None
-                    logger.info(
-                        f"Using hair attributes from preferences: "
-                        f"color={hair_color}, type={hair_type}, length={hair_length}"
-                    )
-                except UserPreference.DoesNotExist:
-                    logger.info("No user preferences found, proceeding without hair attributes")
+                    # Get the most recent preference for this user
+                    preference = UserPreference.objects.filter(
+                        user=request.user
+                    ).order_by('-updated_at').first()
+                    
+                    if preference:
+                        hair_color = preference.hair_color if preference.hair_color else None
+                        logger.info(
+                            f"DEBUG: Raw preference values - "
+                            f"hair_color={preference.hair_color}, "
+                            f"color_preference={preference.color_preference}"
+                        )
+                        # If user selected "other" and provided custom color, use that
+                        if hair_color == 'other' and preference.color_preference:
+                            hair_color = preference.color_preference.lower()
+                            logger.info(
+                                f"Custom color preference found: {preference.color_preference}"
+                            )
+                        hair_type = preference.hair_type if preference.hair_type else None
+                        hair_length = preference.hair_length if preference.hair_length else None
+                        logger.info(
+                            f"Using hair attributes: "
+                            f"color={hair_color}, type={hair_type}, length={hair_length}"
+                        )
+                    else:
+                        logger.warning("No preferences found for user")
+                except Exception as e:
+                    logger.error(f"Error fetching preferences: {e}")
+                    logger.info("Proceeding without hair attributes")
             else:
                 logger.info("Not using hair attributes (Discover page or unauthenticated)")
             

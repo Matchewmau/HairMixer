@@ -158,7 +158,7 @@ class AdvancedOverlayProcessor:
                 attributes_str = ", ".join(hair_attributes)
                 prompt = (
                     f"Edit the person's hair to {desired_style} with "
-                    f"{attributes_str}. Add natural hair texture and maintain "
+                    f"{attributes_str}. Add hair texture and maintain "
                     "realistic appearance. Preserve natural lighting, face "
                     "features, and proportions."
                 )

@@ -116,6 +116,7 @@ class PreferenceProfile(models.Model):
     ]
     
     HAIR_COLOR_CHOICES = [
+        ("natural", "Natural"),
         ("black", "Black"),
         ("brown", "Brown"),
         ("blonde", "Blonde"),
@@ -343,6 +344,7 @@ class UserPreference(models.Model):
         ("frizzy", "Frizzy")
     ]
     HAIR_COLOR_CHOICES = [
+        ("natural", "Natural"),
         ("black", "Black"),
         ("brown", "Brown"),
         ("blonde", "Blonde"),

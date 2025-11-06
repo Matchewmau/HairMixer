@@ -521,6 +521,15 @@ class OverlayView(APIView):
                             user_pref.hair_color.strip()
                             if user_pref.hair_color else None
                         )
+                        
+                        # If user selected "other" color, use custom color
+                        if (hair_color == 'other' and 
+                            user_pref.color_preference):
+                            hair_color = user_pref.color_preference.lower()
+                            logger.info(
+                                f"Using custom color: {hair_color}"
+                            )
+                        
                         hair_type = (
                             user_pref.hair_type.strip()
                             if user_pref.hair_type else None

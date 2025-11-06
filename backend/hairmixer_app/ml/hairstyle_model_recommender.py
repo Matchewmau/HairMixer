@@ -189,9 +189,9 @@ class HairstyleModelRecommender:
         features['hair_length'] = hair_length if hair_length in ['short', 'medium', 'long'] else 'medium'
         
         # Hair color
-        hair_color = str(user_preferences.get('hair_color', 'brown')).lower()
-        valid_colors = ['black', 'brown', 'blonde', 'red', 'gray', 'white', 'auburn']
-        features['hair_color'] = hair_color if hair_color in valid_colors else 'brown'
+        hair_color = str(user_preferences.get('hair_color', 'natural')).lower()
+        valid_colors = ['natural', 'black', 'brown', 'blonde', 'red', 'gray', 'white', 'auburn', 'other']
+        features['hair_color'] = hair_color if hair_color in valid_colors else 'natural'
         
         # Hair condition (can be multiple, comma-separated)
         condition = user_preferences.get('hair_condition', 'none')
@@ -325,10 +325,24 @@ class HairstyleModelRecommender:
                 if column_name in feature_vector.columns:
                     feature_vector.at[0, column_name] = 1
                 else:
-                    logger.warning(
-                        f"Column '{column_name}' not found in model columns. "
-                        f"Feature: {feature_name}={value}"
-                    )
+                    # Apply fallback for missing columns
+                    fallback_applied = False
+                    
+                    # If 'natural' color not in model, use 'brown' as fallback
+                    if (feature_name == 'hair_color' and value == 'natural'):
+                        fallback_col = 'hair_color_brown'
+                        if fallback_col in feature_vector.columns:
+                            feature_vector.at[0, fallback_col] = 1
+                            fallback_applied = True
+                            logger.info(
+                                f"Applied fallback: {column_name} -> {fallback_col}"
+                            )
+                    
+                    if not fallback_applied:
+                        logger.warning(
+                            f"Column '{column_name}' not found in model columns. "
+                            f"Feature: {feature_name}={value}"
+                        )
             
             return feature_vector
             

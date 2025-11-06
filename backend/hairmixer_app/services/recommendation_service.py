@@ -56,11 +56,16 @@ class RecommendationService:
             prefs.save(update_fields=['faceshape', 'faceshape_confidence'])
 
         # Convert preferences to dict for Random Forest No-Family recommender
+        # If user selected "other" for hair color and provided custom color, use that
+        hair_color_value = prefs.hair_color or ''
+        if hair_color_value == 'other' and prefs.color_preference:
+            hair_color_value = prefs.color_preference.lower()
+        
         user_pref_dict = {
             'gender': prefs.gender or '',
             'hair_type': prefs.hair_type or '',
             'hair_length': prefs.hair_length or '',
-            'hair_color': prefs.hair_color or '',
+            'hair_color': hair_color_value,
             'maintenance': prefs.maintenance or '',
             'lifestyle': prefs.lifestyle or '',
             'volume': prefs.volume or '',

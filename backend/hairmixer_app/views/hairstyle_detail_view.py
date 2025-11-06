@@ -112,6 +112,12 @@ class HairstyleDetailWithAIView(APIView):
                         'hair_color': preference.hair_color,
                         'hair_condition': preference.hair_condition or [],
                     }
+                    # Use custom color if user selected "other"
+                    if (user_preferences['hair_color'] == 'other' and 
+                        preference.color_preference):
+                        user_preferences['hair_color'] = (
+                            preference.color_preference.lower()
+                        )
                     if preference.faceshape:
                         face_shape = preference.faceshape
                         face_shape_confidence = (
@@ -165,6 +171,12 @@ class HairstyleDetailWithAIView(APIView):
                                 'hair_color': pref.hair_color,
                                 'hair_condition': pref.hair_condition or [],
                             }
+                            # Use custom color if user selected "other"
+                            if (user_preferences['hair_color'] == 'other' and 
+                                pref.color_preference):
+                                user_preferences['hair_color'] = (
+                                    pref.color_preference.lower()
+                                )
                         
                         logger.info(
                             f"Using data from RecommendationLog "
