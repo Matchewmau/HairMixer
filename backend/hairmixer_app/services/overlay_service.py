@@ -20,6 +20,9 @@ class OverlayService:
         uploaded: UploadedImage,
         style: Hairstyle,
         overlay_type: str = "basic",
+        hair_color: str = None,
+        hair_type: str = None,
+        hair_length: str = None,
     ) -> str:
         user_img_path = Path(settings.MEDIA_ROOT) / uploaded.image.name
 
@@ -75,16 +78,37 @@ class OverlayService:
             )
             # When AI isn't viable, we need a style image for basic fallback.
             if not ai_viable and style_img_path is None:
+                logger.warning(
+                    f"No hairstyle image available for {style.name} "
+                    f"and AI is not configured. Cannot generate overlay."
+                )
                 raise ValueError(
-                    "Hairstyle image not available for overlay"
+                    "Hairstyle image not available and AI overlay is "
+                    "not configured. Please configure GEMINI_SECURE_1PSID "
+                    "and GEMINI_SECURE_1PSIDTS in your .env file to enable "
+                    "AI-generated overlays."
                 )
             style_name = getattr(style, 'name', None)
             self.processor.create_advanced_overlay(
-                user_img_path, style_img_path, out_abs, style_name=style_name
+                user_img_path,
+                style_img_path,
+                out_abs,
+                style_name=style_name,
+                hair_color=hair_color,
+                hair_type=hair_type,
+                hair_length=hair_length,
             )
         else:
             if style_img_path is None:
-                raise ValueError("Hairstyle image not available for overlay")
+                logger.warning(
+                    f"No hairstyle image available for {style.name}. "
+                    f"Cannot generate basic overlay."
+                )
+                raise ValueError(
+                    "Hairstyle image not available for basic overlay. "
+                    "Use 'advanced' overlay type with AI configuration, "
+                    "or ensure hairstyles have image files."
+                )
             self.processor.create_basic_overlay(
                 user_img_path, style_img_path, out_abs
             )

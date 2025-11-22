@@ -350,7 +350,7 @@ class FaceShapesView(APIView):
     def get(self, request):
         from .ml.model import FACE_SHAPE_CHARACTERISTICS
         
-        return Response({
+        response = Response({
             'face_shapes': [
                 {
                     'value': shape,
@@ -362,6 +362,13 @@ class FaceShapesView(APIView):
                 for shape, data in FACE_SHAPE_CHARACTERISTICS.items()
             ]
         })
+        
+        # Prevent caching to ensure users always get latest data
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
+        
+        return response
 
 class OccasionsView(APIView):
     """Get available occasions"""
@@ -374,4 +381,11 @@ class OccasionsView(APIView):
             for choice in UserPreference.OCCASION_CHOICES
         ]
         
-        return Response({'occasions': occasions})
+        response = Response({'occasions': occasions})
+        
+        # Prevent caching to ensure users always get latest occasions
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
+        
+        return response

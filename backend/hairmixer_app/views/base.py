@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 # Feature flags and optional imports
 ML_PREPROCESS_AVAILABLE = False
 ML_MODEL_AVAILABLE = False
-RECOMMENDATION_ENGINE_AVAILABLE = False
 OVERLAY_PROCESSOR_AVAILABLE = False
 ANALYTICS_AVAILABLE = False
 CACHE_MANAGER_AVAILABLE = False
@@ -30,13 +29,7 @@ try:
 except Exception as e:
     logger.warning(f"ML model not available: {e}")
 
-try:
-    from ..logic.recommendation_engine import (
-        EnhancedRecommendationEngine,
-    )  # noqa: F401
-    RECOMMENDATION_ENGINE_AVAILABLE = True
-except Exception as e:
-    logger.warning(f"Recommendation engine not available: {e}")
+
 
 try:
     from ..overlay import AdvancedOverlayProcessor  # noqa: F401
@@ -58,9 +51,6 @@ except Exception as e:
 
 # Global instances - Initialize conditionally
 MODEL = None
-recommendation_engine = (
-    EnhancedRecommendationEngine() if RECOMMENDATION_ENGINE_AVAILABLE else None
-)
 overlay_processor = (
     AdvancedOverlayProcessor() if OVERLAY_PROCESSOR_AVAILABLE else None
 )

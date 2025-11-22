@@ -170,6 +170,61 @@ Response:
 }
 ```
 
+### Hairstyle Details with AI
+- `GET /hairstyles/<uuid:hairstyle_id>/details/` (open)
+- Get detailed hairstyle information with AI-generated personalized content
+- Query Parameters:
+  - `preference_id`: UUID of user preferences (optional)
+  - `image_id`: UUID of uploaded image (optional)
+
+Example:
+
+```
+GET /api/hairstyles/123e4567-e89b-12d3-a456-426614174000/details/?preference_id=<uuid>&image_id=<uuid>
+```
+
+Response:
+
+```
+200 OK
+{
+  "hairstyle": {
+    "id": "<uuid>",
+    "name": "Layered Bob",
+    "description": "A versatile bob with layers...",
+    "image_url": "...",
+    "tags": ["modern", "versatile"],
+    "occasions": ["casual", "professional"]
+  },
+  "face_shape": "oval",
+  "face_shape_confidence": 0.92,
+  "ai_generated": true,
+  "personalized_description": "This layered bob will beautifully frame your oval face...",
+  "preference_match": [
+    "Matches your low maintenance preference",
+    "Perfect for your wavy hair type",
+    "Suits your casual lifestyle"
+  ],
+  "recommended_products": [
+    "Volumizing Mousse - Adds body and texture",
+    "Texturizing Spray - Creates wave definition",
+    "Heat Protectant - Protects from styling tools"
+  ],
+  "maintenance_guide": [
+    "Wash hair 2-3 times per week with sulfate-free shampoo",
+    "Apply styling products to damp hair",
+    "Blow dry with a round brush for volume",
+    "Schedule trims every 6-8 weeks"
+  ],
+  "styling_tips": [
+    "Work with your natural wave pattern",
+    "Use a diffuser attachment for added volume",
+    "Apply products section by section",
+    "Finish with a light hold spray"
+  ]
+}
+```
+
 ### Search
 - `GET /search/` (open)
 - Parameters:

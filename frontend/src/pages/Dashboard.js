@@ -60,11 +60,11 @@ const Dashboard = () => {
       />
 
       {/* Full Screen Hero Section */}
-      <div className="h-screen">
-        <div className="bg-gradient-to-br from-gray-900 via-slate-800 to-blue-900 h-full overflow-hidden">
+      <div className="min-h-screen bg-gray-900 pt-20 md:pt-24">
+        <div className="bg-gradient-to-br from-gray-900 via-slate-800 to-blue-900 min-h-screen overflow-hidden">
           <div className="w-full h-full flex items-center justify-center relative overflow-hidden">
             {/* Dark geometric pattern background */}
-            <div className="absolute inset-0 opacity-10">
+            <div className="absolute inset-0 opacity-10 mt-20">
               <div className="absolute top-0 right-0 w-96 h-96">
                 <div className="w-full h-full rounded-full border-2 border-blue-400 transform translate-x-48 -translate-y-48"></div>
               </div>
@@ -87,12 +87,7 @@ const Dashboard = () => {
             </div>
             
             <div className="text-center text-white p-8 md:p-12 max-w-5xl mx-auto relative z-10">
-              <div className="mb-6">
-                <span className="inline-block bg-blue-500/20 text-blue-300 px-4 py-2 rounded-full text-sm font-medium border border-blue-500/30 backdrop-blur-sm">
-                  Welcome back, {user?.firstName || 'User'}
-                </span>
-              </div>
-              <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 bg-gradient-to-r from-white via-blue-100 to-purple-200 bg-clip-text text-transparent">
+              <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 mt-6 bg-gradient-to-r from-white via-blue-100 to-purple-200 bg-clip-text text-transparent">
                 Discover Your Perfect
                 <span className="block text-blue-400">Hairstyle</span>
               </h1>
@@ -105,12 +100,6 @@ const Dashboard = () => {
                   className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold py-4 px-8 md:py-5 md:px-10 rounded-lg text-lg md:text-xl transition duration-300 ease-in-out transform hover:scale-105 shadow-lg hover:shadow-2xl border border-blue-500/30"
                 >
                   Start Your Analysis
-                </button>
-                <button
-                  onClick={() => console.log('View trends clicked')}
-                  className="bg-white/10 hover:bg-white/20 text-white font-semibold py-4 px-8 md:py-5 md:px-10 rounded-lg text-lg md:text-xl transition duration-300 ease-in-out backdrop-blur-sm border border-white/20 hover:border-white/40"
-                >
-                  Explore Trends
                 </button>
               </div>
               

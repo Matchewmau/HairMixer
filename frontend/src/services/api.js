@@ -17,6 +17,7 @@ class APIService {
         ...options.headers,
       },
       body: options.body,
+      signal: options.signal, // Add signal for AbortController
     };
 
     try {
@@ -39,6 +40,11 @@ class APIService {
         error.status = response.status;
         error.data = errorData;
         throw error;
+      }
+      
+      // Handle 204 No Content responses (e.g., DELETE operations)
+      if (response.status === 204) {
+        return null;
       }
       
       return await response.json();
@@ -124,16 +130,37 @@ class APIService {
     });
   }
 
+  // ML-based hairstyle recommendations (top 10)
+  async getMLRecommendations(preferenceId) {
+    return this.request('/recommend/ml/', {
+      method: 'POST',
+      body: JSON.stringify({
+        preference_id: preferenceId,
+      }),
+    });
+  }
+
   // Overlay generation
-  async generateOverlay(imageId, hairstyleId, overlayType = 'basic') {
+  async generateOverlay(imageId, hairstyleId, overlayType = 'advanced', signal = null, useHairColor = false) {
     return this.request('/overlay/', {
       method: 'POST',
       body: JSON.stringify({
         image_id: imageId,
         hairstyle_id: hairstyleId,
         overlay_type: overlayType,
+        use_hair_color: useHairColor,
       }),
+      signal: signal, // Add signal for AbortController
     });
+  }
+
+  // Get detailed hairstyle information with AI-generated content
+  async getHairstyleDetailsWithAI(hairstyleId, preferenceId = null, imageId = null) {
+    const params = new URLSearchParams();
+    if (preferenceId) params.append('preference_id', preferenceId);
+    if (imageId) params.append('image_id', imageId);
+    const query = params.toString();
+    return this.request(`/hairstyles/${hairstyleId}/details/${query ? '?' + query : ''}`);
   }
 
   // Feedback
@@ -164,6 +191,82 @@ class APIService {
     return this.request('/auth/logout/', {
       method: 'POST',
       body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+  }
+
+  // Preference Profiles
+  async getPreferenceProfiles() {
+    return this.request('/preference-profiles/');
+  }
+
+  async createPreferenceProfile(profileData) {
+    return this.request('/preference-profiles/', {
+      method: 'POST',
+      body: JSON.stringify(profileData),
+    });
+  }
+
+  async getPreferenceProfile(profileId) {
+    return this.request(`/preference-profiles/${profileId}/`);
+  }
+
+  async updatePreferenceProfile(profileId, profileData) {
+    return this.request(`/preference-profiles/${profileId}/`, {
+      method: 'PUT',
+      body: JSON.stringify(profileData),
+    });
+  }
+
+  async deletePreferenceProfile(profileId) {
+    return this.request(`/preference-profiles/${profileId}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async setDefaultProfile(profileId) {
+    return this.request(`/preference-profiles/${profileId}/set-default/`, {
+      method: 'POST',
+    });
+  }
+
+  // Saved Hairstyles
+  async getSavedHairstyles() {
+    return this.request('/saved-hairstyles/');
+  }
+
+  async saveHairstyle(hairstyleData) {
+    return this.request('/saved-hairstyles/', {
+      method: 'POST',
+      body: JSON.stringify(hairstyleData),
+    });
+  }
+
+  async getSavedHairstyle(savedId) {
+    return this.request(`/saved-hairstyles/${savedId}/`);
+  }
+
+  async updateSavedHairstyle(savedId, hairstyleData) {
+    return this.request(`/saved-hairstyles/${savedId}/`, {
+      method: 'PUT',
+      body: JSON.stringify(hairstyleData),
+    });
+  }
+
+  async deleteSavedHairstyle(savedId) {
+    return this.request(`/saved-hairstyles/${savedId}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  // User Profile
+  async getUserProfile() {
+    return this.request('/auth/profile/');
+  }
+
+  async updateUserProfile(profileData) {
+    return this.request('/auth/profile/', {
+      method: 'PUT',
+      body: JSON.stringify(profileData),
     });
   }
 }

@@ -28,7 +28,17 @@ urlpatterns = [
         name='set_preferences',
     ),
     path('recommend/', views.RecommendView.as_view(), name='recommend'),
+    path(
+        'recommend/ml/',
+        views.MLRecommendView.as_view(),
+        name='ml_recommend'
+    ),
     path('overlay/', views.OverlayView.as_view(), name='overlay'),
+    path(
+        'overlay/auto/',
+        views.AutoOverlayView.as_view(),
+        name='overlay_auto',
+    ),
     path('feedback/', views.FeedbackView.as_view(), name='feedback'),
     
     # Hairstyle endpoints
@@ -53,6 +63,11 @@ urlpatterns = [
         name='hairstyle_detail',
     ),
     path(
+        'hairstyles/<uuid:hairstyle_id>/details/',
+        views.HairstyleDetailWithAIView.as_view(),
+        name='hairstyle_detail_ai',
+    ),
+    path(
         'hairstyles/categories/',
         views.HairstyleCategoriesView.as_view(),
         name='hairstyle_categories',
@@ -73,6 +88,35 @@ urlpatterns = [
         'user/history/',
         views.UserHistoryView.as_view(),
         name='user_history',
+    ),
+    
+    # Preference Profile endpoints
+    path(
+        'preference-profiles/',
+        views.PreferenceProfileListCreateView.as_view(),
+        name='preference_profiles_list',
+    ),
+    path(
+        'preference-profiles/<uuid:profile_id>/',
+        views.PreferenceProfileDetailView.as_view(),
+        name='preference_profile_detail',
+    ),
+    path(
+        'preference-profiles/<uuid:profile_id>/set-default/',
+        views.PreferenceProfileSetDefaultView.as_view(),
+        name='preference_profile_set_default',
+    ),
+
+    # Saved Hairstyles endpoints
+    path(
+        'saved-hairstyles/',
+        views.SavedHairstyleListCreateView.as_view(),
+        name='saved_hairstyles_list',
+    ),
+    path(
+        'saved-hairstyles/<uuid:saved_id>/',
+        views.SavedHairstyleDetailView.as_view(),
+        name='saved_hairstyle_detail',
     ),
     
     # Search and filter endpoints

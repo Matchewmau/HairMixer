@@ -6,12 +6,17 @@ The backend supports two overlay modes:
 
 ## 1) Install dependencies
 
-In the backend environment, ensure requirements are installed:
+In your virtual environment install project dependencies from the consolidated root file:
 
-- python-dotenv
-- gemini-webapi
+```
+python -m pip install -r requirements.txt
+```
 
-These are already listed in `backend/requirements.txt`.
+Optional for advanced overlays (if you want Gemini):
+
+```
+python -m pip install gemini-webapi==1.15.2
+```
 
 ## 2) Environment variables
 

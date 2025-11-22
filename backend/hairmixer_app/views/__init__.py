@@ -3,7 +3,9 @@ from .analysis import (
     UploadImageView,
     SetPreferencesView,
     RecommendView,
+    MLRecommendView,
     OverlayView,
+    AutoOverlayView,
 )
 from .catalog import (
     FeaturedHairstylesView,
@@ -15,10 +17,18 @@ from .catalog import (
     FaceShapesView,
     OccasionsView,
 )
+from .hairstyle_detail_view import HairstyleDetailWithAIView
 from .user import (
     UserRecommendationsView,
     UserFavoritesView,
     UserHistoryView,
+    SavedHairstyleListCreateView,
+    SavedHairstyleDetailView,
+)
+from .preference_profiles import (
+    PreferenceProfileListCreateView,
+    PreferenceProfileDetailView,
+    PreferenceProfileSetDefaultView,
 )
 from .misc import (
     FeedbackView,
@@ -44,11 +54,14 @@ __all__ = [
     'UploadImageView',
     'SetPreferencesView',
     'RecommendView',
+    'MLRecommendView',
     'OverlayView',
+    'AutoOverlayView',
     # catalog
     'FeaturedHairstylesView',
     'TrendingHairstylesView',
     'HairstyleDetailView',
+    'HairstyleDetailWithAIView',
     'ListHairstylesView',
     'HairstyleCategoriesView',
     'SearchView',
@@ -58,6 +71,12 @@ __all__ = [
     'UserRecommendationsView',
     'UserFavoritesView',
     'UserHistoryView',
+    'SavedHairstyleListCreateView',
+    'SavedHairstyleDetailView',
+    # preference profiles
+    'PreferenceProfileListCreateView',
+    'PreferenceProfileDetailView',
+    'PreferenceProfileSetDefaultView',
     # misc
     'FeedbackView',
     'AnalyticsEventView',

@@ -1,47 +1,92 @@
-#!/usr/bin/env python3
 """
-Test the face detection API endpoint
+Test the hairstyle detail endpoint with real data
 """
 import requests
-from pathlib import Path
+import json
 
-def test_api_endpoint():
-    """Test the face detection API"""
+# API endpoint
+BASE_URL = "http://localhost:8000/api"
+
+def test_hairstyle_detail_endpoint():
+    print("=" * 70)
+    print("Testing Hairstyle Detail API Endpoint with Gemini AI")
+    print("=" * 70)
     
-    # Test image path
-    test_image = Path("uploads/2025/08/best-haircuts-for-every-face-shape-277864-1551404529439-main.jpg")
-    
-    if not test_image.exists():
-        print(f"❌ Test image not found: {test_image}")
-        return
-    
-    print(f"🔍 Testing API endpoint with: {test_image}")
+    # First, let's get a list of hairstyles to test with
+    print("\n1. Fetching available hairstyles...")
     
     try:
-        # Test the upload endpoint
-        url = "http://127.0.0.1:8000/api/upload/"
+        response = requests.get(f"{BASE_URL}/hairstyles/")
+        response.raise_for_status()
+        data = response.json()
         
-        with open(test_image, 'rb') as f:
-            files = {'image': ('test_image.jpg', f, 'image/jpeg')}
-            response = requests.post(url, files=files, timeout=30)
-        
-        print(f"📋 API Response Status: {response.status_code}")
-        
-        if response.status_code == 200:
-            result = response.json()
-            print("API call successful!")
-            print(f"   - Face detected: {result.get('face_detected', False)}")
-            print(f"   - Face shape: {result.get('face_shape', {}).get('shape', 'N/A')}")
-            print(f"   - Confidence: {result.get('confidence', 'N/A')}")
-            print(f"   - Detection method: {result.get('detection_method', 'N/A')}")
-            print(f"   - Quality score: {result.get('quality_metrics', {}).get('overall_quality', 'N/A')}")
+        # Handle different response formats
+        if isinstance(data, dict):
+            hairstyles = data.get('results', []) or data.get('data', [])
+            if not hairstyles and 'id' in data:
+                hairstyles = [data]
         else:
-            print("❌ API call failed!")
-            print(f"   - Status: {response.status_code}")
-            print(f"   - Response: {response.text}")
+            hairstyles = data
+        
+        if not hairstyles:
+            print("   ❌ No hairstyles found in database")
+            return
+        
+        print(f"   ✅ Found {len(hairstyles)} hairstyles")
+        
+        # Get the first hairstyle
+        test_hairstyle = hairstyles[0]
+        hairstyle_id = test_hairstyle['id']
+        hairstyle_name = test_hairstyle['name']
+        
+        print(f"   Testing with: {hairstyle_name} (ID: {hairstyle_id})")
         
     except Exception as e:
-        print(f"💥 Exception occurred: {str(e)}")
+        print(f"   ❌ Error fetching hairstyles: {str(e)}")
+        return
+    
+    # Test the detail endpoint without user preferences
+    print(f"\n2. Testing detail endpoint (no preferences)...")
+    
+    try:
+        response = requests.get(f"{BASE_URL}/hairstyles/{hairstyle_id}/details/")
+        response.raise_for_status()
+        details = response.json()
+        
+        print(f"   ✅ API Response received")
+        print(f"\n   Response Structure:")
+        print(f"   - hairstyle: {'✓' if 'hairstyle' in details else '✗'}")
+        print(f"   - face_shape: {details.get('face_shape', 'N/A')}")
+        print(f"   - ai_generated: {details.get('ai_generated', False)}")
+        print(f"   - personalized_description: {'✓' if details.get('personalized_description') else '✗'} ({len(details.get('personalized_description', ''))} chars)")
+        print(f"   - preference_match: {len(details.get('preference_match', []))} items")
+        print(f"   - recommended_products: {len(details.get('recommended_products', []))} items")
+        print(f"   - maintenance_guide: {len(details.get('maintenance_guide', []))} items")
+        print(f"   - styling_tips: {len(details.get('styling_tips', []))} items")
+        
+        print(f"\n   Sample Content:")
+        print(f"   Description: {details.get('personalized_description', 'N/A')[:150]}...")
+        
+        if details.get('preference_match'):
+            print(f"\n   First Preference Match:")
+            print(f"   • {details['preference_match'][0]}")
+        
+        if details.get('recommended_products'):
+            print(f"\n   First Product:")
+            print(f"   • {details['recommended_products'][0]}")
+        
+        print("\n" + "=" * 70)
+        if details.get('ai_generated'):
+            print("✅ GEMINI AI IS WORKING - Generating personalized content!")
+        else:
+            print("⚠️  Using fallback content - Gemini AI may not be working")
+        print("=" * 70)
+        
+    except requests.exceptions.ConnectionError:
+        print("   ❌ Cannot connect to backend server")
+        print("   Make sure Django server is running: python manage.py runserver")
+    except Exception as e:
+        print(f"   ❌ Error: {str(e)}")
 
-if __name__ == "__main__":
-    test_api_endpoint()
+if __name__ == '__main__':
+    test_hairstyle_detail_endpoint()

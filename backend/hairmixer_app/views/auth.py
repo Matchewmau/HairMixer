@@ -233,8 +233,20 @@ def logout(request):
     try:
         refresh_token = request.data.get('refresh_token')
         if refresh_token:
-            token = RefreshToken(refresh_token)
-            token.blacklist()
+            try:
+                token = RefreshToken(refresh_token)
+                # Check if blacklist method exists before calling
+                if hasattr(token, 'blacklist'):
+                    token.blacklist()
+                else:
+                    logger.debug(
+                        "Token blacklist not available. "
+                        "Install rest_framework_simplejwt.token_blacklist "
+                        "to enable token blacklisting."
+                    )
+            except Exception as e:
+                # Token might be invalid/expired, but still allow logout
+                logger.debug(f"Token blacklist failed: {str(e)}")
 
         track_event_safe(
             analytics_service,
@@ -277,17 +289,38 @@ def logout(request):
 
 
 @extend_schema(responses={200: UserSerializer})
-@api_view(['GET'])
+@api_view(['GET', 'PUT', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def user_profile(request):
     try:
-        user_data = UserSerializer(request.user).data
-        return Response({'user': user_data}, status=status.HTTP_200_OK)
+        if request.method == 'GET':
+            user_data = UserSerializer(request.user).data
+            return Response({'user': user_data}, status=status.HTTP_200_OK)
+
+        elif request.method in ['PUT', 'PATCH']:
+            # Update user profile
+            serializer = UserSerializer(
+                request.user,
+                data=request.data,
+                partial=(request.method == 'PATCH')
+            )
+
+            if serializer.is_valid():
+                serializer.save()
+                return Response({
+                    'user': serializer.data,
+                    'message': 'Profile updated successfully'
+                }, status=status.HTTP_200_OK)
+
+            return Response({
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
     except Exception as e:
         logger.error(f"User profile error: {str(e)}")
         return Response(
             {
-                'message': 'Failed to fetch user profile',
+                'message': 'Failed to process user profile',
                 'error': 'An unexpected error occurred',
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
