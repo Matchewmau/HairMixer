@@ -102,12 +102,18 @@ class HairstyleModelRecommender:
         Predict top K hairstyle recommendations
         
         Args:
-            user_preferences: Dict with user preference fields
+            user_preferences: Dict with user preference fields (includes gender)
             face_shape: Detected face shape from face analyzer
             k: Number of recommendations to return (default 10)
             
         Returns:
             List of dicts with keys: hairstyle_name, confidence, rank
+            
+        Note:
+            Gender is used as a feature in the ML model. Additional gender
+            filtering is applied at the database level in the recommendation
+            service to ensure only appropriate hairstyles are returned
+            (male/unisex for males, female/unisex for females).
         """
         if not self.is_available():
             logger.error("Model not loaded")

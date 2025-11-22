@@ -2058,6 +2058,7 @@ class ListHairstylesView(APIView):
             face_shape = request.query_params.get('face_shape')
             occasion = request.query_params.get('occasion')
             maintenance = request.query_params.get('maintenance')
+            gender = request.query_params.get('gender', '').lower()
             featured_only = (
                 request.query_params.get('featured', '').lower() == 'true'
             )
@@ -2079,6 +2080,11 @@ class ListHairstylesView(APIView):
                 
             if maintenance:
                 queryset = queryset.filter(maintenance=maintenance)
+            
+            if gender in ['male', 'female']:
+                gender_filter = Q(suitable_gender='unisex')
+                gender_filter |= Q(suitable_gender=gender)
+                queryset = queryset.filter(gender_filter)
                 
             if featured_only:
                 queryset = queryset.filter(is_featured=True)

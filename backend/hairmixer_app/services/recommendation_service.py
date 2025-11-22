@@ -88,18 +88,28 @@ class RecommendationService:
             )
             
             # Look up hairstyles in database
+            user_gender = (prefs.gender or 'female').lower()
+            logger.info(f"Filtering recommendations for gender: {user_gender}")
+            
             for pred in ml_predictions:
                 hairstyle_name = pred['hairstyle_name']
                 
                 # Try to find matching hairstyle in DB
                 # Handle both underscore and space variations
+                # Filter by gender: show male/unisex for males, female/unisex for females
                 try:
+                    gender_filter = Q(suitable_gender='unisex')
+                    if user_gender == 'male':
+                        gender_filter |= Q(suitable_gender='male')
+                    else:
+                        gender_filter |= Q(suitable_gender='female')
+                    
                     hairstyle = Hairstyle.objects.filter(
                         Q(name__iexact=hairstyle_name) |
                         Q(name__iexact=hairstyle_name.replace('_', ' ')) |
                         Q(name__iexact=hairstyle_name.replace(' ', '_')),
                         is_active=True
-                    ).first()
+                    ).filter(gender_filter).first()
                     
                     if hairstyle:
                         recommendations.append({
