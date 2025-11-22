@@ -24,12 +24,13 @@ import Navbar from '../components/Navbar';
  * - Step 3: Volume (low, medium, high)
  * - Step 4: Hair Thickness (thin, medium, thick)
  * - Step 5: Hair Texture Detail (fine, normal, thick, smooth, coarse, silky, frizzy)
- * - Step 6: Lifestyle (active, moderate, relaxed, professional)
- * - Step 7: Maintenance (low, medium, high)
- * - Step 8: Styling Preference (natural, classic, elegant, trendy, edgy) + Bangs
- * - Step 9: Occasions (multiple selection)
- * - Step 10: Hair Color (black, brown, blonde, red, gray, white, other) ⭐ NEW
- * - Step 11: Hair Condition (optional: healthy, dry ends, damaged, etc.)
+ * - Step 6: Lifestyle (active, moderate, relaxed)
+ * - Step 7: Overall Maintenance (low, medium, high)
+ * - Step 8: Daily Styling Maintenance (low, medium, high)
+ * - Step 9: Styling Preference (natural, classic, elegant, trendy, edgy) + Bangs
+ * - Step 10: Occasions (multiple selection)
+ * - Step 11: Hair Color (black, brown, blonde, red, gray, white, other) ⭐ NEW
+ * - Step 12: Hair Condition (optional: healthy, dry ends, damaged, etc.)
  * 
  * State Management:
  * - preferences: All user preference data including gender and hair_condition
@@ -54,7 +55,7 @@ const UserPreferences = () => {
 
   // Step-by-step wizard state
   const [currentStep, setCurrentStep] = useState(0);
-  const totalSteps = 12; // Gender (0) + Basic characteristics (1-9) + Hair Color (10) + Hair condition (11)
+  const totalSteps = 13; // Gender (0) + Basic characteristics (1-9) + Styling Maintenance (8) + Hair Color (11) + Hair condition (12)
 
   const [preferences, setPreferences] = useState({
     // Core characteristics
@@ -207,8 +208,6 @@ const UserPreferences = () => {
       const cleanedPreferences = {
         ...preferences,
         faceshape: uploadResponse?.face_shape?.shape || preferences.faceshape || '',
-        // Default styling_maintenance to maintenance if not set
-        styling_maintenance: preferences.styling_maintenance || preferences.maintenance,
         // Keep hair_condition as array (can be empty)
         hair_condition: preferences.hair_condition || [],
       };
@@ -224,7 +223,7 @@ const UserPreferences = () => {
         throw new Error(`Invalid gender: ${cleanedPreferences.gender}. Must be one of: ${validGenders.join(', ')}`);
       }
 
-      const validLifestyles = ['active', 'professional', 'creative', 'casual', 'moderate', 'relaxed'];  // Updated to match model
+      const validLifestyles = ['active', 'moderate', 'relaxed'];  // Only 3 choices as per UI
       if (!validLifestyles.includes(cleanedPreferences.lifestyle)) {
         throw new Error(`Invalid lifestyle: ${cleanedPreferences.lifestyle}. Must be one of: ${validLifestyles.join(', ')}`);
       }
@@ -334,15 +333,17 @@ const UserPreferences = () => {
       hair_texture_detail: profile.hair_texture_detail || '',
       lifestyle: profile.lifestyle || '',
       maintenance: profile.maintenance || '',
+      styling_maintenance: profile.styling_maintenance || '',
       styling_preference: profile.styling_preference || '',
       hair_color: profile.hair_color || '',
+      wants_bangs: profile.wants_bangs || false,
       hair_condition: profile.hair_condition || [],
       occasions: profile.occasions || [],  // Apply occasions from profile
       // Keep faceshape from detection, don't override
     }));
     setShowProfileModal(false);
     // Jump to final step (hair condition) since all fields including occasions are filled
-    setCurrentStep(11);  // Changed from 9 to 11 to skip to the last step (hair condition)
+    setCurrentStep(12);  // Jump to step 12 (hair condition - optional)
   };
 
   // Step navigation functions
@@ -446,13 +447,18 @@ const UserPreferences = () => {
       required: true
     },
     lifestyle: {
-      options: ['active', 'professional', 'creative', 'casual', 'moderate', 'relaxed'],  // Updated to match model
+      options: ['active', 'moderate', 'relaxed'],  // Reduced to 3 choices as requested
       label: 'Lifestyle',
       required: true
     },
     maintenance: {
       options: ['low', 'medium', 'high'],
-      label: 'Maintenance',
+      label: 'Overall Maintenance',
+      required: true
+    },
+    styling_maintenance: {
+      options: ['low', 'medium', 'high'],
+      label: 'Daily Styling Maintenance',
       required: true
     },
     styling_preference: {
@@ -542,12 +548,14 @@ const UserPreferences = () => {
       case 7: 
         return validateField('maintenance', preferences.maintenance).valid;
       case 8: 
-        return validateField('styling_preference', preferences.styling_preference).valid;
+        return !!preferences.styling_maintenance;
       case 9: 
-        return preferences.occasions && preferences.occasions.length > 0;
+        return !!preferences.styling_preference;
       case 10:
-        return validateField('hair_color', preferences.hair_color).valid;
+        return preferences.occasions && preferences.occasions.length > 0;
       case 11:
+        return validateField('hair_color', preferences.hair_color).valid;
+      case 12:
         return true; // Hair condition is optional
       default: 
         return false;
@@ -589,19 +597,23 @@ const UserPreferences = () => {
         break;
       case 7: 
         fieldName = 'maintenance';
-        label = 'maintenance level';
+        label = 'overall maintenance level';
         break;
       case 8: 
+        fieldName = 'styling_maintenance';
+        label = 'daily styling maintenance';
+        break;
+      case 9: 
         fieldName = 'styling_preference';
         label = 'styling preference';
         break;
-      case 9: 
+      case 10: 
         return 'Please select at least one occasion';
-      case 10:
+      case 11:
         fieldName = 'hair_color';
         label = 'hair color';
         break;
-      case 11:
+      case 12:
         return ''; // Optional field
       default: 
         return '';
@@ -620,6 +632,7 @@ const UserPreferences = () => {
            preferences.hair_texture_detail &&
            preferences.lifestyle && 
            preferences.maintenance &&
+           preferences.styling_maintenance &&
            preferences.styling_preference &&
            preferences.occasions.length > 0 &&
            preferences.hair_color;
@@ -635,11 +648,12 @@ const UserPreferences = () => {
     { number: 4, title: 'Hair Thickness', description: 'How thick is your hair?' },
     { number: 5, title: 'Hair Texture', description: 'What\'s your hair texture like?' },
     { number: 6, title: 'Lifestyle', description: 'What\'s your lifestyle like?' },
-    { number: 7, title: 'Maintenance', description: 'How much maintenance do you prefer?' },
-    { number: 8, title: 'Styling', description: 'What\'s your styling preference?' },
-    { number: 9, title: 'Occasions', description: 'What occasions do you style for?' },
-    { number: 10, title: 'Hair Color', description: 'What\'s your current hair color?' },
-    { number: 11, title: 'Hair Condition', description: 'What\'s your current hair health?' }
+    { number: 7, title: 'Overall Maintenance', description: 'How much overall maintenance do you prefer?' },
+    { number: 8, title: 'Daily Styling', description: 'How much time for daily styling?' },
+    { number: 9, title: 'Styling Preference', description: 'What\'s your styling preference?' },
+    { number: 10, title: 'Occasions', description: 'What occasions do you style for?' },
+    { number: 11, title: 'Hair Color', description: 'What\'s your current hair color?' },
+    { number: 12, title: 'Hair Condition', description: 'What\'s your current hair health?' }
   ];
 
   if (isLoading) {
@@ -729,10 +743,10 @@ const UserPreferences = () => {
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       ) : (
-                        step.number
+                        step.number + 1
                       )}
                     </div>
-                    {step.number < totalSteps && (
+                    {step.number < steps.length - 1 && (
                       <div className={`h-1 w-8 transition-colors duration-300 ${
                         isCompleted ? 'bg-green-500' : 'bg-gray-600'
                       }`}></div>
@@ -745,8 +759,8 @@ const UserPreferences = () => {
             {/* Step Title and Description */}
             <div className="text-center">
               <h2 className="text-2xl font-bold text-white mb-2">
-                Step {currentStep + 1} of {totalSteps + 1}: {steps[currentStep].title}
-                <span className="ml-2 text-red-400 text-sm">{currentStep !== 11 ? '*' : ''}</span>
+                Step {currentStep + 1} of {totalSteps}: {steps[currentStep].title}
+                <span className="ml-2 text-red-400 text-sm">{currentStep !== 12 ? '*' : ''}</span>
                 {isStepCompleted(currentStep) && (
                   <span className="ml-2 text-green-400 text-sm">✓</span>
                 )}
@@ -755,7 +769,7 @@ const UserPreferences = () => {
                 {steps[currentStep].description}
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                {currentStep !== 11 ? '* Required field' : 'Optional - helps us give better recommendations'}
+                {currentStep !== 12 ? '* Required field' : 'Optional - helps us give better recommendations'}
               </p>
             </div>
           </div>
@@ -976,10 +990,7 @@ const UserPreferences = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {[
                     { value: 'active', emoji: '🏃‍♀️', description: 'Always on the go, sports and outdoor activities' },
-                    { value: 'professional', emoji: '💼', description: 'Office work, business meetings, corporate' },
-                    { value: 'creative', emoji: '🎨', description: 'Artist, designer, creative professional' },
-                    { value: 'casual', emoji: '�', description: 'Relaxed, everyday, comfortable lifestyle' },
-                    { value: 'moderate', emoji: '�🚶‍♀️', description: 'Balanced lifestyle with varied activities' },
+                    { value: 'moderate', emoji: '🚶‍♀️', description: 'Balanced lifestyle with varied activities' },
                     { value: 'relaxed', emoji: '🧘‍♀️', description: 'Calm, low-key, plenty of downtime' }
                   ].map((lifestyle) => (
                     <button
@@ -1000,14 +1011,17 @@ const UserPreferences = () => {
               </div>
             )}
 
-            {/* Step 7: Maintenance */}
+            {/* Step 7: Overall Maintenance */}
             {currentStep === 7 && (
               <div className="space-y-8">
+                <p className="text-center text-gray-300 text-lg mb-4">
+                  How much overall maintenance do you prefer for your hairstyle? (salon visits, treatments, upkeep)
+                </p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {[
-                    { value: 'low', emoji: '⚡', description: 'Minimal styling time, wash and go styles' },
-                    { value: 'medium', emoji: '🎯', description: 'Some styling effort, occasional salon visits' },
-                    { value: 'high', emoji: '💎', description: 'Love detailed styling, frequent salon appointments' }
+                    { value: 'low', emoji: '⚡', description: 'Minimal upkeep, infrequent salon visits' },
+                    { value: 'medium', emoji: '🎯', description: 'Moderate upkeep, occasional salon visits' },
+                    { value: 'high', emoji: '💎', description: 'High maintenance, frequent salon appointments' }
                   ].map((maintenance) => (
                     <button
                       key={maintenance.value}
@@ -1027,8 +1041,38 @@ const UserPreferences = () => {
               </div>
             )}
 
-            {/* Step 8: Styling Preference */}
+            {/* Step 8: Daily Styling Maintenance */}
             {currentStep === 8 && (
+              <div className="space-y-8">
+                <p className="text-center text-gray-300 text-lg mb-4">
+                  How much time do you have for daily styling? (morning routine, daily effort)
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {[
+                    { value: 'low', emoji: '⚡', description: '5-10 minutes, wash and go' },
+                    { value: 'medium', emoji: '⏱️', description: '15-30 minutes, some styling' },
+                    { value: 'high', emoji: '✨', description: '30+ minutes, detailed styling' }
+                  ].map((styling) => (
+                    <button
+                      key={styling.value}
+                      onClick={() => handlePreferenceChange('styling_maintenance', styling.value)}
+                      className={`p-8 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 text-left ${
+                        preferences.styling_maintenance === styling.value
+                          ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
+                          : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
+                      }`}
+                    >
+                      <div className="text-4xl mb-4">{styling.emoji}</div>
+                      <div className="font-medium text-xl mb-2">{styling.value.charAt(0).toUpperCase() + styling.value.slice(1)} Daily Effort</div>
+                      <div className="text-sm opacity-80">{styling.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Step 9: Styling Preference */}
+            {currentStep === 9 && (
               <div className="space-y-8">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                   {[
@@ -1074,8 +1118,8 @@ const UserPreferences = () => {
               </div>
             )}
 
-            {/* Step 9: Occasions */}
-            {currentStep === 9 && (
+            {/* Step 10: Occasions */}
+            {currentStep === 10 && (
               <div className="space-y-8">
                 <p className="text-center text-gray-300 text-lg mb-6">Select all that apply</p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -1110,8 +1154,8 @@ const UserPreferences = () => {
               </div>
             )}
 
-            {/* Step 10: Hair Color */}
-            {currentStep === 10 && (
+            {/* Step 11: Hair Color */}
+            {currentStep === 11 && (
               <div className="space-y-8">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
@@ -1201,8 +1245,8 @@ const UserPreferences = () => {
               </div>
             )}
 
-            {/* Step 11: Hair Condition */}
-            {currentStep === 11 && (
+            {/* Step 12: Hair Condition */}
+            {currentStep === 12 && (
               <div className="space-y-8">
                 <p className="text-center text-gray-300 text-lg mb-6">
                   Optional - Select all that apply to your current hair condition (you can select multiple)
@@ -1303,10 +1347,10 @@ const UserPreferences = () => {
 
               <div className="text-center">
                 <div className="text-white text-sm">
-                  Step {currentStep + 1} of {totalSteps + 1}
+                  Step {currentStep + 1} of {totalSteps}
                 </div>
                 <div className="text-gray-400 text-xs">
-                  {Math.round(((currentStep + 1) / (totalSteps + 1)) * 100)}% Complete
+                  {Math.round(((currentStep + 1) / totalSteps) * 100)}% Complete
                 </div>
               </div>
 
@@ -1317,12 +1361,12 @@ const UserPreferences = () => {
                 className={`px-8 py-3 rounded-xl font-medium transition-all duration-300 transform ${
                   !isCurrentStepValid() || isSubmitting
                     ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                    : currentStep === totalSteps
+                    : currentStep === totalSteps - 1
                     ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white hover:scale-105 shadow-lg'
                     : 'bg-purple-600 hover:bg-purple-700 text-white hover:scale-105'
                 }`}
               >
-                {isSubmitting ? 'Getting Recommendations...' : currentStep === totalSteps ? 'Get My Recommendations' : 'Next →'}
+                {isSubmitting ? 'Getting Recommendations...' : currentStep === totalSteps - 1 ? 'Get My Recommendations' : 'Next →'}
               </button>
             </div>
           </div>
@@ -1379,24 +1423,61 @@ const UserPreferences = () => {
                           )}
                         </div>
                         
-                        {/* Preference Info */}
-                        <div className="space-y-2 mb-3 text-xs">
-                          <div className="flex items-center justify-between text-gray-300">
-                            <span className="text-gray-500">Gender:</span>
-                            <span className="capitalize">{profile.gender}</span>
+                        {/* Preference Info - Organized by category */}
+                        <div className="space-y-3 mb-3">
+                          {/* Basic Info */}
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-500 font-medium">👤 Gender:</span>
+                              <span className="text-gray-300 capitalize font-semibold">{profile.gender}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-500 font-medium">💇 Hair Type:</span>
+                              <span className="text-gray-300 capitalize">{profile.hair_type}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-500 font-medium">📏 Length:</span>
+                              <span className="text-gray-300 capitalize">{profile.hair_length}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-500 font-medium">🎨 Color:</span>
+                              <span className="text-gray-300 capitalize">{profile.hair_color}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center justify-between text-gray-300">
-                            <span className="text-gray-500">Hair Type:</span>
-                            <span className="capitalize">{profile.hair_type}</span>
+                          
+                          {/* Divider */}
+                          <div className="border-t border-slate-700/50"></div>
+                          
+                          {/* Maintenance & Style */}
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-500 font-medium">🏃 Lifestyle:</span>
+                              <span className="text-gray-300 capitalize">{profile.lifestyle}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-500 font-medium">⚙️ Maintenance:</span>
+                              <span className="text-gray-300 capitalize">{profile.maintenance}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-500 font-medium">⏱️ Daily Styling:</span>
+                              <span className="text-gray-300 capitalize">{profile.styling_maintenance || 'Not set'}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-500 font-medium">✨ Style:</span>
+                              <span className="text-gray-300 capitalize">{profile.styling_preference}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center justify-between text-gray-300">
-                            <span className="text-gray-500">Length:</span>
-                            <span className="capitalize">{profile.hair_length}</span>
-                          </div>
-                          <div className="flex items-center justify-between text-gray-300">
-                            <span className="text-gray-500">Lifestyle:</span>
-                            <span className="capitalize">{profile.lifestyle}</span>
-                          </div>
+                          
+                          {/* Occasions */}
+                          {profile.occasions && profile.occasions.length > 0 && (
+                            <>
+                              <div className="border-t border-slate-700/50"></div>
+                              <div className="text-xs">
+                                <span className="text-gray-500 font-medium">🎯 Occasions: </span>
+                                <span className="text-gray-300">{profile.occasions.join(', ')}</span>
+                              </div>
+                            </>
+                          )}
                         </div>
                         
                         {/* Click hint */}

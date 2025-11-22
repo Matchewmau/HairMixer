@@ -215,8 +215,9 @@ class PreferenceProfileSerializer(serializers.ModelSerializer):
             'id', 'profile_name', 'description', 'is_default',
             'gender', 'hair_type', 'hair_length', 'volume',
             'hair_thickness', 'hair_texture_detail', 'lifestyle',
-            'maintenance', 'styling_preference', 'hair_color',
-            'hair_condition', 'occasions', 'created_at', 'updated_at', 'last_used_at'
+            'maintenance', 'styling_maintenance', 'styling_preference',
+            'wants_bangs', 'hair_color', 'hair_condition', 'occasions',
+            'created_at', 'updated_at', 'last_used_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'last_used_at']
     
