@@ -8,7 +8,7 @@ router = DefaultRouter()
 
 urlpatterns = [
     # API Root
-    path('', views.api_root, name='api_root'),  # Add this line
+    path('', views.api_root, name='api_root'),
     
     # Include router URLs
     path('', include(router.urls)),
