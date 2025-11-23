@@ -198,44 +198,43 @@ class GeminiHairstyleService:
 Please provide the following information in a clear, structured format:
 
 **1. PERSONALIZED_DESCRIPTION:**
-Write a 2-3 sentence personalized description of how this hairstyle will look on this specific person, considering their face shape, hair type, and preferences. Make it engaging and positive. IMPORTANT: Use the EXACT face shape provided above ({face_shape}) in your response.
+Write a 2-3 sentence personalized description of how this hairstyle will look on this specific person. You MUST explicitly reference their {face_shape} face shape and {hair_type} hair type in your explanation. Explain WHY it works for them specifically.
 
 **2. PREFERENCE_MATCH:**
-In 1-4 bullet points, explain specifically how this hairstyle matches the user's preferences and lifestyle. Be specific about face shape compatibility (remember: their face shape is {face_shape}), maintenance level, and lifestyle fit.
+In 1-4 bullet points, explain specifically how this hairstyle matches the user's preferences.
+- Mention if it fits their {maintenance} maintenance preference.
+- Mention how it suits their lifestyle.
 
 **3. RECOMMENDED_PRODUCTS:**
-List 3-6 specific hair products needed to achieve and maintain this style. 
-IMPORTANT: Each product must have:
-- Product type name (e.g., "Heat Protectant Spray", "Volumizing Mousse")
-- Brief purpose (one sentence)
-Format EXACTLY as: "Product Type - Brief purpose"
+List 2-4 specific hair products.
+IMPORTANT: For each product, you MUST include:
+- Specific Product Type (e.g., "Argan Oil Serum", not just "Oil")
+- Key Ingredients to look for (e.g., "Look for products with keratin or biotin")
+- Specific Usage (e.g., "Apply dime-sized amount to damp ends")
+Format EXACTLY as: "Product Type - Key Ingredients: [ingredients] - [usage]"
 
 Example:
-• Heat Protectant Spray - Shields hair from heat damage during styling
-• Volumizing Mousse - Adds body and helps hold the wave
-• Texturizing Spray - Creates natural, piecey definition
+• Volumizing Mousse - Key Ingredients: Rice protein, polymers - Apply to roots of damp hair before blow-drying
+• Heat Protectant Spray - Key Ingredients: Silicones or Argan oil - Mist all over dry hair before ironing
 
 **4. MAINTENANCE_GUIDE:**
-Provide 3-5 complete maintenance steps. Each step must be detailed and actionable.
+Provide 2-3 complete, actionable maintenance steps.
 Include:
-- Daily styling routine (with time estimate)
-- Weekly care routine
-- Touch-up schedule (how often to visit salon)
+- Daily Styling: Exact time estimate and specific techniques.
+- Wash Schedule: Exact frequency (e.g., "Every 2-3 days").
+- Salon Visits: Exact frequency (e.g., "Every 6-8 weeks").
 Format as: "1. Step Title: Detailed instructions..."
 
 Example:
-1. Daily Styling (15-20 min): Apply heat protectant to damp hair, blow-dry...
-2. Weekly Deep Condition: Once per week, apply deep conditioning mask...
-3. Professional Touch-Ups: Visit salon every 6-8 weeks for trim...
+1. Daily Styling (15 min): Dampen hair, apply mousse, and scrunch. Diffuse on low heat.
+2. Wash Schedule: Wash every 3 days using sulfate-free shampoo to prevent drying.
+3. Salon Maintenance: Visit stylist every 8 weeks for a trim to keep layers fresh.
 
 **5. STYLING_TIPS:**
-Provide 4-6 professional styling tips specific to this hairstyle and hair type.
+Provide 2-4 professional styling tips specific to this hairstyle.
+- Include specific techniques (e.g., "Use the cool shot button").
+- Include specific tool settings (e.g., "Medium heat, low airflow").
 Format as bullet points starting with "• " or "→ "
-
-Example:
-• Section hair before styling for more even results
-• Use lower heat settings to prevent damage
-• Let curls cool before touching them
 
 CRITICAL: Format your response EXACTLY as shown above with clear section 
 headers marked with **. You MUST include ALL 5 SECTIONS:
@@ -245,9 +244,8 @@ headers marked with **. You MUST include ALL 5 SECTIONS:
 4. MAINTENANCE_GUIDE
 5. STYLING_TIPS
 
-Do NOT skip any section. Do NOT include user preference data or profile 
-information in your response. Be specific, practical, and professional. 
-Keep the tone friendly and encouraging."""
+Do NOT skip any section. Be highly specific and practical. Avoid generic advice.
+Keep the tone professional yet encouraging."""
 
         return prompt
     

@@ -1,39 +1,198 @@
 from django.core.paginator import Paginator
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
 from rest_framework.views import APIView
-from drf_spectacular.utils import extend_schema, OpenApiResponse
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.parsers import JSONParser
+import logging
+import traceback
 
-from ..models import RecommendationLog, Hairstyle, SavedHairstyle
-from ..serializers import (
-    RecommendationLogSerializer,
-    SavedHairstyleSerializer
+from ..models import (
+    UserPreference, PreferenceProfile, RecommendationLog, Hairstyle, Feedback,
+    SavedHairstyle
 )
-from .base import logger
+from ..serializers import (
+    UserPreferenceSerializer, FeedbackSerializer, RecommendationLogSerializer,
+    PreferenceProfileSerializer, SavedHairstyleSerializer
+)
+from ..services.analytics_utils import track_event_safe
+from ..services.analytics import AnalyticsService
+
+# Initialize services
+try:
+    analytics_service = AnalyticsService()
+except ImportError:
+    analytics_service = None
+
+logger = logging.getLogger(__name__)
+
+class SetPreferencesView(APIView):
+    parser_classes = (JSONParser,)
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        try:
+            data = request.data
+            logger.info(f"Received preferences data: {data}")
+            
+            preference_data = {
+                'faceshape': data.get('faceshape', ''),
+                'hair_type': data.get('hair_type', ''),
+                'hair_length': data.get('hair_length', ''),
+                'lifestyle': data.get('lifestyle', ''),
+                'maintenance': data.get('maintenance', ''),
+                'occasions': data.get('occasions', []),
+                'gender': data.get('gender', ''),
+                'hair_color': data.get('hair_color', ''),
+                'color_preference': data.get('color_preference', ''),
+                'budget_range': data.get('budget_range', ''),
+                'volume': data.get('volume', ''),
+                'styling_maintenance': data.get('styling_maintenance', ''),
+                'hair_texture_detail': data.get('hair_texture_detail', ''),
+                'styling_preference': data.get('styling_preference', ''),
+                'hair_condition': data.get('hair_condition', []),
+                'hair_thickness': data.get('hair_thickness', ''),
+                'wants_bangs': data.get('wants_bangs', False),
+                'hairstyle_family': data.get('hairstyle_family', ''),
+                'hairstyle_name': data.get('hairstyle_name', ''),
+                'avoid_styles': data.get('avoid_styles', []),
+            }
+            
+            filtered_data = {}
+            for k, v in preference_data.items():
+                if isinstance(v, list) or (v != '' and v is not None):
+                    filtered_data[k] = v
+            preference_data = filtered_data
+            
+            if not isinstance(preference_data.get('occasions', []), list):
+                preference_data['occasions'] = []
+            
+            required_fields = ['hair_type', 'hair_length', 'maintenance']
+            missing_fields = []
+            for field in required_fields:
+                if not preference_data.get(field):
+                    missing_fields.append(field)
+            
+            if missing_fields:
+                error_msg = f"Required fields missing: {', '.join(missing_fields)}"
+                logger.error(f"Validation error: {error_msg}")
+                return Response(
+                    {"error": error_msg},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            valid_hair_types = ['straight', 'wavy', 'curly', 'coily']
+            if preference_data['hair_type'] not in valid_hair_types:
+                return Response(
+                    {"error": f"Invalid hair_type. Must be one of: {valid_hair_types}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            serializer = UserPreferenceSerializer(data=preference_data)
+            
+            if not serializer.is_valid():
+                logger.error("Preference validation errors: %s", serializer.errors)
+                return Response(
+                    {
+                        "error": "Invalid preferences",
+                        "details": serializer.errors,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
+            preference = serializer.save(
+                user=(
+                    request.user
+                    if (
+                        hasattr(request, 'user') and getattr(
+                            request.user, 'is_authenticated', False
+                        )
+                    )
+                    else None
+                )
+            )
+            
+            return Response({
+                'success': True,
+                'preference_id': str(preference.id),
+                'message': 'Preferences saved successfully',
+                'preferences': serializer.data
+            })
+            
+        except Exception as e:
+            logger.error(f"Error saving preferences: {str(e)}")
+            traceback.print_exc()
+            return Response(
+                {"error": "Failed to save preferences", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class FeedbackView(APIView):
+    parser_classes = (JSONParser,)
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        try:
+            serializer = FeedbackSerializer(data=request.data)
+            if serializer.is_valid():
+                fb = serializer.save(
+                    user=(
+                        request.user if request.user.is_authenticated else None
+                    )
+                )
+                
+                if fb.hairstyle:
+                    fb.hairstyle.update_popularity()
+                
+                track_event_safe(
+                    analytics_service,
+                    user=(
+                        request.user if request.user.is_authenticated else None
+                    ),
+                    event_type='feedback_submitted',
+                    event_data={
+                        'feedback_id': str(fb.id),
+                        'liked': fb.liked,
+                        'rating': fb.rating,
+                        'has_note': bool(fb.note)
+                    },
+                    request=request
+                )
+                
+                return Response({
+                    "feedback_id": fb.id,
+                    "message": "Feedback submitted successfully"
+                })
+            return Response(
+                serializer.errors, status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        except Exception as e:
+            logger.error(f"Error saving feedback: {str(e)}")
+            return Response(
+                {"error": "Failed to save feedback", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class UserRecommendationsView(APIView):
+    """Get user's recommendation history"""
     permission_classes = [IsAuthenticated]
-    serializer_class = None
-
-    @extend_schema(
-        responses={
-            200: OpenApiResponse(description='User recommendations list')
-        }
-    )
+    
     def get(self, request):
         try:
             page = int(request.query_params.get('page', 1))
             per_page = min(int(request.query_params.get('per_page', 10)), 50)
-
+            
             recommendations = RecommendationLog.objects.filter(
-                user=request.user, status='completed'
+                user=request.user,
+                status='completed'
             ).order_by('-created_at')
-
+            
             paginator = Paginator(recommendations, per_page)
             page_obj = paginator.get_page(page)
-
+            
             all_ids = []
             for rec in page_obj.object_list:
                 if rec.candidates:
@@ -42,7 +201,8 @@ class UserRecommendationsView(APIView):
             hairstyle_cache = {}
             if unique_ids:
                 qs = Hairstyle.objects.filter(
-                    id__in=unique_ids, is_active=True
+                    id__in=unique_ids,
+                    is_active=True,
                 )
                 for h in qs:
                     hairstyle_cache[str(h.id)] = h
@@ -55,175 +215,158 @@ class UserRecommendationsView(APIView):
                     'hairstyle_cache': hairstyle_cache,
                 },
             )
-
-            return Response(
-                {
-                    'recommendations': serializer.data,
-                    'pagination': {
-                        'page': page,
-                        'per_page': per_page,
-                        'total_pages': paginator.num_pages,
-                        'total_count': paginator.count,
-                        'has_next': page_obj.has_next(),
-                        'has_previous': page_obj.has_previous(),
-                    },
+            
+            return Response({
+                'recommendations': serializer.data,
+                'pagination': {
+                    'page': page,
+                    'per_page': per_page,
+                    'total_pages': paginator.num_pages,
+                    'total_count': paginator.count,
+                    'has_next': page_obj.has_next(),
+                    'has_previous': page_obj.has_previous()
                 }
-            )
+            })
+            
         except Exception as e:
             logger.error(f"Error fetching user recommendations: {str(e)}")
             return Response(
-                {"error": "Failed to fetch recommendations"}, status=500
+                {"error": "Failed to fetch recommendations"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 
 class UserFavoritesView(APIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = None
-
-    @extend_schema(
-        responses={200: OpenApiResponse(description='Favorites placeholder')}
-    )
-    def get(self, request):
-        return Response(
-            {'favorites': [], 'message': 'Favorites feature coming soon'}
-        )
-
-
-class UserHistoryView(APIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = None
-
-    @extend_schema(
-        responses={200: OpenApiResponse(description='History placeholder')}
-    )
-    def get(self, request):
-        return Response(
-            {'history': [], 'message': 'History feature coming soon'}
-        )
-
-
-class SavedHairstyleListCreateView(APIView):
     """
-    GET: List all saved hairstyles for the authenticated user
-    POST: Save a new hairstyle with user preferences
+    Get user's favorite hairstyles (SavedHairstyles).
+    Alias for SavedHairstyleListCreateView for frontend compatibility.
     """
     permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        summary="List saved hairstyles",
-        description=(
-            "Retrieve all hairstyles saved by the authenticated user. "
-            "Each saved hairstyle includes the user preferences at the "
-            "time of saving, allowing tracking of user preference patterns."
-        ),
-        responses={200: SavedHairstyleSerializer(many=True)}
-    )
+    
     def get(self, request):
-        """Get all saved hairstyles for the current user"""
         saved_hairstyles = SavedHairstyle.objects.filter(
             user=request.user
         ).select_related('hairstyle', 'hairstyle__category')
-
-        serializer = SavedHairstyleSerializer(
-            saved_hairstyles,
-            many=True,
-            context={'request': request}
-        )
+        
+        serializer = SavedHairstyleSerializer(saved_hairstyles, many=True)
+        serializer = SavedHairstyleSerializer(saved_hairstyles, many=True)
+        # Frontend expects a list, not an object with 'favorites' key
         return Response(serializer.data)
 
-    @extend_schema(
-        summary="Save a hairstyle",
-        description=(
-            "Save a hairstyle recommendation with user preferences. "
-            "The same hairstyle can be saved multiple times with "
-            "different preference contexts."
-        ),
-        request=SavedHairstyleSerializer,
-        responses={
-            201: SavedHairstyleSerializer,
-            400: OpenApiResponse(description='Invalid data')
-        }
-    )
     def post(self, request):
-        """Save a new hairstyle with user preferences"""
+        """Allow saving favorites via this endpoint too"""
         serializer = SavedHairstyleSerializer(
             data=request.data,
             context={'request': request}
         )
         if serializer.is_valid():
             saved = serializer.save()
-            return Response(
-                SavedHairstyleSerializer(
-                    saved,
-                    context={'request': request}
-                ).data,
-                status=status.HTTP_201_CREATED
+            
+            track_event_safe(
+                analytics_service,
+                user=request.user,
+                event_type='hairstyle_favorited',
+                event_data={
+                    'saved_id': str(saved.id),
+                    'hairstyle_id': str(saved.hairstyle.id),
+                    'hairstyle_name': saved.hairstyle_name
+                },
+                request=request
             )
-        return Response(
-            serializer.errors,
-            status=status.HTTP_400_BAD_REQUEST
-        )
+            
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class SavedHairstyleDetailView(APIView):
+class UserHistoryView(APIView):
+    """Get user's activity history (placeholder)"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        # TODO: Implement user history
+        return Response({
+            'history': [],
+            'message': 'History feature coming soon'
+        })
+
+
+class PreferenceProfileListCreateView(APIView):
     """
-    GET: Retrieve a specific saved hairstyle
-    PUT: Update a saved hairstyle (e.g., add notes)
-    DELETE: Remove a saved hairstyle
+    GET: List all preference profiles for the authenticated user
+    POST: Create a new preference profile
     """
     permission_classes = [IsAuthenticated]
-
-    def get_object(self, saved_id, user):
-        """Get saved hairstyle for authenticated user"""
-        try:
-            return SavedHairstyle.objects.select_related(
-                'hairstyle',
-                'hairstyle__category'
-            ).get(id=saved_id, user=user)
-        except SavedHairstyle.DoesNotExist:
-            return None
-
-    @extend_schema(
-        summary="Get saved hairstyle details",
-        responses={
-            200: SavedHairstyleSerializer,
-            404: OpenApiResponse(description='Not found')
-        }
-    )
-    def get(self, request, saved_id):
-        """Get a specific saved hairstyle"""
-        saved = self.get_object(saved_id, request.user)
-        if not saved:
-            return Response(
-                {'error': 'Saved hairstyle not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        serializer = SavedHairstyleSerializer(
-            saved,
+    
+    def get(self, request):
+        profiles = PreferenceProfile.objects.filter(user=request.user)
+        serializer = PreferenceProfileSerializer(profiles, many=True)
+        return Response({
+            'profiles': serializer.data,
+            'count': profiles.count()
+        })
+    
+    def post(self, request):
+        serializer = PreferenceProfileSerializer(
+            data=request.data,
             context={'request': request}
         )
-        return Response(serializer.data)
+        if serializer.is_valid():
+            serializer.save(user=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @extend_schema(
-        summary="Update saved hairstyle",
-        request=SavedHairstyleSerializer,
-        responses={
-            200: SavedHairstyleSerializer,
-            404: OpenApiResponse(description='Not found')
-        }
-    )
-    def put(self, request, saved_id):
-        """Update a saved hairstyle (e.g., add notes)"""
-        saved = self.get_object(saved_id, request.user)
-        if not saved:
+
+class PreferenceProfileDetailView(APIView):
+    """
+    GET: Retrieve a specific preference profile
+    PUT: Update a preference profile
+    PATCH: Partially update a preference profile
+    DELETE: Delete a preference profile
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get_object(self, profile_id, user):
+        try:
+            return PreferenceProfile.objects.get(id=profile_id, user=user)
+        except PreferenceProfile.DoesNotExist:
+            return None
+    
+    def get(self, request, profile_id):
+        profile = self.get_object(profile_id, request.user)
+        if not profile:
             return Response(
-                {'error': 'Saved hairstyle not found'},
+                {'error': 'Profile not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
-
-        serializer = SavedHairstyleSerializer(
-            saved,
+        serializer = PreferenceProfileSerializer(profile)
+        return Response(serializer.data)
+    
+    def put(self, request, profile_id):
+        profile = self.get_object(profile_id, request.user)
+        if not profile:
+            return Response(
+                {'error': 'Profile not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        serializer = PreferenceProfileSerializer(
+            profile,
+            data=request.data,
+            context={'request': request}
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def patch(self, request, profile_id):
+        profile = self.get_object(profile_id, request.user)
+        if not profile:
+            return Response(
+                {'error': 'Profile not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        serializer = PreferenceProfileSerializer(
+            profile,
             data=request.data,
             partial=True,
             context={'request': request}
@@ -231,38 +374,115 @@ class SavedHairstyleDetailView(APIView):
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
-        return Response(
-            serializer.errors,
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def delete(self, request, profile_id):
+        profile = self.get_object(profile_id, request.user)
+        if not profile:
+            return Response(
+                {'error': 'Profile not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        profile.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @extend_schema(
-        summary="Delete saved hairstyle",
-        responses={
-            204: OpenApiResponse(description='Deleted successfully'),
-            404: OpenApiResponse(description='Not found')
-        }
-    )
-    def delete(self, request, saved_id):
-        """Delete a saved hairstyle"""
-        logger.info(
-            f"Delete request for saved_id: {saved_id}, "
-            f"user: {request.user.email}"
+
+class PreferenceProfileSetDefaultView(APIView):
+    """
+    POST: Set a preference profile as the default
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, profile_id):
+        try:
+            profile = PreferenceProfile.objects.get(
+                id=profile_id,
+                user=request.user
+            )
+            profile.is_default = True
+            profile.save()
+
+            serializer = PreferenceProfileSerializer(profile)
+            return Response(serializer.data)
+        except PreferenceProfile.DoesNotExist:
+            return Response(
+                {'error': 'Profile not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+class SavedHairstyleListCreateView(APIView):
+    """
+    GET: List all saved hairstyles for the authenticated user
+    POST: Save a hairstyle
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        saved_hairstyles = SavedHairstyle.objects.filter(
+            user=request.user
+        ).select_related('hairstyle', 'hairstyle__category')
+        
+        serializer = SavedHairstyleSerializer(saved_hairstyles, many=True)
+        serializer = SavedHairstyleSerializer(saved_hairstyles, many=True)
+        # Frontend expects a list, not an object with 'saved_hairstyles' key
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = SavedHairstyleSerializer(
+            data=request.data,
+            context={'request': request}
         )
+        if serializer.is_valid():
+            saved = serializer.save()
+            
+            track_event_safe(
+                analytics_service,
+                user=request.user,
+                event_type='hairstyle_saved',
+                event_data={
+                    'saved_id': str(saved.id),
+                    'hairstyle_id': str(saved.hairstyle.id),
+                    'hairstyle_name': saved.hairstyle_name
+                },
+                request=request
+            )
+            
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SavedHairstyleDetailView(APIView):
+    """
+    GET: Retrieve a specific saved hairstyle
+    DELETE: Remove a saved hairstyle
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, saved_id, user):
+        try:
+            return SavedHairstyle.objects.select_related(
+                'hairstyle'
+            ).get(id=saved_id, user=user)
+        except SavedHairstyle.DoesNotExist:
+            return None
+
+    def get(self, request, saved_id):
         saved = self.get_object(saved_id, request.user)
         if not saved:
-            logger.warning(
-                f"Saved hairstyle {saved_id} not found "
-                f"for user {request.user.email}"
-            )
             return Response(
                 {'error': 'Saved hairstyle not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+        serializer = SavedHairstyleSerializer(saved)
+        return Response(serializer.data)
 
+    def delete(self, request, saved_id):
+        saved = self.get_object(saved_id, request.user)
+        if not saved:
+            return Response(
+                {'error': 'Saved hairstyle not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
         saved.delete()
-        logger.info(
-            f"Deleted saved hairstyle {saved_id} "
-            f"for user {request.user.email}"
-        )
         return Response(status=status.HTTP_204_NO_CONTENT)

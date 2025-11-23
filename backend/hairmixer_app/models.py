@@ -91,9 +91,6 @@ class PreferenceProfile(models.Model):
     
     LIFESTYLE_CHOICES = [
         ("active", "Active"),
-        ("professional", "Professional"),
-        ("creative", "Creative"),
-        ("casual", "Casual"),
         ("moderate", "Moderate"),
         ("relaxed", "Relaxed"),
     ]
@@ -116,7 +113,6 @@ class PreferenceProfile(models.Model):
     ]
     
     HAIR_COLOR_CHOICES = [
-        ("natural", "Natural"),
         ("black", "Black"),
         ("brown", "Brown"),
         ("blonde", "Blonde"),
@@ -124,7 +120,17 @@ class PreferenceProfile(models.Model):
         ("auburn", "Auburn"),
         ("gray", "Gray"),
         ("white", "White"),
+        ("natural", "Natural"),
         ("other", "Other"),
+    ]
+    
+    OCCASION_CHOICES = [
+        ("work", "Work"),
+        ("casual", "Casual"),
+        ("formal", "Formal"),
+        ("party", "Party"),
+        ("wedding", "Wedding"),
+        ("birthday", "Birthday")
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -142,11 +148,22 @@ class PreferenceProfile(models.Model):
     volume = models.CharField(max_length=20, choices=VOLUME_CHOICES, default="medium")
     hair_thickness = models.CharField(max_length=20, choices=HAIR_THICKNESS_CHOICES, default="medium")
     hair_texture_detail = models.CharField(max_length=20, choices=HAIR_TEXTURE_DETAIL_CHOICES, default="normal")
-    lifestyle = models.CharField(max_length=20, choices=LIFESTYLE_CHOICES, default="casual")
+    lifestyle = models.CharField(max_length=20, choices=LIFESTYLE_CHOICES, default="moderate")
     maintenance = models.CharField(max_length=20, choices=MAINTENANCE_CHOICES, default="medium")
-    styling_preference = models.CharField(max_length=20, choices=STYLING_PREFERENCE_CHOICES, default="natural")
-    hair_color = models.CharField(max_length=20, choices=HAIR_COLOR_CHOICES, default="brown")
-    hair_condition = models.JSONField(default=list, blank=True, help_text="Multiple hair conditions")
+    styling_maintenance = models.CharField(
+        max_length=20, choices=MAINTENANCE_CHOICES, default="medium",
+        help_text="Daily styling time"
+    )
+    styling_preference = models.CharField(
+        max_length=20, choices=STYLING_PREFERENCE_CHOICES, default="natural"
+    )
+    wants_bangs = models.BooleanField(default=False, null=True, blank=True)
+    hair_color = models.CharField(
+        max_length=20, choices=HAIR_COLOR_CHOICES, default="brown"
+    )
+    hair_condition = models.JSONField(
+        default=list, blank=True, help_text="Multiple hair conditions"
+    )
     occasions = models.JSONField(default=list, blank=True, help_text="Multiple occasions for styling")
     
     # Metadata
@@ -186,7 +203,9 @@ class PreferenceProfile(models.Model):
             'hair_texture_detail': self.hair_texture_detail,
             'lifestyle': self.lifestyle,
             'maintenance': self.maintenance,
+            'styling_maintenance': self.styling_maintenance,
             'styling_preference': self.styling_preference,
+            'wants_bangs': self.wants_bangs,
             'hair_color': self.hair_color,
             'hair_condition': self.hair_condition,
             'occasions': self.occasions,
