@@ -209,14 +209,18 @@ class UserPreferenceSerializer(serializers.ModelSerializer):
 
 
 class PreferenceProfileSerializer(serializers.ModelSerializer):
+    occasions = serializers.JSONField(required=False, allow_null=True, default=list)
+    hair_condition = serializers.JSONField(required=False, allow_null=True, default=list)
+
     class Meta:
         model = PreferenceProfile
         fields = [
             'id', 'profile_name', 'description', 'is_default',
             'gender', 'hair_type', 'hair_length', 'volume',
             'hair_thickness', 'hair_texture_detail', 'lifestyle',
-            'maintenance', 'styling_preference', 'hair_color',
-            'hair_condition', 'occasions', 'created_at', 'updated_at', 'last_used_at'
+            'maintenance', 'styling_maintenance', 'styling_preference',
+            'wants_bangs', 'hair_color', 'hair_condition', 'occasions',
+            'created_at', 'updated_at', 'last_used_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'last_used_at']
     
@@ -235,11 +239,16 @@ class PreferenceProfileSerializer(serializers.ModelSerializer):
         return value
     
     def validate_occasions(self, value):
-        if not value or len(value) == 0:
-            raise serializers.ValidationError(
-                "At least one occasion must be selected"
-            )
-        return value
+        # Allow empty occasions
+        return value or []
+
+    def validate(self, data):
+        # Log validation errors for debugging
+        # This method is called after field-level validation
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Validating PreferenceProfile data: {data}")
+        return data
 
 
 class HairstyleCategorySerializer(serializers.ModelSerializer):
