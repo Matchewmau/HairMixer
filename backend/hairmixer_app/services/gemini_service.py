@@ -171,81 +171,65 @@ class GeminiHairstyleService:
         bangs_str = 'Yes' if wants_bangs else 'No'
         confidence_pct = int(face_shape_confidence * 100)
         
-        prompt = f"""You are a professional hairstylist and beauty consultant. Generate detailed, personalized information about a hairstyle recommendation.
+        prompt = f"""You are an Expert AI Hairstylist and Beauty Consultant. Your goal is to provide a highly personalized, professional, and convincing analysis of why a specific hairstyle is perfect for the user, based on their unique physical attributes and preferences.
 
-**Hairstyle Information:**
-- Name: {hairstyle_name}
-- Base Description: {hairstyle_description}
-- Tags: {tags_str}
-- Suitable Occasions: {occasions_hairstyle_str}
+**Target Hairstyle:**
+*   **Name:** {hairstyle_name}
+*   **Description:** {hairstyle_description}
+*   **Tags:** {tags_str}
+*   **Occasions:** {occasions_hairstyle_str}
 
 **User Profile:**
-- Face Shape: {face_shape} (AI-detected with {confidence_pct}% confidence using ResNet50 model)
-- Gender: {gender}
-- Hair Type: {hair_type}
-- Current/Desired Hair Length: {hair_length}
-- Hair Color: {hair_color}
-- Hair Thickness: {hair_thickness}
-- Hair Volume: {volume}
-- Hair Texture: {texture_str}
-- Hair Condition: {condition_str}
-- Prefers Bangs: {bangs_str}
-- Styling Preference: {styling_preference}
-- Maintenance Preference: {maintenance}
-- Lifestyle: {lifestyle}
-- Preferred Occasions: {occasions_user_str}
+*   **Physical Attributes:**
+    *   **Face Shape:** {face_shape} (Detected with {confidence_pct}% confidence) - *Crucial Factor*
+    *   **Hair Type:** {hair_type}
+    *   **Hair Texture:** {texture_str}
+    *   **Hair Thickness:** {hair_thickness}
+    *   **Hair Volume:** {volume}
+    *   **Hair Condition:** {condition_str}
+    *   **Current Length:** {hair_length}
+    *   **Gender:** {gender}
+*   **Preferences & Lifestyle:**
+    *   **Maintenance Level:** {maintenance} - *Crucial Factor*
+    *   **Styling Preference:** {styling_preference}
+    *   **Lifestyle:** {lifestyle}
+    *   **Wants Bangs:** {bangs_str}
+    *   **Preferred Occasions:** {occasions_user_str}
 
-Please provide the following information in a clear, structured format:
+**Instructions:**
+Analyze the match between the user's profile and the target hairstyle. Generate a structured response with the following 5 sections. Do not use generic filler text. Be specific and actionable.
 
-**1. PERSONALIZED_DESCRIPTION:**
-Write a 2-3 sentence personalized description of how this hairstyle will look on this specific person. You MUST explicitly reference their {face_shape} face shape and {hair_type} hair type in your explanation. Explain WHY it works for them specifically.
+**1. PERSONALIZED_DESCRIPTION**
+Write 2-3 compelling sentences explaining *specifically* how this hairstyle complements this user's **{face_shape} face shape** and **{hair_type} hair**.
+*   *Example:* "The soft layers of this cut perfectly frame your {face_shape} face, softening the jawline, while the length works with your {hair_type} texture to add natural movement without excessive styling."
 
-**2. PREFERENCE_MATCH:**
-In 1-4 bullet points, explain specifically how this hairstyle matches the user's preferences.
-- Mention if it fits their {maintenance} maintenance preference.
-- Mention how it suits their lifestyle.
+**2. PREFERENCE_MATCH**
+Provide 2 specific bullet points on how this style fits their lifestyle and preferences.
+*   Connect the style's maintenance needs directly to their **{maintenance}** preference.
+*   Connect the style's vibe to their **{lifestyle}** lifestyle.
 
-**3. RECOMMENDED_PRODUCTS:**
-List 2-4 specific hair products.
-IMPORTANT: For each product, you MUST include:
-- Specific Product Type (e.g., "Argan Oil Serum", not just "Oil")
-- Key Ingredients to look for (e.g., "Look for products with keratin or biotin")
-- Specific Usage (e.g., "Apply dime-sized amount to damp ends")
-Format EXACTLY as: "Product Type - Key Ingredients: [ingredients] - [usage]"
+**3. RECOMMENDED_PRODUCTS**
+List 2 essential products to achieve and maintain this look.
+*   **Format:** `Product Type - Key Ingredients: [Ingredients] - [Specific Usage]`
+*   *Example:* "Volumizing Mousse - Key Ingredients: Rice Protein, Biotin - Apply a golf-ball-sized amount to damp roots before blow-drying for lift."
 
-Example:
-• Volumizing Mousse - Key Ingredients: Rice protein, polymers - Apply to roots of damp hair before blow-drying
-• Heat Protectant Spray - Key Ingredients: Silicones or Argan oil - Mist all over dry hair before ironing
+**4. MAINTENANCE_GUIDE**
+Provide 3 distinct, actionable steps for maintenance.
+*   **Step 1: Daily Styling** (Include time estimate)
+*   **Step 2: Wash Schedule** (Specific frequency)
+*   **Step 3: Salon Visits** (Specific frequency)
+*   **Format:** `1. [Title]: [Instruction]`
 
-**4. MAINTENANCE_GUIDE:**
-Provide 2-3 complete, actionable maintenance steps.
-Include:
-- Daily Styling: Exact time estimate and specific techniques.
-- Wash Schedule: Exact frequency (e.g., "Every 2-3 days").
-- Salon Visits: Exact frequency (e.g., "Every 6-8 weeks").
-Format as: "1. Step Title: Detailed instructions..."
+**5. STYLING_TIPS**
+Provide 3 professional, technique-focused styling tips.
+*   Focus on tools, heat settings, or specific hand motions.
+*   **Format:** Bullet points starting with "•"
 
-Example:
-1. Daily Styling (15 min): Dampen hair, apply mousse, and scrunch. Diffuse on low heat.
-2. Wash Schedule: Wash every 3 days using sulfate-free shampoo to prevent drying.
-3. Salon Maintenance: Visit stylist every 8 weeks for a trim to keep layers fresh.
-
-**5. STYLING_TIPS:**
-Provide 2-4 professional styling tips specific to this hairstyle.
-- Include specific techniques (e.g., "Use the cool shot button").
-- Include specific tool settings (e.g., "Medium heat, low airflow").
-Format as bullet points starting with "• " or "→ "
-
-CRITICAL: Format your response EXACTLY as shown above with clear section 
-headers marked with **. You MUST include ALL 5 SECTIONS:
-1. PERSONALIZED_DESCRIPTION
-2. PREFERENCE_MATCH
-3. RECOMMENDED_PRODUCTS
-4. MAINTENANCE_GUIDE
-5. STYLING_TIPS
-
-Do NOT skip any section. Be highly specific and practical. Avoid generic advice.
-Keep the tone professional yet encouraging."""
+**CRITICAL OUTPUT RULES:**
+*   Use the exact section headers with double asterisks (e.g., **1. PERSONALIZED_DESCRIPTION**).
+*   Ensure ALL 5 sections are present.
+*   Keep the tone professional, encouraging, and expert.
+"""
 
         return prompt
     

@@ -1,8 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import Navbar from '../components/Navbar';
-import AuthService from '../services/AuthService';
-import apiService from '../services/api';
+import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import Navbar from "../components/Navbar";
+import AuthService from "../services/AuthService";
+import apiService from "../services/api";
+import Button from "../components/ui/Button";
+import Card from "../components/ui/Card";
+import Input from "../components/ui/Input";
+import Modal from "../components/ui/Modal";
 
 const UserProfile = () => {
   const [user, setUser] = useState(null);
@@ -10,46 +14,60 @@ const UserProfile = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [savedHairstyles, setSavedHairstyles] = useState([]);
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: ''
+    firstName: "",
+    lastName: "",
+    email: "",
   });
-  
+
   // Preference Profiles state
   const [preferenceProfiles, setPreferenceProfiles] = useState([]);
   const [showCreateProfileModal, setShowCreateProfileModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [profileForm, setProfileForm] = useState({
-    profile_name: '',
-    description: '',
-    gender: 'female',
-    hair_type: 'straight',
-    hair_length: 'medium',
-    volume: 'medium',
-    hair_thickness: 'medium',
-    hair_texture_detail: 'normal',
-    lifestyle: 'casual',
-    maintenance: 'medium',
-    styling_preference: 'natural',
-    hair_color: 'brown',
+    profile_name: "",
+    description: "",
+    gender: "female",
+    hair_type: "straight",
+    hair_length: "medium",
+    volume: "medium",
+    hair_thickness: "medium",
+    hair_texture_detail: "normal",
+    lifestyle: "casual",
+    maintenance: "medium",
+    styling_preference: "natural",
+    hair_color: "brown",
     hair_condition: [],
-    occasions: [], // Changed from occasion (singular) to occasions (plural) and array for multiple selection
+    occasions: [],
   });
-  
+
   const navigate = useNavigate();
-  
+
   // State for viewing saved hairstyle details
   const [showSavedModal, setShowSavedModal] = useState(false);
   const [selectedSaved, setSelectedSaved] = useState(null);
 
-  // Load preference profiles
+  // Full Screen Image Modal State
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [activeImage, setActiveImage] = useState(null);
+
+  const openImageModal = (imageUrl, e) => {
+    if (e) e.stopPropagation();
+    setActiveImage(imageUrl);
+    setShowImageModal(true);
+  };
+
+  const closeImageModal = () => {
+    setShowImageModal(false);
+    setActiveImage(null);
+  };
+
   const loadPreferenceProfiles = useCallback(async () => {
     try {
       const response = await apiService.getPreferenceProfiles();
       setPreferenceProfiles(response.profiles || []);
     } catch (error) {
-      console.error('Failed to load preference profiles:', error);
+      console.error("Failed to load preference profiles:", error);
     }
   }, []);
 
@@ -58,22 +76,20 @@ const UserProfile = () => {
       try {
         const currentUser = await AuthService.getCurrentUser();
         if (!currentUser) {
-          navigate('/login');
+          navigate("/login");
           return;
         }
         setUser(currentUser);
-        // Populate form with user data
         setFormData({
-          firstName: currentUser.firstName || '',
-          lastName: currentUser.lastName || '',
-          email: currentUser.email || ''
+          firstName: currentUser.firstName || "",
+          lastName: currentUser.lastName || "",
+          email: currentUser.email || "",
         });
-        
-        // Load preference profiles
+
         await loadPreferenceProfiles();
       } catch (error) {
-        console.error('Authentication check failed:', error);
-        navigate('/login');
+        console.error("Authentication check failed:", error);
+        navigate("/login");
       } finally {
         setIsLoading(false);
       }
@@ -89,7 +105,7 @@ const UserProfile = () => {
       const saved = await apiService.getSavedHairstyles();
       setSavedHairstyles(saved || []);
     } catch (error) {
-      console.error('Failed to load saved hairstyles:', error);
+      console.error("Failed to load saved hairstyles:", error);
       setSavedHairstyles([]);
     }
   }, [user?.id]);
@@ -98,20 +114,16 @@ const UserProfile = () => {
     if (!user?.id) return;
 
     try {
-      console.log('Deleting saved hairstyle with ID:', savedId);
       await apiService.deleteSavedHairstyle(savedId);
-      
-      // Immediately update the UI by filtering out the deleted item
-      setSavedHairstyles(prev => prev.filter(saved => saved.id !== savedId));
-      
-      // Close modal if it's the currently viewed item
+      setSavedHairstyles((prev) =>
+        prev.filter((saved) => saved.id !== savedId)
+      );
       if (selectedSaved?.id === savedId) {
         closeSavedModal();
       }
     } catch (error) {
-      console.error('Failed to remove saved hairstyle:', error);
-      alert('Failed to delete hairstyle. Please try again.');
-      // Reload to ensure consistency
+      console.error("Failed to remove saved hairstyle:", error);
+      alert("Failed to delete hairstyle. Please try again.");
       await loadSavedHairstyles();
     }
   };
@@ -136,25 +148,25 @@ const UserProfile = () => {
     try {
       await AuthService.logout();
       setUser(null);
-      navigate('/');
+      navigate("/");
     } catch (error) {
-      console.error('Logout failed:', error);
+      console.error("Logout failed:", error);
     }
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
   const handleProfileFormChange = (e) => {
     const { name, value } = e.target;
-    setProfileForm(prev => ({
+    setProfileForm((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
@@ -164,47 +176,44 @@ const UserProfile = () => {
       setUser({ ...user, ...formData });
       setIsEditing(false);
     } catch (error) {
-      console.error('Failed to save user data:', error);
-      alert('Failed to save profile. Please try again.');
+      console.error("Failed to save user data:", error);
+      alert("Failed to save profile. Please try again.");
     }
   };
 
   const handleCancel = () => {
-    // Reset form data to original user data
     setFormData({
-      firstName: user?.firstName || '',
-      lastName: user?.lastName || '',
-      email: user?.email || ''
+      firstName: user?.firstName || "",
+      lastName: user?.lastName || "",
+      email: user?.email || "",
     });
     setIsEditing(false);
   };
 
-  // Preference Profile handlers
   const handleCreateProfile = async () => {
     try {
       await apiService.createPreferenceProfile(profileForm);
       await loadPreferenceProfiles();
       setShowCreateProfileModal(false);
-      // Reset form
       setProfileForm({
-        profile_name: '',
-        description: '',
-        gender: 'female',
-        hair_type: 'straight',
-        hair_length: 'medium',
-        volume: 'medium',
-        hair_thickness: 'medium',
-        hair_texture_detail: 'normal',
-        lifestyle: 'casual',
-        maintenance: 'medium',
-        styling_preference: 'natural',
-        hair_color: 'brown',
+        profile_name: "",
+        description: "",
+        gender: "female",
+        hair_type: "straight",
+        hair_length: "medium",
+        volume: "medium",
+        hair_thickness: "medium",
+        hair_texture_detail: "normal",
+        lifestyle: "casual",
+        maintenance: "medium",
+        styling_preference: "natural",
+        hair_color: "brown",
         hair_condition: [],
         occasions: [],
       });
     } catch (error) {
-      console.error('Failed to create profile:', error);
-      alert(error.message || 'Failed to create profile. Please try again.');
+      console.error("Failed to create profile:", error);
+      alert(error.message || "Failed to create profile. Please try again.");
     }
   };
 
@@ -215,19 +224,20 @@ const UserProfile = () => {
       setShowEditProfileModal(false);
       setSelectedProfile(null);
     } catch (error) {
-      console.error('Failed to update profile:', error);
-      alert(error.message || 'Failed to update profile. Please try again.');
+      console.error("Failed to update profile:", error);
+      alert(error.message || "Failed to update profile. Please try again.");
     }
   };
 
   const handleDeleteProfile = async (profileId) => {
-    if (!window.confirm('Are you sure you want to delete this profile?')) return;
+    if (!window.confirm("Are you sure you want to delete this profile?"))
+      return;
     try {
       await apiService.deletePreferenceProfile(profileId);
       await loadPreferenceProfiles();
     } catch (error) {
-      console.error('Failed to delete profile:', error);
-      alert('Failed to delete profile. Please try again.');
+      console.error("Failed to delete profile:", error);
+      alert("Failed to delete profile. Please try again.");
     }
   };
 
@@ -236,8 +246,8 @@ const UserProfile = () => {
       await apiService.setDefaultProfile(profileId);
       await loadPreferenceProfiles();
     } catch (error) {
-      console.error('Failed to set default profile:', error);
-      alert('Failed to set default profile. Please try again.');
+      console.error("Failed to set default profile:", error);
+      alert("Failed to set default profile. Please try again.");
     }
   };
 
@@ -245,17 +255,17 @@ const UserProfile = () => {
     setSelectedProfile(profile);
     setProfileForm({
       profile_name: profile.profile_name,
-      description: profile.description || '',
+      description: profile.description || "",
       gender: profile.gender,
       hair_type: profile.hair_type,
       hair_length: profile.hair_length,
-      volume: profile.volume || 'medium',
-      hair_thickness: profile.hair_thickness || 'medium',
-      hair_texture_detail: profile.hair_texture_detail || 'normal',
+      volume: profile.volume || "medium",
+      hair_thickness: profile.hair_thickness || "medium",
+      hair_texture_detail: profile.hair_texture_detail || "normal",
       lifestyle: profile.lifestyle,
-      maintenance: profile.maintenance || 'medium',
-      styling_preference: profile.styling_preference || 'natural',
-      hair_color: profile.hair_color || 'brown',
+      maintenance: profile.maintenance || "medium",
+      styling_preference: profile.styling_preference || "natural",
+      hair_color: profile.hair_color || "brown",
       hair_condition: profile.hair_condition || [],
       occasions: profile.occasions || [],
     });
@@ -264,1141 +274,843 @@ const UserProfile = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
       </div>
     );
   }
 
-  return (
-    <>
-      <Navbar 
-        user={user} 
-        onLogout={handleLogout}
+  // Profile Form Content (reused for Create and Edit)
+  const renderProfileForm = () => (
+    <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+      <Input
+        label="Profile Name *"
+        name="profile_name"
+        value={profileForm.profile_name}
+        onChange={handleProfileFormChange}
+        placeholder="e.g., Professional Look"
       />
-      <div className="min-h-screen bg-gray-900 pt-20 md:pt-24">
-        {/* Header Section - Similar to Discover page */}
-        <div className="bg-gradient-to-r from-purple-600 to-blue-600 py-12 md:py-16">
-          <div className="max-w-7xl mx-auto px-4 text-center">
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
+      <div>
+        <label className="block text-gray-300 text-sm font-medium mb-2">
+          Description
+        </label>
+        <textarea
+          name="description"
+          value={profileForm.description}
+          onChange={handleProfileFormChange}
+          placeholder="Describe when you'd use this profile..."
+          rows="2"
+          className="w-full bg-surface/50 border border-white/10 rounded-lg px-4 py-2 text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        {[
+          { label: "Gender", name: "gender", options: ["male", "female"] },
+          {
+            label: "Hair Type",
+            name: "hair_type",
+            options: ["straight", "wavy", "curly", "coily"],
+          },
+          {
+            label: "Length",
+            name: "hair_length",
+            options: ["short", "medium", "long"],
+          },
+          {
+            label: "Volume",
+            name: "volume",
+            options: ["low", "medium", "high"],
+          },
+          {
+            label: "Thickness",
+            name: "hair_thickness",
+            options: ["thin", "medium", "thick", "very_thick"],
+          },
+          {
+            label: "Texture",
+            name: "hair_texture_detail",
+            options: [
+              "fine",
+              "normal",
+              "thick",
+              "smooth",
+              "coarse",
+              "silky",
+              "frizzy",
+            ],
+          },
+          {
+            label: "Lifestyle",
+            name: "lifestyle",
+            options: ["active", "moderate", "relaxed"],
+          },
+          {
+            label: "Maintenance",
+            name: "maintenance",
+            options: ["low", "medium", "high"],
+          },
+          {
+            label: "Styling",
+            name: "styling_preference",
+            options: [
+              "natural",
+              "casual",
+              "classic",
+              "polished",
+              "elegant",
+              "glamorous",
+              "trendy",
+              "edgy",
+            ],
+          },
+          {
+            label: "Color",
+            name: "hair_color",
+            options: [
+              "natural",
+              "black",
+              "brown",
+              "blonde",
+              "red",
+              "auburn",
+              "gray",
+              "white",
+              "other",
+            ],
+          },
+        ].map((field) => (
+          <div key={field.name}>
+            <label className="block text-gray-300 text-sm font-medium mb-2">
+              {field.label} *
+            </label>
+            <select
+              name={field.name}
+              value={profileForm[field.name]}
+              onChange={handleProfileFormChange}
+              className="w-full bg-surface/50 border border-white/10 rounded-lg px-4 py-2 text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary capitalize"
+            >
+              {field.options.map((opt) => (
+                <option key={opt} value={opt} className="bg-surface text-white">
+                  {opt.replace("_", " ")}
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
+      </div>
+
+      <div>
+        <label className="block text-gray-300 text-sm font-medium mb-2">
+          Hair Condition (Select multiple)
+        </label>
+        <div className="grid grid-cols-2 gap-2 p-3 bg-surface/50 rounded-lg border border-white/10">
+          {[
+            "none",
+            "excellent",
+            "good",
+            "fair",
+            "damaged",
+            "dry_ends",
+            "oily_scalp",
+            "dandruff",
+            "frizzy",
+            "split_ends",
+            "thinning",
+            "sensitive_scalp",
+          ].map((condition) => (
+            <label
+              key={condition}
+              className="flex items-center space-x-2 text-sm text-gray-300 hover:text-white cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                checked={
+                  Array.isArray(profileForm.hair_condition) &&
+                  profileForm.hair_condition.includes(condition)
+                }
+                onChange={(e) => {
+                  const newConditions = e.target.checked
+                    ? [
+                        ...(Array.isArray(profileForm.hair_condition)
+                          ? profileForm.hair_condition
+                          : []),
+                        condition,
+                      ]
+                    : (Array.isArray(profileForm.hair_condition)
+                        ? profileForm.hair_condition
+                        : []
+                      ).filter((c) => c !== condition);
+                  handleProfileFormChange({
+                    target: { name: "hair_condition", value: newConditions },
+                  });
+                }}
+                className="form-checkbox h-4 w-4 text-primary rounded bg-surface border-white/20 focus:ring-primary"
+              />
+              <span className="capitalize">{condition.replace("_", " ")}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-gray-300 text-sm font-medium mb-2">
+          Occasions * (Select multiple)
+        </label>
+        <div className="grid grid-cols-2 gap-2 p-3 bg-surface/50 rounded-lg border border-white/10">
+          {["work", "casual", "formal", "party", "wedding", "birthday"].map(
+            (occasion) => (
+              <label
+                key={occasion}
+                className="flex items-center space-x-2 text-sm text-gray-300 hover:text-white cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={
+                    Array.isArray(profileForm.occasions) &&
+                    profileForm.occasions.includes(occasion)
+                  }
+                  onChange={(e) => {
+                    const newOccasions = e.target.checked
+                      ? [
+                          ...(Array.isArray(profileForm.occasions)
+                            ? profileForm.occasions
+                            : []),
+                          occasion,
+                        ]
+                      : (Array.isArray(profileForm.occasions)
+                          ? profileForm.occasions
+                          : []
+                        ).filter((o) => o !== occasion);
+                    handleProfileFormChange({
+                      target: { name: "occasions", value: newOccasions },
+                    });
+                  }}
+                  className="form-checkbox h-4 w-4 text-primary rounded bg-surface border-white/20 focus:ring-primary"
+                />
+                <span className="capitalize">{occasion.replace("_", " ")}</span>
+              </label>
+            )
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Navbar user={user} onLogout={handleLogout} />
+
+      <div className="pt-24 pb-12">
+        {/* Header Section */}
+        <div className="bg-gradient-to-r from-primary/20 to-secondary/20 py-12 md:py-16 relative overflow-hidden">
+          <div className="absolute inset-0 bg-background/50 backdrop-blur-sm"></div>
+          <div className="max-w-7xl mx-auto px-4 text-center relative z-10">
+            <h1 className="text-4xl md:text-5xl font-heading font-bold text-white mb-4">
               Your Profile
             </h1>
-            <p className="text-xl text-gray-200 max-w-3xl mx-auto">
+            <p className="text-xl text-gray-400 max-w-3xl mx-auto">
               Manage your account settings and preferences
             </p>
           </div>
         </div>
 
-        <div className="max-w-4xl mx-auto px-4 py-8 md:py-12">
+        <div className="max-w-4xl mx-auto px-4 py-8 md:py-12 space-y-8">
           {/* Profile Header with Personal Info */}
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-4 md:p-8 mb-8 border border-slate-700/50">
-            <div className="flex flex-col md:flex-row md:items-start gap-6">
+          <Card className="p-8">
+            <div className="flex flex-col md:flex-row md:items-start gap-8">
               {/* Avatar */}
               <div className="flex justify-center md:justify-start">
-                <div className="w-24 h-24 md:w-32 md:h-32 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-white text-3xl md:text-4xl font-bold flex-shrink-0">
-                  {user?.firstName?.charAt(0) || user?.email?.charAt(0) || 'U'}
+                <div className="w-24 h-24 md:w-32 md:h-32 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center text-white text-3xl md:text-4xl font-bold shadow-lg shadow-primary/20 flex-shrink-0 border-4 border-surface">
+                  {user?.firstName?.charAt(0) || user?.email?.charAt(0) || "U"}
                 </div>
               </div>
 
               {/* Profile Information */}
               <div className="flex-1 text-center md:text-left">
                 {isEditing ? (
-                  <div className="space-y-4">
+                  <div className="space-y-4 max-w-md">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-gray-400 text-xs font-medium mb-1.5">First Name</label>
-                        <input
-                          type="text"
-                          name="firstName"
-                          value={formData.firstName}
-                          onChange={handleInputChange}
-                          placeholder="Enter first name"
-                          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-gray-400 text-xs font-medium mb-1.5">Last Name</label>
-                        <input
-                          type="text"
-                          name="lastName"
-                          value={formData.lastName}
-                          onChange={handleInputChange}
-                          placeholder="Enter last name"
-                          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                        />
-                      </div>
+                      <Input
+                        label="First Name"
+                        name="firstName"
+                        value={formData.firstName}
+                        onChange={handleInputChange}
+                        placeholder="Enter first name"
+                      />
+                      <Input
+                        label="Last Name"
+                        name="lastName"
+                        value={formData.lastName}
+                        onChange={handleInputChange}
+                        placeholder="Enter last name"
+                      />
                     </div>
 
-                    <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                      <button
+                    <div className="flex gap-3 pt-2">
+                      <Button
                         onClick={handleSave}
-                        className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2.5 px-6 rounded-lg transition duration-300 font-medium"
+                        variant="primary"
+                        className="flex-1"
                       >
                         Save Changes
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         onClick={handleCancel}
-                        className="flex-1 bg-slate-600 hover:bg-slate-700 text-white py-2.5 px-6 rounded-lg transition duration-300 font-medium"
+                        variant="secondary"
+                        className="flex-1"
                       >
                         Cancel
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 ) : (
                   <>
-                    <div className="mb-3">
-                      <h1 className="text-2xl md:text-3xl font-bold text-white mb-1">
-                        {user?.firstName && user?.lastName 
-                          ? `${user.firstName} ${user.lastName}` 
-                          : user?.email || 'User Profile'
-                        }
+                    <div className="mb-4">
+                      <h1 className="text-3xl font-heading font-bold text-white mb-1">
+                        {user?.firstName && user?.lastName
+                          ? `${user.firstName} ${user.lastName}`
+                          : user?.email || "User Profile"}
                       </h1>
                     </div>
-                    
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center justify-center md:justify-start text-gray-300">
-                        <svg className="w-5 h-5 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
-                        <span className="text-sm md:text-base">{user?.email}</span>
+
+                    <div className="space-y-2 mb-6 text-gray-300">
+                      <div className="flex items-center justify-center md:justify-start gap-2">
+                        <span>📧</span>
+                        <span>{user?.email}</span>
                       </div>
-                      
-                      <div className="flex items-center justify-center md:justify-start text-gray-300">
-                        <svg className="w-5 h-5 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <span className="text-sm md:text-base">
-                          Joined {user?.dateJoined ? new Date(user.dateJoined).toLocaleDateString('en-US', {
-                            month: 'long',
-                            year: 'numeric'
-                          }) : new Date().toLocaleDateString('en-US', {
-                            month: 'long',
-                            year: 'numeric'
-                          })}
+                      <div className="flex items-center justify-center md:justify-start gap-2">
+                        <span>📅</span>
+                        <span>
+                          Joined{" "}
+                          {user?.dateJoined
+                            ? new Date(user.dateJoined).toLocaleDateString(
+                                "en-US",
+                                {
+                                  month: "long",
+                                  year: "numeric",
+                                }
+                              )
+                            : new Date().toLocaleDateString("en-US", {
+                                month: "long",
+                                year: "numeric",
+                              })}
                         </span>
                       </div>
                     </div>
+
+                    <Button
+                      onClick={() => setIsEditing(true)}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Edit Profile
+                    </Button>
                   </>
                 )}
               </div>
-
-              {/* Edit Button */}
-              {!isEditing && (
-                <div className="flex justify-center md:justify-end">
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition duration-300 font-medium flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    <span>Edit Profile</span>
-                  </button>
-                </div>
-              )}
             </div>
-          </div>
+          </Card>
 
-          <div className="grid grid-cols-1 gap-6 md:gap-8">
-
-            {/* Preference Profiles */}
-            <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-4 md:p-6 border border-slate-700/50">
-              <div className="flex items-center justify-between mb-4 md:mb-6">
-                <div>
-                  <h2 className="text-xl md:text-2xl font-bold text-white">Preference Profiles</h2>
-                  <p className="text-gray-400 text-sm mt-1">Create and manage your hairstyle preference profiles</p>
-                </div>
-                <button
-                  onClick={() => setShowCreateProfileModal(true)}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition duration-300 font-medium flex items-center gap-2"
-                >
-                  <span className="text-xl">+</span>
-                  <span className="hidden sm:inline">Create Profile</span>
-                </button>
+          {/* Preference Profiles */}
+          <Card className="p-6 md:p-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-heading font-bold text-white">
+                  Preference Profiles
+                </h2>
+                <p className="text-gray-400 text-sm mt-1">
+                  Manage your hairstyle preference profiles
+                </p>
               </div>
+              <Button
+                onClick={() => setShowCreateProfileModal(true)}
+                variant="primary"
+                size="sm"
+              >
+                + Create Profile
+              </Button>
+            </div>
 
-              {preferenceProfiles.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {preferenceProfiles.map((profile) => (
-                    <div 
-                      key={profile.id}
-                      className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 hover:border-purple-500/50 transition-all duration-200"
-                    >
-                      {/* Header */}
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <h3 className="text-base font-semibold text-white mb-1">
-                            {profile.profile_name}
-                          </h3>
-                          {profile.description && (
-                            <p className="text-gray-400 text-xs line-clamp-2">{profile.description}</p>
-                          )}
-                        </div>
-                        {profile.is_default && (
-                          <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-xs font-medium rounded border border-purple-500/30">
-                            Default
-                          </span>
+            {preferenceProfiles.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {preferenceProfiles.map((profile) => (
+                  <div
+                    key={profile.id}
+                    className="bg-surface/30 border border-white/5 rounded-xl p-4 hover:border-primary/50 transition-all duration-300 group"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <h3 className="font-bold text-white mb-1 group-hover:text-primary transition-colors">
+                          {profile.profile_name}
+                        </h3>
+                        {profile.description && (
+                          <p className="text-gray-400 text-xs line-clamp-2">
+                            {profile.description}
+                          </p>
                         )}
                       </div>
-                      
-                      {/* Preference Info */}
-                      <div className="space-y-2 mb-3 text-xs">
-                        <div className="flex items-center justify-between text-gray-300">
-                          <span className="text-gray-500">Gender:</span>
-                          <span className="capitalize">{profile.gender}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-gray-300">
-                          <span className="text-gray-500">Hair Type:</span>
-                          <span className="capitalize">{profile.hair_type}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-gray-300">
-                          <span className="text-gray-500">Length:</span>
-                          <span className="capitalize">{profile.hair_length}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-gray-300">
-                          <span className="text-gray-500">Lifestyle:</span>
-                          <span className="capitalize">{profile.lifestyle}</span>
-                        </div>
+                      {profile.is_default && (
+                        <span className="px-2 py-0.5 bg-primary/20 text-primary text-xs font-bold rounded border border-primary/30">
+                          Default
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="space-y-1 mb-4 text-xs text-gray-400">
+                      <div className="flex justify-between">
+                        <span>Gender:</span>{" "}
+                        <span className="text-gray-300 capitalize">
+                          {profile.gender}
+                        </span>
                       </div>
-                      
-                      {/* Action Buttons */}
-                      <div className="flex gap-2 pt-3 border-t border-slate-700">
-                        <button
-                          onClick={() => openEditModal(profile)}
-                          className="flex-1 bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
-                        >
-                          Edit
-                        </button>
-                        {!profile.is_default && (
-                          <button
-                            onClick={() => handleSetDefault(profile.id)}
-                            className="flex-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-purple-500/30"
-                          >
-                            Set Default
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleDeleteProfile(profile.id)}
-                          className="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-3 py-1.5 rounded text-xs font-medium transition-colors border border-red-500/30"
-                        >
-                          Delete
-                        </button>
+                      <div className="flex justify-between">
+                        <span>Type:</span>{" "}
+                        <span className="text-gray-300 capitalize">
+                          {profile.hair_type}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Length:</span>{" "}
+                        <span className="text-gray-300 capitalize">
+                          {profile.hair_length}
+                        </span>
                       </div>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <p className="text-gray-400 text-base mb-4">No preference profiles yet</p>
-                  <button
-                    onClick={() => setShowCreateProfileModal(true)}
-                    className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-lg transition duration-200 font-medium"
-                  >
-                    Create Profile
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
 
-          {/* Saved Hairstyle Recommendations */}
-          <div className="mt-6 md:mt-8 bg-slate-800/50 backdrop-blur-sm rounded-2xl p-4 md:p-6 border border-slate-700/50">
-            <h2 className="text-xl md:text-2xl font-bold text-white mb-2">Saved Hairstyle Recommendations</h2>
-            <p className="text-gray-400 text-sm mb-4 md:mb-6">Your personalized hairstyle recommendations given by the system</p>
-            
-            {savedHairstyles.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {savedHairstyles.map((saved) => (
-                  <div 
-                    key={saved.id}
-                    className="bg-slate-700/50 rounded-xl overflow-hidden border border-slate-600/50 hover:border-blue-500/50 transition-all duration-300 cursor-pointer group"
-                    onClick={() => handleViewSaved(saved)}
-                  >
-                    {/* Show overlay image if available */}
-                    {saved.overlay_url && (
-                      <div className="relative h-48 overflow-hidden bg-gradient-to-br from-purple-600/20 to-blue-600/20">
-                        <img 
-                          src={saved.overlay_url}
-                          alt={saved.hairstyle_name || saved.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                      </div>
-                    )}
-                    
-                    <div className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <h3 className="text-white font-semibold text-lg flex-1 pr-2 group-hover:text-blue-400 transition-colors">
-                          {saved.hairstyle_name || saved.name}
-                        </h3>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeSavedHairstyle(saved.id);
-                          }}
-                          className="text-red-500 hover:text-red-400 transition-colors duration-200 flex-shrink-0"
-                          title="Remove saved hairstyle"
+                    <div className="flex gap-2 pt-3 border-t border-white/5">
+                      <Button
+                        onClick={() => openEditModal(profile)}
+                        variant="ghost"
+                        size="sm"
+                        className="flex-1 h-8 text-xs"
+                      >
+                        Edit
+                      </Button>
+                      {!profile.is_default && (
+                        <Button
+                          onClick={() => handleSetDefault(profile.id)}
+                          variant="ghost"
+                          size="sm"
+                          className="flex-1 h-8 text-xs text-primary hover:text-primary"
                         >
-                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                      
-                      <div className="flex items-center text-gray-400 text-sm mb-2">
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        {new Date(saved.saved_at).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric'
-                        })}
-                      </div>
-                      
-                      <p className="text-purple-400 text-sm group-hover:text-purple-300 transition-colors">
-                        Click to view details →
-                      </p>
+                          Default
+                        </Button>
+                      )}
+                      <Button
+                        onClick={() => handleDeleteProfile(profile.id)}
+                        variant="ghost"
+                        size="sm"
+                        className="flex-1 h-8 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                      >
+                        Delete
+                      </Button>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12">
-                <svg className="w-16 h-16 text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
-                </svg>
-                <p className="text-gray-400 text-lg">No saved hairstyle recommendations yet</p>
-                <p className="text-gray-500 text-sm mt-2">Save hairstyle recommendations from the Results page by clicking the Save button</p>
+              <div className="text-center py-12 bg-surface/30 rounded-xl border border-white/5 border-dashed">
+                <p className="text-gray-400 mb-4">No preference profiles yet</p>
+                <Button
+                  onClick={() => setShowCreateProfileModal(true)}
+                  variant="secondary"
+                >
+                  Create First Profile
+                </Button>
               </div>
             )}
-          </div>
+          </Card>
+
+          {/* Saved Hairstyle Recommendations */}
+          <Card className="p-6 md:p-8">
+            <h2 className="text-2xl font-heading font-bold text-white mb-2">
+              Saved Hairstyles
+            </h2>
+            <p className="text-gray-400 text-sm mb-6">
+              Your personalized recommendations
+            </p>
+
+            {savedHairstyles.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {savedHairstyles.map((saved) => (
+                  <div
+                    key={saved.id}
+                    className="bg-surface/30 rounded-xl overflow-hidden border border-white/5 hover:border-primary/50 transition-all duration-300 cursor-pointer group shadow-lg hover:shadow-primary/10"
+                    onClick={() => handleViewSaved(saved)}
+                  >
+                    {saved.overlay_url ? (
+                      <div className="relative h-48 overflow-hidden">
+                        <img
+                          src={saved.overlay_url}
+                          alt={saved.hairstyle_name || saved.name}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                          onClick={(e) => openImageModal(saved.overlay_url, e)}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-60 pointer-events-none"></div>
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="bg-black/60 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
+                            Click to expand
+                          </span>
+                        </div>
+                        <div className="absolute bottom-3 left-3 right-3 pointer-events-none">
+                          <h3 className="text-white font-bold text-lg truncate group-hover:text-primary transition-colors">
+                            {saved.hairstyle_name || saved.name}
+                          </h3>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="h-48 bg-surface/50 flex items-center justify-center border-b border-white/5">
+                        <span className="text-4xl">💇‍♀️</span>
+                      </div>
+                    )}
+
+                    <div className="p-4">
+                      {!saved.overlay_url && (
+                        <h3 className="text-white font-bold text-lg mb-2 truncate group-hover:text-primary transition-colors">
+                          {saved.hairstyle_name || saved.name}
+                        </h3>
+                      )}
+
+                      {/* Additional Details */}
+                      <div className="space-y-2 mb-4">
+                        {saved.face_shape && (
+                          <div className="flex items-center gap-2 text-xs text-gray-400">
+                            <span>👤</span>
+                            <span className="capitalize">
+                              {saved.face_shape} Face
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                          <span>📅</span>
+                          <span>
+                            {new Date(saved.saved_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewSaved(saved);
+                          }}
+                          variant="secondary"
+                          size="sm"
+                          className="flex-1 h-8 text-xs"
+                        >
+                          Details
+                        </Button>
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeSavedHairstyle(saved.id);
+                          }}
+                          variant="danger"
+                          variantType="outline"
+                          size="sm"
+                          className="flex-1 h-8 text-xs"
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 bg-surface/30 rounded-xl border border-white/5 border-dashed">
+                <div className="text-4xl mb-4">💾</div>
+                <p className="text-gray-400">No saved hairstyles yet</p>
+                <Button
+                  onClick={() => navigate("/upload")}
+                  variant="link"
+                  className="text-primary mt-2"
+                >
+                  Start a new analysis
+                </Button>
+              </div>
+            )}
+          </Card>
         </div>
       </div>
 
-      {/* Create Preference Profile Modal */}
-      {showCreateProfileModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl max-w-2xl w-full my-8">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-white">Create Preference Profile</h2>
-                <button
-                  onClick={() => setShowCreateProfileModal(false)}
-                  className="text-gray-400 hover:text-white text-2xl"
-                >
-                  ✕
-                </button>
-              </div>
+      {/* Create Profile Modal */}
+      <Modal
+        isOpen={showCreateProfileModal}
+        onClose={() => setShowCreateProfileModal(false)}
+        title="Create Preference Profile"
+      >
+        {renderProfileForm()}
+        <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-white/10">
+          <Button
+            onClick={() => setShowCreateProfileModal(false)}
+            variant="ghost"
+          >
+            Cancel
+          </Button>
+          <Button onClick={handleCreateProfile} variant="primary">
+            Create Profile
+          </Button>
+        </div>
+      </Modal>
 
-              <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
-                <div>
-                  <label className="block text-gray-300 text-sm font-medium mb-2">Profile Name *</label>
-                  <input
-                    type="text"
-                    name="profile_name"
-                    value={profileForm.profile_name}
-                    onChange={handleProfileFormChange}
-                    placeholder="e.g., Professional Look, Casual Style"
-                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                  />
-                </div>
+      {/* Edit Profile Modal */}
+      <Modal
+        isOpen={showEditProfileModal}
+        onClose={() => setShowEditProfileModal(false)}
+        title="Edit Preference Profile"
+      >
+        {renderProfileForm()}
+        <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-white/10">
+          <Button
+            onClick={() => setShowEditProfileModal(false)}
+            variant="ghost"
+          >
+            Cancel
+          </Button>
+          <Button onClick={handleEditProfile} variant="primary">
+            Save Changes
+          </Button>
+        </div>
+      </Modal>
 
-                <div>
-                  <label className="block text-gray-300 text-sm font-medium mb-2">Description (Optional)</label>
-                  <textarea
-                    name="description"
-                    value={profileForm.description}
-                    onChange={handleProfileFormChange}
-                    placeholder="Describe when you'd use this profile..."
-                    rows="2"
-                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Gender *</label>
-                    <select
-                      name="gender"
-                      value={profileForm.gender}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Hair Type *</label>
-                    <select
-                      name="hair_type"
-                      value={profileForm.hair_type}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="straight">Straight</option>
-                      <option value="wavy">Wavy</option>
-                      <option value="curly">Curly</option>
-                      <option value="coily">Coily</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Hair Length *</label>
-                    <select
-                      name="hair_length"
-                      value={profileForm.hair_length}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="short">Short</option>
-                      <option value="medium">Medium</option>
-                      <option value="long">Long</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Volume *</label>
-                    <select
-                      name="volume"
-                      value={profileForm.volume}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Hair Thickness *</label>
-                    <select
-                      name="hair_thickness"
-                      value={profileForm.hair_thickness}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="thin">Thin</option>
-                      <option value="medium">Medium</option>
-                      <option value="thick">Thick</option>
-                      <option value="very_thick">Very Thick</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Hair Texture *</label>
-                    <select
-                      name="hair_texture_detail"
-                      value={profileForm.hair_texture_detail}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="fine">Fine</option>
-                      <option value="normal">Normal</option>
-                      <option value="thick">Thick</option>
-                      <option value="smooth">Smooth</option>
-                      <option value="coarse">Coarse</option>
-                      <option value="silky">Silky</option>
-                      <option value="frizzy">Frizzy</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Lifestyle *</label>
-                    <select
-                      name="lifestyle"
-                      value={profileForm.lifestyle}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="active">Active</option>
-                      <option value="professional">Professional</option>
-                      <option value="creative">Creative</option>
-                      <option value="casual">Casual</option>
-                      <option value="moderate">Moderate</option>
-                      <option value="relaxed">Relaxed</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Maintenance *</label>
-                    <select
-                      name="maintenance"
-                      value={profileForm.maintenance}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Styling Preference *</label>
-                    <select
-                      name="styling_preference"
-                      value={profileForm.styling_preference}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="natural">Natural</option>
-                      <option value="casual">Casual</option>
-                      <option value="classic">Classic</option>
-                      <option value="polished">Polished</option>
-                      <option value="elegant">Elegant</option>
-                      <option value="glamorous">Glamorous</option>
-                      <option value="trendy">Trendy</option>
-                      <option value="edgy">Edgy</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Hair Color *</label>
-                    <select
-                      name="hair_color"
-                      value={profileForm.hair_color}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="black">Black</option>
-                      <option value="brown">Brown</option>
-                      <option value="blonde">Blonde</option>
-                      <option value="red">Red</option>
-                      <option value="auburn">Auburn</option>
-                      <option value="gray">Gray</option>
-                      <option value="white">White</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-gray-300 text-sm font-medium mb-2">Occasions * (Select multiple)</label>
-                  <div className="text-xs text-gray-400 mb-2">Select all occasions where you'd wear this hairstyle</div>
-                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 bg-slate-800 rounded-lg border border-slate-600">
-                    {['casual', 'professional', 'formal', 'party', 'wedding', 'date', 'everyday', 'special_event', 'sports', 'work'].map((occasion) => (
-                      <label key={occasion} className="flex items-center space-x-2 text-sm text-gray-300 hover:text-white cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={Array.isArray(profileForm.occasions) && profileForm.occasions.includes(occasion)}
-                          onChange={(e) => {
-                            const newOccasions = e.target.checked
-                              ? [...(Array.isArray(profileForm.occasions) ? profileForm.occasions : []), occasion]
-                              : (Array.isArray(profileForm.occasions) ? profileForm.occasions : []).filter(o => o !== occasion);
-                            handleProfileFormChange({ target: { name: 'occasions', value: newOccasions } });
-                          }}
-                          className="form-checkbox h-4 w-4 text-purple-600 rounded"
-                        />
-                        <span className="capitalize">{occasion.replace('_', ' ')}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-gray-300 text-sm font-medium mb-2">Hair Condition (Optional - Select multiple if needed)</label>
-                  <div className="text-xs text-gray-400 mb-2">Select any conditions that apply to your hair</div>
-                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 bg-slate-800 rounded-lg border border-slate-600">
-                    {['none', 'excellent', 'good', 'fair', 'damaged', 'dry_ends', 'oily_scalp', 'dandruff', 'frizzy', 'split_ends', 'thinning', 'sensitive_scalp'].map((condition) => (
-                      <label key={condition} className="flex items-center space-x-2 text-sm text-gray-300 hover:text-white cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={Array.isArray(profileForm.hair_condition) && profileForm.hair_condition.includes(condition)}
-                          onChange={(e) => {
-                            const newConditions = e.target.checked
-                              ? [...(Array.isArray(profileForm.hair_condition) ? profileForm.hair_condition : []), condition]
-                              : (Array.isArray(profileForm.hair_condition) ? profileForm.hair_condition : []).filter(c => c !== condition);
-                            handleProfileFormChange({ target: { name: 'hair_condition', value: newConditions } });
-                          }}
-                          className="form-checkbox h-4 w-4 text-purple-600 rounded"
-                        />
-                        <span className="capitalize">{condition.replace('_', ' ')}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={handleCreateProfile}
-                  disabled={!profileForm.profile_name || !profileForm.occasions || profileForm.occasions.length === 0}
-                  className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg transition font-medium"
-                >
-                  Create Profile
-                </button>
-                <button
-                  onClick={() => setShowCreateProfileModal(false)}
-                  className="flex-1 bg-slate-600 hover:bg-slate-700 text-white py-2 rounded-lg transition font-medium"
-                >
-                  Cancel
-                </button>
+      {/* View Saved Hairstyle Modal */}
+      <Modal
+        isOpen={showSavedModal}
+        onClose={closeSavedModal}
+        title={selectedSaved?.hairstyle_name || "Hairstyle Details"}
+        size="xl"
+      >
+        {selectedSaved && (
+          <div className="flex flex-col h-full md:h-[80vh]">
+            {/* Toolbar - Top Actions */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center px-4 sm:px-6 pt-4 sm:pt-6 pb-4 border-b border-white/10 flex-shrink-0 gap-3 sm:gap-0">
+              <div className="flex items-center gap-4">
+                <span className="text-gray-400 text-sm font-medium">
+                  Saved on{" "}
+                  {new Date(selectedSaved.saved_at).toLocaleDateString()}
+                </span>
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Edit Preference Profile Modal */}
-      {showEditProfileModal && selectedProfile && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl max-w-2xl w-full my-8">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-white">Edit Preference Profile</h2>
-                <button
-                  onClick={() => {
-                    setShowEditProfileModal(false);
-                    setSelectedProfile(null);
-                  }}
-                  className="text-gray-400 hover:text-white text-2xl"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
-                <div>
-                  <label className="block text-gray-300 text-sm font-medium mb-2">Profile Name *</label>
-                  <input
-                    type="text"
-                    name="profile_name"
-                    value={profileForm.profile_name}
-                    onChange={handleProfileFormChange}
-                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-gray-300 text-sm font-medium mb-2">Description (Optional)</label>
-                  <textarea
-                    name="description"
-                    value={profileForm.description}
-                    onChange={handleProfileFormChange}
-                    rows="2"
-                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Gender *</label>
-                    <select
-                      name="gender"
-                      value={profileForm.gender}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Hair Type *</label>
-                    <select
-                      name="hair_type"
-                      value={profileForm.hair_type}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="straight">Straight</option>
-                      <option value="wavy">Wavy</option>
-                      <option value="curly">Curly</option>
-                      <option value="coily">Coily</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Hair Length *</label>
-                    <select
-                      name="hair_length"
-                      value={profileForm.hair_length}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="short">Short</option>
-                      <option value="medium">Medium</option>
-                      <option value="long">Long</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Volume *</label>
-                    <select
-                      name="volume"
-                      value={profileForm.volume}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Hair Thickness *</label>
-                    <select
-                      name="hair_thickness"
-                      value={profileForm.hair_thickness}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="thin">Thin</option>
-                      <option value="medium">Medium</option>
-                      <option value="thick">Thick</option>
-                      <option value="very_thick">Very Thick</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Hair Texture *</label>
-                    <select
-                      name="hair_texture_detail"
-                      value={profileForm.hair_texture_detail}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="fine">Fine</option>
-                      <option value="normal">Normal</option>
-                      <option value="thick">Thick</option>
-                      <option value="smooth">Smooth</option>
-                      <option value="coarse">Coarse</option>
-                      <option value="silky">Silky</option>
-                      <option value="frizzy">Frizzy</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Lifestyle *</label>
-                    <select
-                      name="lifestyle"
-                      value={profileForm.lifestyle}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="active">Active</option>
-                      <option value="professional">Professional</option>
-                      <option value="creative">Creative</option>
-                      <option value="casual">Casual</option>
-                      <option value="moderate">Moderate</option>
-                      <option value="relaxed">Relaxed</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Maintenance *</label>
-                    <select
-                      name="maintenance"
-                      value={profileForm.maintenance}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Styling Preference *</label>
-                    <select
-                      name="styling_preference"
-                      value={profileForm.styling_preference}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="natural">Natural</option>
-                      <option value="casual">Casual</option>
-                      <option value="classic">Classic</option>
-                      <option value="polished">Polished</option>
-                      <option value="elegant">Elegant</option>
-                      <option value="glamorous">Glamorous</option>
-                      <option value="trendy">Trendy</option>
-                      <option value="edgy">Edgy</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">Hair Color *</label>
-                    <select
-                      name="hair_color"
-                      value={profileForm.hair_color}
-                      onChange={handleProfileFormChange}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="black">Black</option>
-                      <option value="brown">Brown</option>
-                      <option value="blonde">Blonde</option>
-                      <option value="red">Red</option>
-                      <option value="auburn">Auburn</option>
-                      <option value="gray">Gray</option>
-                      <option value="white">White</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-gray-300 text-sm font-medium mb-2">Occasions * (Select multiple)</label>
-                  <div className="text-xs text-gray-400 mb-2">Select all occasions where you'd wear this hairstyle</div>
-                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 bg-slate-800 rounded-lg border border-slate-600">
-                    {['casual', 'professional', 'formal', 'party', 'wedding', 'date', 'everyday', 'special_event', 'sports', 'work'].map((occasion) => (
-                      <label key={occasion} className="flex items-center space-x-2 text-sm text-gray-300 hover:text-white cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={Array.isArray(profileForm.occasions) && profileForm.occasions.includes(occasion)}
-                          onChange={(e) => {
-                            const newOccasions = e.target.checked
-                              ? [...(Array.isArray(profileForm.occasions) ? profileForm.occasions : []), occasion]
-                              : (Array.isArray(profileForm.occasions) ? profileForm.occasions : []).filter(o => o !== occasion);
-                            handleProfileFormChange({ target: { name: 'occasions', value: newOccasions } });
-                          }}
-                          className="form-checkbox h-4 w-4 text-purple-600 rounded"
-                        />
-                        <span className="capitalize">{occasion.replace('_', ' ')}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-gray-300 text-sm font-medium mb-2">Hair Condition (Optional - Select multiple if needed)</label>
-                  <div className="text-xs text-gray-400 mb-2">Select any conditions that apply to your hair</div>
-                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 bg-slate-800 rounded-lg border border-slate-600">
-                    {['none', 'excellent', 'good', 'fair', 'damaged', 'dry_ends', 'oily_scalp', 'dandruff', 'frizzy', 'split_ends', 'thinning', 'sensitive_scalp'].map((condition) => (
-                      <label key={condition} className="flex items-center space-x-2 text-sm text-gray-300 hover:text-white cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={Array.isArray(profileForm.hair_condition) && profileForm.hair_condition.includes(condition)}
-                          onChange={(e) => {
-                            const newConditions = e.target.checked
-                              ? [...(Array.isArray(profileForm.hair_condition) ? profileForm.hair_condition : []), condition]
-                              : (Array.isArray(profileForm.hair_condition) ? profileForm.hair_condition : []).filter(c => c !== condition);
-                            handleProfileFormChange({ target: { name: 'hair_condition', value: newConditions } });
-                          }}
-                          className="form-checkbox h-4 w-4 text-purple-600 rounded"
-                        />
-                        <span className="capitalize">{condition.replace('_', ' ')}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={handleEditProfile}
-                  disabled={!profileForm.profile_name || !profileForm.occasions || profileForm.occasions.length === 0}
-                  className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-2 rounded-lg transition font-medium"
-                >
-                  Save Changes
-                </button>
-                <button
-                  onClick={() => {
-                    setShowEditProfileModal(false);
-                    setSelectedProfile(null);
-                  }}
-                  className="flex-1 bg-slate-600 hover:bg-slate-700 text-white py-2 rounded-lg transition font-medium"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Saved Hairstyle Recommendation Details Modal */}
-      {showSavedModal && selectedSaved && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl max-w-4xl w-full my-8">
-            <div className="p-6">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-white">
-                  {selectedSaved.hairstyle_name || selectedSaved.name}
-                </h2>
-                <button
-                  onClick={closeSavedModal}
-                  className="text-gray-400 hover:text-white text-2xl"
-                  aria-label="Close"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Content */}
-              <div className="space-y-4 overflow-y-auto max-h-[600px]">
-                {/* AI Generated Overlay Image */}
-                {selectedSaved.overlay_url && (
-                  <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 border border-purple-500/30 rounded-xl p-4">
-                    <h3 className="text-lg font-semibold text-white mb-3">AI-Generated Preview</h3>
-                    <div className="flex justify-center">
-                      <img
-                        src={selectedSaved.overlay_url}
-                        alt={`${selectedSaved.hairstyle_name || selectedSaved.name} overlay preview`}
-                        className="max-w-md w-full rounded-lg shadow-lg"
-                      />
+            <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-6 overflow-y-auto lg:overflow-hidden px-4 sm:px-6 py-4">
+              {/* Left Column: Visuals */}
+              <div className="lg:w-5/12 flex flex-col gap-4 h-auto lg:h-full flex-shrink-0">
+                {/* Visuals */}
+                <div className="bg-surface/30 rounded-xl p-4 border border-white/5 h-[300px] lg:h-full">
+                  <h3 className="text-sm font-heading font-bold text-white mb-2">
+                    {selectedSaved.overlay_url
+                      ? "Your Look"
+                      : "Style Reference"}
+                  </h3>
+                  <div className="h-full rounded-lg overflow-hidden shadow-lg relative group cursor-pointer">
+                    <img
+                      src={
+                        selectedSaved.overlay_url ||
+                        selectedSaved.hairstyle_details?.image_url
+                      }
+                      alt={selectedSaved.hairstyle_name}
+                      className="w-full h-full object-cover"
+                      onClick={() =>
+                        openImageModal(
+                          selectedSaved.overlay_url ||
+                            selectedSaved.hairstyle_details?.image_url
+                        )
+                      }
+                    />
+                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
+                      <span className="bg-black/60 text-white px-4 py-2 rounded-full backdrop-blur-sm text-sm">
+                        View Full Screen
+                      </span>
                     </div>
                   </div>
-                )}
+                </div>
+              </div>
 
-                {/* Personalized Description */}
-                {selectedSaved.personalized_description && (
-                  <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4">
-                    <h3 className="text-lg font-semibold text-white mb-3">✨ Why This Style Works For You</h3>
-                    <p className="text-gray-300 leading-relaxed whitespace-pre-line">
-                      {selectedSaved.personalized_description}
-                    </p>
-                    
-                    {/* Face Shape Specific Benefits */}
-                    {selectedSaved.face_shape && (
-                      <div className="bg-white/5 border border-white/10 rounded-lg p-3 mt-3">
-                        <p className="text-sm text-gray-300">
-                          <strong className="text-blue-300">Perfect for your {selectedSaved.face_shape} face:</strong> This hairstyle helps balance your facial proportions, highlights your best features, and creates a harmonious overall look that's tailored to your unique face shape.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
+              {/* Right Column: Details (Scrollable) */}
+              <div className="lg:w-7/12 overflow-y-visible lg:overflow-y-auto pr-0 lg:pr-2 space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent pb-6 lg:pb-2">
+                {/* Description */}
+                <Card className="bg-surface/30 border-white/5 p-5">
+                  <h3 className="text-md font-heading font-bold text-primary mb-2">
+                    Why This Style Works
+                  </h3>
+                  <p className="text-gray-300 text-sm leading-relaxed text-justify">
+                    {selectedSaved.personalized_description ||
+                      selectedSaved.hairstyle_details?.description ||
+                      "No description available."}
+                  </p>
+                </Card>
 
-                {/* Face Shape Info */}
+                {/* Face Shape Match */}
                 {selectedSaved.face_shape && (
-                  <div className="bg-green-900/20 border border-green-500/30 rounded-xl p-4">
-                    <h3 className="text-lg font-semibold text-white mb-2">Face Shape Analysis</h3>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-green-300 capitalize text-lg">
-                          <span className="font-semibold">{selectedSaved.face_shape}</span>
-                        </p>
-                        <p className="text-gray-400 text-sm mt-1">
-                          Selected based on your unique facial features
-                        </p>
-                      </div>
-                      {selectedSaved.face_shape_confidence && (
-                        <div className="text-right">
-                          <span className="text-green-400 font-bold text-xl">
-                            {Math.round(selectedSaved.face_shape_confidence * 100)}%
-                          </span>
-                          <p className="text-xs text-gray-400">Confidence</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <Card className="bg-surface/30 border-white/5 p-5">
+                    <h3 className="text-md font-heading font-bold text-white mb-2 flex items-center gap-2">
+                      <span>👤</span> Face Shape Match
+                    </h3>
+                    <p className="text-gray-300 text-sm leading-relaxed text-justify">
+                      <strong className="text-white block mb-1">
+                        Perfect for your{" "}
+                        <span className="capitalize text-primary">
+                          {selectedSaved.face_shape}
+                        </span>{" "}
+                        face
+                      </strong>
+                      This hairstyle helps balance your facial proportions,
+                      highlights your best features, and creates a harmonious
+                      overall look.
+                    </p>
+                  </Card>
                 )}
 
-                {/* User Preferences Used */}
-                {selectedSaved.user_preferences && Object.keys(selectedSaved.user_preferences).length > 0 && (
-                  <div className="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4">
-                    <h3 className="text-lg font-semibold text-white mb-3">👤 Your Profile & Preferences</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      {selectedSaved.user_preferences.hair_type && (
-                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
-                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Hair Type</h4>
-                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.hair_type}</p>
-                        </div>
-                      )}
-                      {selectedSaved.user_preferences.hair_length && (
-                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
-                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Length</h4>
-                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.hair_length}</p>
-                        </div>
-                      )}
-                      {selectedSaved.user_preferences.hair_thickness && (
-                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
-                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Thickness</h4>
-                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.hair_thickness}</p>
-                        </div>
-                      )}
-                      {selectedSaved.user_preferences.hair_texture_detail && (
-                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
-                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Texture</h4>
-                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.hair_texture_detail}</p>
-                        </div>
-                      )}
-                      {selectedSaved.user_preferences.hair_texture && (
-                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
-                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Hair Texture</h4>
-                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.hair_texture}</p>
-                        </div>
-                      )}
-                      {selectedSaved.user_preferences.maintenance && (
-                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
-                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Maintenance</h4>
-                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.maintenance}</p>
-                        </div>
-                      )}
-                      {selectedSaved.user_preferences.maintenance_level && (
-                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
-                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Maintenance Level</h4>
-                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.maintenance_level}</p>
-                        </div>
-                      )}
-                      {selectedSaved.user_preferences.lifestyle && (
-                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
-                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Lifestyle</h4>
-                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.lifestyle}</p>
-                        </div>
-                      )}
-                      {selectedSaved.user_preferences.gender && (
-                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
-                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Gender</h4>
-                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.gender}</p>
-                        </div>
-                      )}
-                      {selectedSaved.user_preferences.hair_color && (
-                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
-                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Hair Color</h4>
-                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.hair_color}</p>
-                        </div>
-                      )}
-                      {selectedSaved.user_preferences.styling_preference && (
-                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
-                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Style Preference</h4>
-                          <p className="text-sm text-white font-medium capitalize">{selectedSaved.user_preferences.styling_preference}</p>
-                        </div>
-                      )}
-                      {selectedSaved.user_preferences.hair_condition && (
-                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
-                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Hair Condition</h4>
-                          <p className="text-sm text-white font-medium capitalize">
-                            {Array.isArray(selectedSaved.user_preferences.hair_condition) 
-                              ? selectedSaved.user_preferences.hair_condition.join(', ')
-                              : selectedSaved.user_preferences.hair_condition}
-                          </p>
-                        </div>
-                      )}
-                      {selectedSaved.user_preferences.occasions && selectedSaved.user_preferences.occasions.length > 0 && (
-                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10 col-span-2">
-                          <h4 className="text-xs font-semibold text-purple-400 mb-1">Occasions</h4>
-                          <p className="text-sm text-white font-medium capitalize">
-                            {selectedSaved.user_preferences.occasions.join(', ')}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Hairstyle Details from recommendation_data */}
-                {selectedSaved.recommendation_data && (
-                  <>
-                    {/* Match Score */}
-                    {selectedSaved.recommendation_data.match_score && (
-                      <div className="bg-gradient-to-r from-green-900/30 to-emerald-900/30 border border-green-500/30 rounded-xl p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="text-lg font-semibold text-white mb-1">Match Score</h3>
-                            <p className="text-gray-300 text-sm">Compatibility with your preferences</p>
-                          </div>
-                          <div className="text-4xl font-bold text-green-400">
-                            {Math.round(selectedSaved.recommendation_data.match_score * 100)}%
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Styling Tips */}
-                    {selectedSaved.recommendation_data.styling_tips && (
-                      <div className="bg-pink-900/20 border border-pink-500/30 rounded-xl p-4">
-                        <h3 className="text-lg font-semibold text-white mb-3">💡 Styling Tips</h3>
-                        <p className="text-gray-300 leading-relaxed whitespace-pre-line">
-                          {selectedSaved.recommendation_data.styling_tips}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Maintenance Guide */}
-                    {selectedSaved.recommendation_data.maintenance_guide && (
-                      <div className="bg-orange-900/20 border border-orange-500/30 rounded-xl p-4">
-                        <h3 className="text-lg font-semibold text-white mb-3">🛠️ Maintenance Guide</h3>
-                        <p className="text-gray-300 leading-relaxed whitespace-pre-line">
-                          {selectedSaved.recommendation_data.maintenance_guide}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Product Recommendations */}
-                    {selectedSaved.recommendation_data.product_recommendations && selectedSaved.recommendation_data.product_recommendations.length > 0 && (
-                      <div className="bg-indigo-900/20 border border-indigo-500/30 rounded-xl p-4">
-                        <h3 className="text-lg font-semibold text-white mb-3">🧴 Recommended Products</h3>
-                        <ul className="space-y-2">
-                          {selectedSaved.recommendation_data.product_recommendations.map((product, idx) => (
-                            <li key={idx} className="text-gray-300 flex items-start">
-                              <span className="text-indigo-400 mr-2">•</span>
-                              <span>{product}</span>
+                {/* Preference Match */}
+                {selectedSaved.recommendation_data?.preference_match &&
+                  selectedSaved.recommendation_data.preference_match.length >
+                    0 && (
+                    <Card className="bg-surface/30 border-white/5 p-5">
+                      <h3 className="text-md font-heading font-bold text-white mb-3 flex items-center gap-2">
+                        <span>✨</span> Why it fits you
+                      </h3>
+                      <ul className="space-y-3">
+                        {selectedSaved.recommendation_data.preference_match.map(
+                          (match, idx) => (
+                            <li
+                              key={idx}
+                              className="flex gap-3 text-gray-300 text-sm"
+                            >
+                              <span className="text-primary font-bold text-lg leading-none mt-0.5">
+                                •
+                              </span>
+                              <span className="text-justify leading-relaxed">
+                                {match}
+                              </span>
                             </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                          )
+                        )}
+                      </ul>
+                    </Card>
+                  )}
 
-                    {/* Style Attributes */}
-                    {(selectedSaved.recommendation_data.difficulty || selectedSaved.recommendation_data.estimated_time || selectedSaved.recommendation_data.maintenance) && (
-                      <div className="bg-cyan-900/20 border border-cyan-500/30 rounded-xl p-4">
-                        <h3 className="text-lg font-semibold text-white mb-3">📊 Style Details</h3>
-                        <div className="grid grid-cols-3 gap-3">
-                          {selectedSaved.recommendation_data.difficulty && (
-                            <div className="text-center">
-                              <p className="text-cyan-400 text-xs font-semibold uppercase mb-1">Difficulty</p>
-                              <p className="text-white capitalize">{selectedSaved.recommendation_data.difficulty}</p>
-                            </div>
-                          )}
-                          {selectedSaved.recommendation_data.estimated_time && (
-                            <div className="text-center">
-                              <p className="text-cyan-400 text-xs font-semibold uppercase mb-1">Time</p>
-                              <p className="text-white">{selectedSaved.recommendation_data.estimated_time} min</p>
-                            </div>
-                          )}
-                          {selectedSaved.recommendation_data.maintenance && (
-                            <div className="text-center">
-                              <p className="text-cyan-400 text-xs font-semibold uppercase mb-1">Maintenance</p>
-                              <p className="text-white capitalize">{selectedSaved.recommendation_data.maintenance}</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                {/* Styling Tips */}
+                {selectedSaved.recommendation_data?.styling_tips &&
+                  selectedSaved.recommendation_data.styling_tips.length > 0 && (
+                    <Card className="bg-surface/30 border-white/5 p-5">
+                      <h3 className="text-md font-heading font-bold text-white mb-3 flex items-center gap-2">
+                        <span>💡</span> Pro Styling Tips
+                      </h3>
+                      <ul className="space-y-3">
+                        {selectedSaved.recommendation_data.styling_tips.map(
+                          (tip, idx) => (
+                            <li
+                              key={idx}
+                              className="flex gap-3 text-gray-300 text-sm"
+                            >
+                              <span className="text-primary font-bold text-lg leading-none mt-0.5">
+                                •
+                              </span>
+                              <span className="text-justify leading-relaxed">
+                                {tip}
+                              </span>
+                            </li>
+                          )
+                        )}
+                      </ul>
+                    </Card>
+                  )}
 
-                    {/* Category */}
-                    {selectedSaved.recommendation_data.category && (
-                      <div className="bg-violet-900/20 border border-violet-500/30 rounded-xl p-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-400 text-sm">Category</span>
-                          <span className="text-violet-300 font-semibold">{selectedSaved.recommendation_data.category}</span>
-                        </div>
+                {/* Maintenance Guide */}
+                {selectedSaved.recommendation_data?.maintenance_guide &&
+                  selectedSaved.recommendation_data.maintenance_guide.length >
+                    0 && (
+                    <Card className="bg-surface/30 border-white/5 p-5">
+                      <h3 className="text-md font-heading font-bold text-white mb-3 flex items-center gap-2">
+                        <span>🔧</span> Maintenance Guide
+                      </h3>
+                      <div className="space-y-4">
+                        {selectedSaved.recommendation_data.maintenance_guide.map(
+                          (step, idx) => (
+                            <div key={idx} className="flex gap-3">
+                              <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 mt-0.5 border border-white/10">
+                                {idx + 1}
+                              </div>
+                              <p className="text-gray-300 text-sm leading-relaxed text-justify">
+                                {step}
+                              </p>
+                            </div>
+                          )
+                        )}
                       </div>
-                    )}
-                  </>
-                )}
+                    </Card>
+                  )}
 
-                {/* Saved Date */}
-                <div className="bg-gray-800/50 border border-gray-600/30 rounded-xl p-4">
-                  <div className="flex items-center text-gray-400 text-sm">
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>
-                      Saved on {new Date(selectedSaved.saved_at).toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </span>
-                  </div>
-                </div>
+                {/* Recommended Products */}
+                {selectedSaved.recommendation_data?.products &&
+                  selectedSaved.recommendation_data.products.length > 0 && (
+                    <Card className="bg-surface/30 border-white/5 p-5">
+                      <h3 className="text-md font-heading font-bold text-white mb-3 flex items-center gap-2">
+                        <span>🧴</span> Recommended Products
+                      </h3>
+                      <ul className="space-y-3">
+                        {selectedSaved.recommendation_data.products.map(
+                          (product, idx) => (
+                            <li
+                              key={idx}
+                              className="flex gap-3 text-gray-300 text-sm"
+                            >
+                              <span className="text-primary font-bold text-lg leading-none mt-0.5">
+                                •
+                              </span>
+                              <span className="text-justify leading-relaxed">
+                                {product}
+                              </span>
+                            </li>
+                          )
+                        )}
+                      </ul>
+                    </Card>
+                  )}
               </div>
             </div>
+
+            <div className="flex justify-between items-center border-t border-white/10 px-6 py-4 flex-shrink-0">
+              <Button onClick={closeSavedModal} variant="secondary">
+                Close
+              </Button>
+              <Button
+                onClick={() => removeSavedHairstyle(selectedSaved.id)}
+                variant="danger"
+                variantType="outline"
+                className="gap-2"
+              >
+                Remove
+              </Button>
+            </div>
           </div>
+        )}
+      </Modal>
+
+      {/* Full Screen Image Modal */}
+      {showImageModal && (
+        <div
+          className="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-4 animate-fade-in"
+          onClick={closeImageModal}
+        >
+          <button
+            className="absolute top-4 right-4 text-white/70 hover:text-white text-4xl font-light transition-colors"
+            onClick={closeImageModal}
+          >
+            &times;
+          </button>
+          <img
+            src={activeImage}
+            alt="Full view"
+            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
-    </>
+    </div>
   );
 };
 
