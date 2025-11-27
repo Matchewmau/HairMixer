@@ -32,6 +32,7 @@ from .base import (
     recommendation_service,
     overlay_service,
 )
+from ..services.pipeline_service import RecommendationOverlayPipeline
 
 
 class UploadImageView(APIView):
@@ -141,7 +142,7 @@ class UploadImageView(APIView):
 class SetPreferencesView(APIView):
     parser_classes = (JSONParser,)
     permission_classes = [AllowAny]
-    authentication_classes = []
+    # Allow both authenticated and anonymous users
 
     @extend_schema(
         request=UserPreferenceSerializer,
@@ -161,9 +162,9 @@ class SetPreferencesView(APIView):
     def post(self, request):
         try:
             data = request.data
-            logger.info(f"Received preferences data: {data}")
 
             preference_data = {
+                'faceshape': data.get('faceshape', ''),
                 'hair_type': data.get('hair_type', ''),
                 'hair_length': data.get('hair_length', ''),
                 'lifestyle': data.get('lifestyle', ''),
@@ -173,10 +174,24 @@ class SetPreferencesView(APIView):
                 'hair_color': data.get('hair_color', ''),
                 'color_preference': data.get('color_preference', ''),
                 'budget_range': data.get('budget_range', ''),
+                'volume': data.get('volume', ''),
+                'styling_maintenance': data.get('styling_maintenance', ''),
+                'hair_texture_detail': data.get('hair_texture_detail', ''),
+                'styling_preference': data.get('styling_preference', ''),
+                'hair_condition': data.get('hair_condition', []),
+                'hair_thickness': data.get('hair_thickness', ''),
+                'wants_bangs': data.get('wants_bangs', False),
+                'hairstyle_family': data.get('hairstyle_family', ''),
+                'hairstyle_name': data.get('hairstyle_name', ''),
+                'avoid_styles': data.get('avoid_styles', []),
             }
 
+            # Filter out empty strings but keep lists and False boolean
             preference_data = {
-                k: v for k, v in preference_data.items() if v != ''
+                k: v
+                for k, v in preference_data.items()
+                if isinstance(v, list) or isinstance(v, bool) or
+                (v != '' and v is not None)
             }
             if not isinstance(preference_data.get('occasions', []), list):
                 preference_data['occasions'] = []
@@ -231,7 +246,7 @@ class SetPreferencesView(APIView):
                 return Response(
                     {
                         "error": (
-                            "Invalid maintenance "
+                            "Invalid maintenance " +
                             (
                                 "'" + preference_data['maintenance'] + "'"
                                 + ". Must be one of: " + str(valid_maintenance)
@@ -247,7 +262,7 @@ class SetPreferencesView(APIView):
                     return Response(
                         {
                             "error": (
-                                "Invalid gender "
+                                "Invalid gender " +
                                 (
                                     "'" + preference_data['gender'] + "'"
                                     + ". Must be one of: " + str(valid_genders)
@@ -258,11 +273,6 @@ class SetPreferencesView(APIView):
                     )
 
             if preference_data.get('lifestyle'):
-                lifestyle_map = {'moderate': 'casual', 'relaxed': 'casual'}
-                if preference_data['lifestyle'] in lifestyle_map:
-                    preference_data['lifestyle'] = lifestyle_map[
-                        preference_data['lifestyle']
-                    ]
                 from ..models import UserPreference
 
                 valid_lifestyles = [
@@ -272,7 +282,7 @@ class SetPreferencesView(APIView):
                     return Response(
                         {
                             "error": (
-                                "Invalid lifestyle "
+                                "Invalid lifestyle " +
                                 (
                                     "'" + preference_data['lifestyle'] + "'"
                                     + ". Must be one of: "
@@ -473,7 +483,10 @@ class OverlayView(APIView):
     )
     def post(self, request):
         try:
+            logger.info(f"Overlay request data: {request.data}")
             req_ser = OverlayRequestSerializer(data=request.data)
+            if not req_ser.is_valid():
+                logger.error(f"Overlay validation errors: {req_ser.errors}")
             req_ser.is_valid(raise_exception=True)
             image_id = req_ser.validated_data["image_id"]
             style_id = req_ser.validated_data["hairstyle_id"]
@@ -488,8 +501,59 @@ class OverlayView(APIView):
             uploaded = get_object_or_404(UploadedImage, id=image_id)
             style = get_object_or_404(Hairstyle, id=style_id)
 
+            # Get user's hair attributes from most recent preference
+            hair_color = None
+            hair_type = None
+            hair_length = None
+            if request.user.is_authenticated:
+                try:
+                    from ..models import UserPreference
+                    
+                    user_pref = (
+                        UserPreference.objects
+                        .filter(user=request.user)
+                        .order_by('-created_at')
+                        .first()
+                    )
+                    
+                    if user_pref:
+                        hair_color = (
+                            user_pref.hair_color.strip()
+                            if user_pref.hair_color else None
+                        )
+                        
+                        # If user selected "other" color, use custom color
+                        if (hair_color == 'other' and 
+                            user_pref.color_preference):
+                            hair_color = user_pref.color_preference.lower()
+                            logger.info(
+                                f"Using custom color: {hair_color}"
+                            )
+                        
+                        hair_type = (
+                            user_pref.hair_type.strip()
+                            if user_pref.hair_type else None
+                        )
+                        hair_length = (
+                            user_pref.hair_length.strip()
+                            if user_pref.hair_length else None
+                        )
+                        logger.info(
+                            f"Using hair attributes: color={hair_color}, "
+                            f"type={hair_type}, length={hair_length}"
+                        )
+                except Exception as e:
+                    logger.warning(
+                        f"Could not retrieve hair attributes: {e}"
+                    )
+
             overlay_url = overlay_service.generate(
-                uploaded, style, overlay_type
+                uploaded,
+                style,
+                overlay_type,
+                hair_color=hair_color,
+                hair_type=hair_type,
+                hair_length=hair_length
             )
 
             track_event_safe(
@@ -518,5 +582,227 @@ class OverlayView(APIView):
             logger.error(f"Error creating overlay: {str(e)}")
             return Response(
                 {"error": "Failed to create overlay", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class AutoOverlayView(APIView):
+    parser_classes = (JSONParser,)
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    from drf_spectacular.utils import (
+        extend_schema,
+        OpenApiResponse,
+        OpenApiExample,
+    )
+
+    @extend_schema(
+        request=RecommendRequestSerializer,
+        responses={
+            200: OpenApiResponse(
+                description='Overlay generated from recommendation'
+            ),
+            400: OpenApiResponse(description='Bad request'),
+            404: OpenApiResponse(description='Not found'),
+            500: OpenApiResponse(description='Server error'),
+        },
+        examples=[
+            OpenApiExample(
+                'Auto overlay',
+                value={
+                    'image_id': '11111111-1111-1111-1111-111111111111',
+                    'preference_id': '33333333-3333-3333-3333-333333333333',
+                },
+                request_only=True,
+            )
+        ],
+    )
+    def post(self, request):
+        try:
+            req_ser = RecommendRequestSerializer(data=request.data)
+            req_ser.is_valid(raise_exception=True)
+            image_id = req_ser.validated_data["image_id"]
+            pref_id = req_ser.validated_data["preference_id"]
+
+            uploaded = get_object_or_404(UploadedImage, id=image_id)
+            prefs = get_object_or_404(UserPreference, id=pref_id)
+            logger.info(
+                f"AutoOverlayView: UserPreference "
+                f"hair_color='{prefs.hair_color}'"
+            )
+            
+            # If UserPreference doesn't have hair_color, try to get it from
+            # PreferenceProfile
+            if (not prefs.hair_color or prefs.hair_color == '') and \
+               request.user.is_authenticated:
+                try:
+                    from ..models import PreferenceProfile
+                    profile = PreferenceProfile.objects.filter(
+                        user=request.user, is_default=True
+                    ).first()
+                    if profile and profile.hair_color:
+                        prefs.hair_color = profile.hair_color
+                except Exception as e:
+                    logger.warning(f"Could not get hair_color from profile: {e}")
+
+            overlay_type = 'advanced'
+            q_overlay = request.query_params.get('overlay')
+            if q_overlay in ('basic', 'advanced'):
+                overlay_type = q_overlay
+
+            pipeline = RecommendationOverlayPipeline()
+            result = pipeline.run(
+                uploaded,
+                prefs,
+                overlay_type=overlay_type,
+                user=(
+                    request.user
+                    if getattr(request.user, 'is_authenticated', False)
+                    else None
+                ),
+            )
+            if 'error' in result:
+                return Response(result, status=status.HTTP_400_BAD_REQUEST)
+            return Response(result)
+        except ValidationError as e:
+            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error("Auto overlay error: %s", str(e))
+            return Response(
+                {
+                    "error": "Failed to generate auto overlay",
+                    "details": str(e),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class MLRecommendView(APIView):
+    """
+    ML-based hairstyle recommendations using trained Random Forest model.
+    
+    Uses hairstyle_family_model.pkl to generate intelligent hairstyle
+    recommendations based on comprehensive user preferences including
+    face shape (detected by ResNet50), hair characteristics, lifestyle,
+    and occasions.
+    
+    Endpoint: POST /api/recommend/ml/
+    """
+    parser_classes = (JSONParser,)
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [RecommendationThrottle]
+    
+    @extend_schema(
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'preference_id': {
+                        'type': 'string',
+                        'format': 'uuid',
+                        'description': 'User preference UUID'
+                    },
+                },
+                'required': ['preference_id']
+            }
+        },
+        responses={
+            200: OpenApiResponse(
+                description='ML-based recommendations generated'
+            ),
+            400: OpenApiResponse(description='Bad request'),
+            404: OpenApiResponse(description='Preferences not found'),
+            500: OpenApiResponse(
+                description='Server error generating recommendations'
+            ),
+        },
+    )
+    def post(self, request):
+        try:
+            from ..services.hairstyle_recommender import (
+                HairstyleRecommender
+            )
+            
+            pref_id = request.data.get('preference_id')
+            
+            if not pref_id:
+                return Response(
+                    {"error": "preference_id is required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
+            # Get user preferences
+            try:
+                prefs = UserPreference.objects.get(id=pref_id)
+            except UserPreference.DoesNotExist:
+                return Response(
+                    {"error": "Preferences not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            
+            # Convert to dict for recommender
+            preferences_dict = {
+                'gender': prefs.gender,
+                'hair_type': prefs.hair_type,
+                'hair_length': prefs.hair_length,
+                'faceshape': prefs.faceshape,
+                'maintenance': prefs.maintenance,
+                'lifestyle': prefs.lifestyle,
+                'volume': prefs.volume,
+                'styling_maintenance': prefs.styling_maintenance,
+                'styling_preference': prefs.styling_preference,
+                'hair_condition': prefs.hair_condition,
+                'hair_thickness': prefs.hair_thickness,
+                'hair_texture_detail': prefs.hair_texture_detail,
+                'wants_bangs': prefs.wants_bangs,
+                'occasions': prefs.occasions,
+            }
+            
+            # Get ML recommendations
+            recommender = HairstyleRecommender()
+            recommendations = recommender.get_top_recommendations(
+                preferences_dict,
+                top_n=10
+            )
+            
+            response_data = {
+                'recommendation_count': len(recommendations),
+                'recommendations': recommendations,
+                'model_used': 'hairstyle_family_model',
+                'faceshape': prefs.faceshape or 'not_detected',
+                'faceshape_confidence': prefs.faceshape_confidence or 0.0,
+            }
+            
+            # Track analytics
+            track_event_safe(
+                analytics_service,
+                user=(
+                    request.user
+                    if getattr(request.user, 'is_authenticated', False)
+                    else None
+                ),
+                event_type='ml_recommendation_generated',
+                event_data={
+                    'preference_id': str(pref_id),
+                    'recommendation_count': len(recommendations),
+                    'faceshape': prefs.faceshape or 'not_detected',
+                },
+                request=request,
+            )
+            
+            return Response(response_data)
+            
+        except Exception as e:
+            logger.error(
+                f"Error generating ML recommendations: {str(e)}",
+                exc_info=True
+            )
+            return Response(
+                {
+                    "error": "Failed to generate ML recommendations",
+                    "details": str(e),
+                },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

@@ -1,72 +1,18 @@
 from .auth import signup, login, logout, user_profile
-from .analysis import (
-    UploadImageView,
-    SetPreferencesView,
-    RecommendView,
-    OverlayView,
+from .recommendation import (
+    RecommendView, MLRecommendView, FeaturedHairstylesView, 
+    TrendingHairstylesView, HairstyleDetailView, ListHairstylesView,
+    HairstyleCategoriesView, SearchView, HairstyleDetailWithAIView
 )
-from .catalog import (
-    FeaturedHairstylesView,
-    TrendingHairstylesView,
-    HairstyleDetailView,
-    ListHairstylesView,
-    HairstyleCategoriesView,
-    SearchView,
-    FaceShapesView,
-    OccasionsView,
-)
+from .overlay import UploadImageView, OverlayView, AutoOverlayView
 from .user import (
-    UserRecommendationsView,
-    UserFavoritesView,
-    UserHistoryView,
+    SetPreferencesView, FeedbackView, UserRecommendationsView,
+    UserFavoritesView, UserHistoryView, PreferenceProfileListCreateView,
+    PreferenceProfileDetailView, PreferenceProfileSetDefaultView,
+    SavedHairstyleListCreateView, SavedHairstyleDetailView
 )
-from .misc import (
-    FeedbackView,
-    AnalyticsEventView,
-    debug_face_detection,
-    debug_resnet_features,
+from .system import (
+    health_check, api_root, AnalyticsEventView, CacheStatsView,
+    CacheCleanupView, SystemAnalyticsView, FaceShapesView, OccasionsView,
+    debug_face_detection, debug_resnet_features
 )
-from .admin import (
-    CacheStatsView,
-    CacheCleanupView,
-    SystemAnalyticsView,
-    health_check,
-    api_root,
-)
-
-__all__ = [
-    # auth
-    'signup',
-    'login',
-    'logout',
-    'user_profile',
-    # analysis
-    'UploadImageView',
-    'SetPreferencesView',
-    'RecommendView',
-    'OverlayView',
-    # catalog
-    'FeaturedHairstylesView',
-    'TrendingHairstylesView',
-    'HairstyleDetailView',
-    'ListHairstylesView',
-    'HairstyleCategoriesView',
-    'SearchView',
-    'FaceShapesView',
-    'OccasionsView',
-    # user
-    'UserRecommendationsView',
-    'UserFavoritesView',
-    'UserHistoryView',
-    # misc
-    'FeedbackView',
-    'AnalyticsEventView',
-    'debug_face_detection',
-    'debug_resnet_features',
-    # admin/system
-    'CacheStatsView',
-    'CacheCleanupView',
-    'SystemAnalyticsView',
-    'health_check',
-    'api_root',
-]

@@ -1,7 +1,5 @@
-from django.conf import settings
 from django.db import transaction
-from django.contrib.auth import authenticate
-from django.contrib.auth.hashers import make_password
+from django.conf import settings
 from rest_framework import status
 from rest_framework.decorators import (
     api_view,
@@ -13,21 +11,30 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth import authenticate
+from django.contrib.auth.hashers import make_password
+import logging
 
 from ..models import CustomUser, UserProfile
 from ..serializers import UserSerializer, UserRegistrationSerializer
 from ..services.analytics_utils import track_event_safe
-from .base import logger, analytics_service
-from drf_spectacular.utils import extend_schema, OpenApiResponse
 
+# Import analytics_service from a common place or initialize it here if needed
+# For now, we'll assume it's available or import it from the main package if we move it to a common config
+# To avoid circular imports, we might need to move the service initialization to a separate file like `services/__init__.py` or `apps.py`
+# But for this refactor, let's try to import it from where it was, or re-initialize it safely.
+# Since `views.py` had it global, we should probably put it in a `config.py` or similar.
+# For now, let's re-initialize it here or import it from a new `common.py` if we create one.
+# Actually, let's create a `common.py` in views/ to hold these shared instances.
 
-@extend_schema(
-    request=UserRegistrationSerializer,
-    responses={
-        201: OpenApiResponse(description='User created successfully'),
-        400: OpenApiResponse(description='Validation failed'),
-    },
-)
+from ..services.analytics import AnalyticsService
+try:
+    analytics_service = AnalyticsService()
+except ImportError:
+    analytics_service = None
+
+logger = logging.getLogger(__name__)
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @authentication_classes([])
@@ -37,6 +44,7 @@ def signup(request):
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
             with transaction.atomic():
+                # Create user
                 user = CustomUser.objects.create(
                     username=serializer.validated_data['email'],
                     email=serializer.validated_data['email'],
@@ -44,11 +52,13 @@ def signup(request):
                     last_name=serializer.validated_data['lastName'],
                     password=make_password(
                         serializer.validated_data['password']
-                    ),
+                    )
                 )
-
+                
+                # Create user profile
                 UserProfile.objects.create(user=user)
-
+                
+                # Log analytics event
                 track_event_safe(
                     analytics_service,
                     user=user,
@@ -56,57 +66,37 @@ def signup(request):
                     event_data={'source': 'web'},
                     request=request,
                 )
-
+                
+                # Generate tokens
                 refresh = RefreshToken.for_user(user)
                 access_token = refresh.access_token
-
+                
                 user_data = UserSerializer(user).data
-
-                return Response(
-                    {
-                        'message': 'User created successfully',
-                        'user': user_data,
-                        'access_token': str(access_token),
-                        'refresh_token': str(refresh),
-                    },
-                    status=status.HTTP_201_CREATED,
-                )
+                
+                return Response({
+                    'message': 'User created successfully',
+                    'user': user_data,
+                    'access_token': str(access_token),
+                    'refresh_token': str(refresh),
+                }, status=status.HTTP_201_CREATED)
+        # Serializer invalid: return structured error with details
         try:
             logger.error(f"Signup validation failed: {serializer.errors}")
         except Exception:
             pass
-        return Response(
-            {'message': 'Validation failed', 'errors': serializer.errors},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
+        return Response({
+            'message': 'Validation failed',
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
     except Exception as e:
         logger.error(f"Registration error: {str(e)}")
-        return Response(
-            {
-                'message': 'Registration failed',
-                'error': 'An unexpected error occurred',
-            },
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
+        return Response({
+            'message': 'Registration failed',
+            'error': 'An unexpected error occurred'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
-@extend_schema(
-    request={
-        'application/json': {
-            'type': 'object',
-            'properties': {
-                'email': {'type': 'string', 'format': 'email'},
-                'password': {'type': 'string'},
-            },
-            'required': ['email', 'password'],
-        }
-    },
-    responses={
-        200: OpenApiResponse(description='Login successful'),
-        401: OpenApiResponse(description='Invalid credentials'),
-    },
-)
+ 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @authentication_classes([])
@@ -115,16 +105,17 @@ def login(request):
     try:
         email = request.data.get('email')
         password = request.data.get('password')
-
+        
         if not email or not password:
-            return Response(
-                {'message': 'Email and password are required'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+            return Response({
+                'message': 'Email and password are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Authenticate user
         user = authenticate(username=email, password=password)
-
+        
         if user:
+            # Log analytics event
             track_event_safe(
                 analytics_service,
                 user=user,
@@ -132,12 +123,13 @@ def login(request):
                 event_data={'source': 'web'},
                 request=request,
             )
-
+            
+            # Generate tokens
             refresh = RefreshToken.for_user(user)
             access_token = refresh.access_token
-
+            
             user_data = UserSerializer(user).data
-
+            
             resp_data = {
                 'message': 'Login successful',
                 'user': user_data,
@@ -147,6 +139,7 @@ def login(request):
 
             response = Response(resp_data, status=status.HTTP_200_OK)
 
+            # Optionally set HttpOnly cookies for tokens
             try:
                 if getattr(settings, 'AUTH_COOKIES_ENABLED', False):
                     access_name = getattr(
@@ -155,11 +148,12 @@ def login(request):
                     refresh_name = getattr(
                         settings, 'AUTH_COOKIE_REFRESH_NAME', 'refresh_token'
                     )
-                    domain = (
-                        getattr(settings, 'AUTH_COOKIE_DOMAIN', None) or None
-                    )
+                    domain = getattr(
+                        settings, 'AUTH_COOKIE_DOMAIN', None
+                    ) or None
                     samesite = getattr(settings, 'AUTH_COOKIE_SAMESITE', 'Lax')
                     secure_flag = not settings.DEBUG
+                    # Derive lifetimes from SIMPLE_JWT settings
                     access_lifetime = settings.SIMPLE_JWT.get(
                         'ACCESS_TOKEN_LIFETIME'
                     )
@@ -168,13 +162,11 @@ def login(request):
                     )
                     access_max_age = (
                         int(access_lifetime.total_seconds())
-                        if access_lifetime
-                        else None
+                        if access_lifetime else None
                     )
                     refresh_max_age = (
                         int(refresh_lifetime.total_seconds())
-                        if refresh_lifetime
-                        else None
+                        if refresh_lifetime else None
                     )
 
                     response.set_cookie(
@@ -185,7 +177,7 @@ def login(request):
                         secure=secure_flag,
                         samesite=samesite,
                         domain=domain,
-                        path='/',
+                        path='/'
                     )
                     response.set_cookie(
                         refresh_name,
@@ -195,18 +187,18 @@ def login(request):
                         secure=secure_flag,
                         samesite=samesite,
                         domain=domain,
-                        path='/',
+                        path='/'
                     )
             except Exception:
+                # Cookie setting failure should not block login response
                 pass
 
             return response
-
-        return Response(
-            {'message': 'Invalid email or password'},
-            status=status.HTTP_401_UNAUTHORIZED,
-        )
-
+        
+        return Response({
+            'message': 'Invalid email or password'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
     except Exception as e:
         logger.error(f"Login error: {str(e)}")
         return Response(
@@ -218,35 +210,41 @@ def login(request):
         )
 
 
-@extend_schema(
-    request={
-        'application/json': {
-            'type': 'object',
-            'properties': {'refresh_token': {'type': 'string'}},
-        }
-    },
-    responses={200: OpenApiResponse(description='Logout successful')},
-)
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])  # Allow unauthenticated logout
 def logout(request):
     try:
         refresh_token = request.data.get('refresh_token')
         if refresh_token:
-            token = RefreshToken(refresh_token)
-            token.blacklist()
+            try:
+                # Try to blacklist token if blacklist app is available
+                token = RefreshToken(refresh_token)
+                if hasattr(token, 'blacklist'):
+                    token.blacklist()
+                else:
+                    logger.debug(
+                        "Token blacklist not available. "
+                        "Install rest_framework_simplejwt.token_blacklist "
+                        "to enable token blacklisting."
+                    )
+            except Exception as e:
+                # Token might be invalid/expired, but still allow logout
+                logger.debug(f"Token blacklist failed: {str(e)}")
+        
+        # Log analytics event only if user is authenticated
+        if request.user and request.user.is_authenticated:
+            track_event_safe(
+                analytics_service,
+                user=request.user,
+                event_type='user_logout',
+                request=request,
+            )
+        
+        response = Response({
+            'message': 'Logout successful'
+        }, status=status.HTTP_200_OK)
 
-        track_event_safe(
-            analytics_service,
-            user=request.user if request.user.is_authenticated else None,
-            event_type='user_logout',
-            request=request,
-        )
-
-        response = Response(
-            {'message': 'Logout successful'}, status=status.HTTP_200_OK
-        )
-
+        # Clear HttpOnly cookies if enabled
         try:
             if getattr(settings, 'AUTH_COOKIES_ENABLED', False):
                 access_name = getattr(
@@ -267,28 +265,50 @@ def logout(request):
             pass
 
         return response
-
+    
     except Exception as e:
         logger.error(f"Logout error: {str(e)}")
         return Response(
-            {'message': 'Logout failed', 'error': str(e)},
+            {
+                'message': 'Logout failed',
+                'error': str(e),
+            },
             status=status.HTTP_400_BAD_REQUEST,
         )
 
 
-@extend_schema(responses={200: UserSerializer})
-@api_view(['GET'])
+@api_view(['GET', 'PUT', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def user_profile(request):
     try:
-        user_data = UserSerializer(request.user).data
-        return Response({'user': user_data}, status=status.HTTP_200_OK)
+        if request.method == 'GET':
+            user_data = UserSerializer(request.user).data
+            return Response({
+                'user': user_data
+            }, status=status.HTTP_200_OK)
+        
+        elif request.method in ['PUT', 'PATCH']:
+            # Update user profile
+            serializer = UserSerializer(
+                request.user,
+                data=request.data,
+                partial=(request.method == 'PATCH')
+            )
+            
+            if serializer.is_valid():
+                serializer.save()
+                return Response({
+                    'user': serializer.data,
+                    'message': 'Profile updated successfully'
+                }, status=status.HTTP_200_OK)
+            
+            return Response({
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
     except Exception as e:
         logger.error(f"User profile error: {str(e)}")
-        return Response(
-            {
-                'message': 'Failed to fetch user profile',
-                'error': 'An unexpected error occurred',
-            },
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
+        return Response({
+            'message': 'Failed to process user profile',
+            'error': 'An unexpected error occurred'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

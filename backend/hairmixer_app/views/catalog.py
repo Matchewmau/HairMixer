@@ -36,12 +36,19 @@ class FeaturedHairstylesView(APIView):
     def get(self, request):
         try:
             limit = min(int(request.query_params.get('limit', 20)), 50)
+            gender = request.query_params.get('gender', '').lower()
 
-            featured_styles = (
-                Hairstyle.objects.filter(is_active=True, is_featured=True)
-                .select_related('category')
-                .order_by('-trend_score')[:limit]
-            )
+            queryset = Hairstyle.objects.filter(
+                is_active=True, is_featured=True
+            ).select_related('category')
+            
+            # Apply gender filter if provided
+            if gender in ['male', 'female']:
+                gender_filter = Q(suitable_gender='unisex')
+                gender_filter |= Q(suitable_gender=gender)
+                queryset = queryset.filter(gender_filter)
+            
+            featured_styles = queryset.order_by('-trend_score')[:limit]
 
             serializer = HairstyleSerializer(
                 featured_styles, many=True, context={'request': request}
@@ -73,10 +80,18 @@ class TrendingHairstylesView(APIView):
     def get(self, request):
         try:
             limit = min(int(request.query_params.get('limit', 20)), 50)
+            gender = request.query_params.get('gender', '').lower()
 
+            queryset = Hairstyle.objects.filter(is_active=True)
+            
+            # Apply gender filter if provided
+            if gender in ['male', 'female']:
+                gender_filter = Q(suitable_gender='unisex')
+                gender_filter |= Q(suitable_gender=gender)
+                queryset = queryset.filter(gender_filter)
+            
             trending_styles = (
-                Hairstyle.objects.filter(is_active=True)
-                .annotate(
+                queryset.annotate(
                     recent_recommendations=Count(
                         'recommendationlog',
                         filter=Q(
@@ -205,6 +220,7 @@ class ListHairstylesView(APIView):
             face_shape = request.query_params.get('face_shape')
             occasion = request.query_params.get('occasion')
             maintenance = request.query_params.get('maintenance')
+            gender = request.query_params.get('gender', '').lower()
             featured_only = (
                 request.query_params.get('featured', '').lower() == 'true'
             )
@@ -222,6 +238,10 @@ class ListHairstylesView(APIView):
                 queryset = queryset.filter(occasions__contains=[occasion])
             if maintenance:
                 queryset = queryset.filter(maintenance=maintenance)
+            if gender in ['male', 'female']:
+                gender_filter = Q(suitable_gender='unisex')
+                gender_filter |= Q(suitable_gender=gender)
+                queryset = queryset.filter(gender_filter)
             if featured_only:
                 queryset = queryset.filter(is_featured=True)
 
@@ -320,13 +340,12 @@ class SearchView(APIView):
                 str,
                 OpenApiParameter.QUERY,
                 enum=[
+                    'work',
                     'casual',
                     'formal',
                     'party',
-                    'business',
                     'wedding',
-                    'date',
-                    'work',
+                    'birthday',
                 ],
             ),
             OpenApiParameter(
@@ -491,13 +510,12 @@ class OccasionsView(APIView):
     def get(self, request):
         try:
             occasions = [
+                {'value': 'work', 'label': 'Work'},
                 {'value': 'casual', 'label': 'Casual'},
                 {'value': 'formal', 'label': 'Formal'},
                 {'value': 'party', 'label': 'Party'},
-                {'value': 'business', 'label': 'Business'},
                 {'value': 'wedding', 'label': 'Wedding'},
-                {'value': 'date', 'label': 'Date Night'},
-                {'value': 'work', 'label': 'Work'},
+                {'value': 'birthday', 'label': 'Birthday'},
             ]
 
             return Response({'occasions': occasions})

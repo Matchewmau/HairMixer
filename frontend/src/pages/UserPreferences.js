@@ -1,46 +1,99 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import APIService from '../services/api';
-import AuthService from '../services/AuthService';
-import Navbar from '../components/Navbar';
+import React, { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import APIService from "../services/api";
+import AuthService from "../services/AuthService";
+import Navbar from "../components/Navbar";
+import Button from "../components/ui/Button";
+import Card from "../components/ui/Card";
 
+/**
+ * UserPreferences Component
+ *
+ * A comprehensive 11-step wizard for collecting detailed user hair preferences.
+ * Refactored to use the new design system.
+ */
 const UserPreferences = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { imageFile, previewUrl, uploadResponse } = location.state || {};
+  const { imageFile, previewUrl, uploadResponse, existingPreferences } =
+    location.state || {};
 
   // Step-by-step wizard state
-  const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 6; // hair_type, hair_length, lifestyle, maintenance, occasions, compatibility
+  const [currentStep, setCurrentStep] = useState(0);
+  const totalSteps = 13;
 
   const [preferences, setPreferences] = useState({
-    hair_type: '',
-    hair_length: '',
-    lifestyle: '',
-    maintenance: '',
-    occasions: [],
-    check_compatibility: false,
-    target_hairstyle: '',
-    custom_hairstyle: '',
-    // hair_texture: '',
-    // face_shape_preference: '',
+    // Core characteristics
+    hair_type: existingPreferences?.hair_type || "",
+    hair_length: existingPreferences?.hair_length || "",
+    lifestyle: existingPreferences?.lifestyle || "",
+    maintenance: existingPreferences?.maintenance || "",
+    occasions: existingPreferences?.occasions || [],
+
+    // New detailed characteristics
+    volume: existingPreferences?.volume || "",
+    styling_maintenance: existingPreferences?.styling_maintenance || "",
+    hair_texture_detail: existingPreferences?.hair_texture_detail || "",
+    styling_preference: existingPreferences?.styling_preference || "",
+    hair_condition: existingPreferences?.hair_condition || [],
+    hair_thickness: existingPreferences?.hair_thickness || "",
+    wants_bangs: existingPreferences?.wants_bangs || false,
+    hair_color: existingPreferences?.hair_color || "",
+    color_preference: existingPreferences?.color_preference || "",
+    gender: existingPreferences?.gender || "",
+
+    // Hairstyle preferences
+    hairstyle_family: existingPreferences?.hairstyle_family || "",
+    hairstyle_name: existingPreferences?.hairstyle_name || "",
+
+    // Face shape (auto-filled from ResNet50)
+    faceshape:
+      uploadResponse?.face_shape?.shape || existingPreferences?.faceshape || "",
+
+    // Legacy compatibility check
+    check_compatibility: existingPreferences?.check_compatibility || false,
+    target_hairstyle: existingPreferences?.target_hairstyle || "",
+    custom_hairstyle: existingPreferences?.custom_hairstyle || "",
   });
 
   const [occasions, setOccasions] = useState([]);
-  const [faceShapes, setFaceShapes] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState(null);
+  const [occasionsLoaded, setOccasionsLoaded] = useState(false);
+
+  // Preference Profiles state (kept for logic consistency, though UI might not use it directly in wizard)
+  const [preferenceProfiles, setPreferenceProfiles] = useState([]);
 
   useEffect(() => {
     if (!uploadResponse) {
-      navigate('/upload');
+      navigate("/upload");
       return;
     }
-    
-    loadFilterOptions();
+
+    if (!occasionsLoaded) {
+      loadFilterOptions();
+    }
     checkAuth();
-  }, [uploadResponse, navigate]);
+  }, [uploadResponse, navigate, occasionsLoaded]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        checkAuth();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
+
+  useEffect(() => {
+    if (user && !occasionsLoaded) {
+      loadFilterOptions();
+    }
+  }, [user, occasionsLoaded]);
 
   const checkAuth = async () => {
     try {
@@ -51,7 +104,7 @@ const UserPreferences = () => {
       const currentUser = await AuthService.getCurrentUser();
       setUser(currentUser);
     } catch (error) {
-      console.error('Authentication check failed:', error);
+      console.error("Authentication check failed:", error);
       setUser(null);
     }
   };
@@ -60,82 +113,132 @@ const UserPreferences = () => {
     try {
       await AuthService.logout();
       setUser(null);
-      navigate('/');
+      setOccasions([]);
+      setOccasionsLoaded(false);
+      navigate("/");
     } catch (error) {
-      console.error('Logout failed:', error);
+      console.error("Logout failed:", error);
     }
   };
 
   const loadFilterOptions = async () => {
     try {
-      const [occasionsResponse, faceShapesResponse] = await Promise.all([
-        APIService.getOccasions(),
-        APIService.getFaceShapes()
-      ]);
-      
+      const occasionsResponse = await APIService.getOccasions();
       setOccasions(occasionsResponse.occasions || []);
-      setFaceShapes(faceShapesResponse.face_shapes || []);
+      setOccasionsLoaded(true);
     } catch (error) {
-      console.error('Error loading filter options:', error);
+      console.error("Error loading filter options:", error);
+      setOccasions([
+        { value: "casual", label: "Casual" },
+        { value: "professional", label: "Professional" },
+        { value: "formal", label: "Formal" },
+        { value: "party", label: "Party" },
+        { value: "wedding", label: "Wedding" },
+        { value: "sports", label: "Sports" },
+      ]);
+      setOccasionsLoaded(true);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const loadPreferenceProfiles = async () => {
+    try {
+      const response = await APIService.getPreferenceProfiles();
+      setPreferenceProfiles(response.profiles || []);
+    } catch (error) {
+      console.error("Failed to load preference profiles:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      loadPreferenceProfiles();
+    }
+  }, [user]);
+
+  const handleApplyProfile = (profile) => {
+    // Map profile data to preferences state
+    setPreferences((prev) => ({
+      ...prev,
+      gender: profile.gender || prev.gender,
+      hair_type: profile.hair_type || prev.hair_type,
+      hair_length: profile.hair_length || prev.hair_length,
+      volume: profile.volume || prev.volume,
+      hair_thickness: profile.hair_thickness || prev.hair_thickness,
+      hair_texture_detail:
+        profile.hair_texture_detail || prev.hair_texture_detail,
+      lifestyle: profile.lifestyle || prev.lifestyle,
+      maintenance: profile.maintenance || prev.maintenance,
+      styling_maintenance: profile.styling_maintenance || "medium", // Default if missing
+      styling_preference: profile.styling_preference || "natural", // Default if missing
+      hair_color: profile.hair_color || prev.hair_color,
+      hair_condition: profile.hair_condition || [],
+      occasions: profile.occasions || [],
+    }));
+
+    // Skip to the last step (Hair Condition)
+    setCurrentStep(totalSteps - 1);
+  };
+
   const handleSubmit = async () => {
-    if (!isFormValid()) return;
+    if (!isFormValid()) {
+      alert("⚠️ Please complete all required fields before submitting.");
+      return;
+    }
+
+    const errors = validateAllFields();
+    if (Object.keys(errors).length > 0) {
+      const errorMessages = Object.values(errors).join("\n");
+      alert(`⚠️ Please fix the following errors:\n\n${errorMessages}`);
+      return;
+    }
 
     setIsSubmitting(true);
-    
+
     try {
-      console.log('Submitting preferences:', preferences);
-      
-      // Ensure hair_length uses underscore not dash and map lifestyle UI -> model
       const cleanedPreferences = {
         ...preferences,
-        hair_length: preferences.hair_length === 'extra-long' ? 'extra_long' : preferences.hair_length,
-        lifestyle: preferences.lifestyle === 'moderate' || preferences.lifestyle === 'relaxed' ? 'casual' : preferences.lifestyle,
+        faceshape:
+          uploadResponse?.face_shape?.shape || preferences.faceshape || "",
+        hair_condition: preferences.hair_condition || [],
       };
-      
-      console.log('Cleaned preferences:', cleanedPreferences);
-      
-      // Save preferences
-      const preferencesResponse = await APIService.savePreferences(cleanedPreferences);
-      console.log('Preferences response:', preferencesResponse);
-      
+
+      const preferencesResponse = await APIService.savePreferences(
+        cleanedPreferences
+      );
+
       if (!preferencesResponse.success) {
-        throw new Error(preferencesResponse.error || 'Failed to save preferences');
+        throw new Error(
+          preferencesResponse.error || "Failed to save preferences"
+        );
       }
-      
-      // Get recommendations
-      console.log('Getting recommendations with:', {
-        image_id: uploadResponse.image_id,
-        preference_id: preferencesResponse.preference_id
-      });
-      
-      const recommendationsResponse = await APIService.getRecommendations(
+
+      const mlRecommendationsResponse = await APIService.getRecommendations(
         uploadResponse.image_id,
         preferencesResponse.preference_id
       );
-      
-      console.log('Recommendations:', recommendationsResponse);
-      
-      // Navigate to results
-      navigate('/results', { 
-        state: { 
-          preferences,
+
+      navigate("/results", {
+        state: {
+          preferences: cleanedPreferences,
           imageFile,
           previewUrl,
           uploadResponse,
-          recommendations: recommendationsResponse
-        }
+          recommendations: mlRecommendationsResponse,
+        },
       });
-      
     } catch (error) {
-      console.error('Full error object:', error);
-      console.error('Error submitting preferences:', error.message);
-      
-      let errorMessage = `Failed to get recommendations: ${error.message}`;
+      console.error("Error submitting preferences:", error);
+      let errorMessage = "❌ Failed to get recommendations. ";
+      if (
+        error.message.includes("network") ||
+        error.message.includes("fetch")
+      ) {
+        errorMessage += "Please check your internet connection and try again.";
+      } else {
+        errorMessage += `\n\n${error.message}`;
+      }
       alert(errorMessage);
     } finally {
       setIsSubmitting(false);
@@ -143,26 +246,46 @@ const UserPreferences = () => {
   };
 
   const handlePreferenceChange = (key, value) => {
-    if (key === 'occasions') {
+    if (key === "occasions") {
       const newOccasions = preferences.occasions.includes(value)
-        ? preferences.occasions.filter(o => o !== value)
+        ? preferences.occasions.filter((o) => o !== value)
         : [...preferences.occasions, value];
-      
-      setPreferences(prev => ({
+
+      setPreferences((prev) => ({
         ...prev,
-        occasions: newOccasions
+        occasions: newOccasions,
+      }));
+    } else if (key === "hair_condition") {
+      const newConditions = preferences.hair_condition.includes(value)
+        ? preferences.hair_condition.filter((c) => c !== value)
+        : [...preferences.hair_condition, value];
+
+      setPreferences((prev) => ({
+        ...prev,
+        hair_condition: newConditions,
+      }));
+    } else if (key === "wants_bangs") {
+      setPreferences((prev) => ({
+        ...prev,
+        [key]: !prev[key],
       }));
     } else {
-      setPreferences(prev => ({
+      const newValue = preferences[key] === value ? "" : value;
+      setPreferences((prev) => ({
         ...prev,
-        [key]: value
+        [key]: newValue,
       }));
     }
   };
 
-  // Step navigation functions
   const nextStep = () => {
-    if (currentStep < totalSteps) {
+    if (!isCurrentStepValid()) {
+      const errorMsg = getCurrentStepValidationMessage();
+      if (errorMsg) alert(`⚠️ ${errorMsg}`);
+      return;
+    }
+
+    if (currentStep < totalSteps - 1) {
       setCurrentStep(currentStep + 1);
     } else {
       handleSubmit();
@@ -170,481 +293,874 @@ const UserPreferences = () => {
   };
 
   const prevStep = () => {
-    if (currentStep > 1) {
+    if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
     }
   };
 
   const goToStep = (step) => {
-    setCurrentStep(step);
+    if (step <= currentStep) {
+      setCurrentStep(step);
+    } else if (step === currentStep + 1 && isStepCompleted(currentStep)) {
+      setCurrentStep(step);
+    }
   };
 
-  // Check if current step is valid
+  const isStepCompleted = (stepNumber) => {
+    switch (stepNumber) {
+      case 0:
+        return !!preferences.gender;
+      case 1:
+        return !!preferences.hair_type;
+      case 2:
+        return !!preferences.hair_length;
+      case 3:
+        return !!preferences.volume;
+      case 4:
+        return !!preferences.hair_thickness;
+      case 5:
+        return !!preferences.hair_texture_detail;
+      case 6:
+        return !!preferences.lifestyle;
+      case 7:
+        return !!preferences.maintenance;
+      case 8:
+        return !!preferences.styling_maintenance;
+      case 9:
+        return !!preferences.styling_preference;
+      case 10:
+        return preferences.occasions && preferences.occasions.length > 0;
+      case 11:
+        return !!preferences.hair_color;
+      case 12:
+        return true; // Hair condition is optional
+      default:
+        return false;
+    }
+  };
+
+  const validationRules = {
+    hair_type: {
+      options: ["straight", "wavy", "curly", "coily"],
+      descriptions: {
+        straight: "No natural curl or wave",
+        wavy: "Light 'S' shape pattern",
+        curly: "Defined ringlets or loops",
+        coily: "Tight curls or zig-zag pattern",
+      },
+      label: "Hair Type",
+      required: true,
+    },
+    hair_length: {
+      options: ["short", "medium", "long"],
+      descriptions: {
+        short: "Above the ears or chin length",
+        medium: "Shoulder length to armpit",
+        long: "Below the shoulders",
+      },
+      label: "Hair Length",
+      required: true,
+    },
+    volume: {
+      options: ["low", "medium", "high"],
+      descriptions: {
+        low: "Flat, close to the head",
+        medium: "Natural body and bounce",
+        high: "Full, voluminous look",
+      },
+      label: "Volume",
+      required: true,
+    },
+    hair_thickness: {
+      options: ["thin", "medium", "thick", "very_thick"],
+      descriptions: {
+        thin: "Fine strands, lightweight",
+        medium: "Average strand thickness",
+        thick: "Coarse, heavy strands",
+        very_thick: "Very dense and full",
+      },
+      label: "Hair Thickness",
+      required: true,
+    },
+    hair_texture_detail: {
+      options: [
+        "fine",
+        "normal",
+        "thick",
+        "smooth",
+        "coarse",
+        "silky",
+        "frizzy",
+      ],
+      descriptions: {
+        fine: "Delicate, easy to weigh down",
+        normal: "Balanced texture",
+        thick: "Strong, holds style well",
+        smooth: "Sleek and soft",
+        coarse: "Rougher feel, resilient",
+        silky: "Very soft and shiny",
+        frizzy: "Prone to flyaways",
+      },
+      label: "Hair Texture",
+      required: true,
+    },
+    lifestyle: {
+      options: ["active", "moderate", "relaxed"],
+      descriptions: {
+        active: "Gym, sports, always moving",
+        moderate: "Balanced daily activity",
+        relaxed: "Low-key, easygoing routine",
+      },
+      label: "Lifestyle",
+      required: true,
+    },
+    maintenance: {
+      options: ["low", "medium", "high"],
+      descriptions: {
+        low: "Wash and go, minimal effort",
+        medium: "Some styling required",
+        high: "Regular styling and upkeep",
+      },
+      label: "Overall Maintenance",
+      required: true,
+    },
+    styling_maintenance: {
+      options: ["low", "medium", "high"],
+      descriptions: {
+        low: "Less than 10 mins/day",
+        medium: "10-20 mins/day",
+        high: "20+ mins/day",
+      },
+      label: "Daily Styling Maintenance",
+      required: true,
+    },
+    styling_preference: {
+      options: [
+        "natural",
+        "casual",
+        "classic",
+        "polished",
+        "elegant",
+        "glamorous",
+        "trendy",
+        "edgy",
+      ],
+      descriptions: {
+        natural: "Effortless, 'woke up like this'",
+        casual: "Relaxed and informal",
+        classic: "Timeless and neat",
+        polished: "Sleek and put-together",
+        elegant: "Sophisticated and refined",
+        glamorous: "Bold, red-carpet ready",
+        trendy: "Modern and fashionable",
+        edgy: "Bold, unconventional",
+      },
+      label: "Styling Preference",
+      required: true,
+    },
+    gender: {
+      options: ["male", "female"],
+      descriptions: {
+        male: "Masculine styles",
+        female: "Feminine styles",
+      },
+      label: "Gender",
+      required: false,
+    },
+    hair_color: {
+      options: [
+        "natural",
+        "black",
+        "brown",
+        "blonde",
+        "red",
+        "auburn",
+        "gray",
+        "white",
+        "other",
+      ],
+      descriptions: {
+        natural: "Your natural shade",
+        black: "Darkest shade",
+        brown: "Light to dark brown",
+        blonde: "Light, golden tones",
+        red: "Vibrant red tones",
+        auburn: "Reddish-brown",
+        gray: "Silver or gray tones",
+        white: "Pure white or platinum",
+        other: "Unconventional colors",
+      },
+      label: "Hair Color",
+      required: true,
+    },
+    hair_condition: {
+      options: [
+        "none",
+        "excellent",
+        "good",
+        "fair",
+        "damaged",
+        "dry_ends",
+        "oily_scalp",
+        "dandruff",
+        "frizzy",
+        "split_ends",
+        "thinning",
+        "sensitive_scalp",
+      ],
+      descriptions: {
+        none: "No specific issues",
+        excellent: "Healthy and shiny",
+        good: "Generally healthy",
+        fair: "Some minor issues",
+        damaged: "Needs repair/treatment",
+        dry_ends: "Ends are brittle/dry",
+        oily_scalp: "Roots get oily quickly",
+        dandruff: "Flaking scalp",
+        frizzy: "Hard to tame frizz",
+        split_ends: "Ends are splitting",
+        thinning: "Hair feels less dense",
+        sensitive_scalp: "Scalp irritation",
+      },
+      label: "Hair Condition",
+      required: false,
+      multiSelect: true,
+    },
+  };
+
+  const validateField = (fieldName, value) => {
+    const rule = validationRules[fieldName];
+    if (!rule) return { valid: true };
+    if (rule.required && (!value || value === ""))
+      return { valid: false, message: `${rule.label} is required` };
+    if (value && rule.options && !rule.options.includes(value))
+      return { valid: false, message: `Invalid ${rule.label}` };
+    return { valid: true };
+  };
+
+  const validateAllFields = () => {
+    const errors = {};
+    Object.keys(validationRules).forEach((fieldName) => {
+      const rule = validationRules[fieldName];
+      if (rule.required) {
+        const validation = validateField(fieldName, preferences[fieldName]);
+        if (!validation.valid) errors[fieldName] = validation.message;
+      }
+    });
+    if (!preferences.occasions || preferences.occasions.length === 0)
+      errors.occasions = "Please select at least one occasion";
+    return errors;
+  };
+
   const isCurrentStepValid = () => {
     switch (currentStep) {
-      case 1: return preferences.hair_type !== '';
-      case 2: return preferences.hair_length !== '';
-      case 3: return preferences.lifestyle !== '';
-      case 4: return preferences.maintenance !== '';
-      case 5: return preferences.occasions.length > 0;
-      case 6: 
-        if (!preferences.check_compatibility) return true;
-        return preferences.target_hairstyle || preferences.custom_hairstyle.trim();
-      default: return false;
+      case 0:
+        return validateField("gender", preferences.gender).valid;
+      case 1:
+        return validateField("hair_type", preferences.hair_type).valid;
+      case 2:
+        return validateField("hair_length", preferences.hair_length).valid;
+      case 3:
+        return validateField("volume", preferences.volume).valid;
+      case 4:
+        return validateField("hair_thickness", preferences.hair_thickness)
+          .valid;
+      case 5:
+        return validateField(
+          "hair_texture_detail",
+          preferences.hair_texture_detail
+        ).valid;
+      case 6:
+        return validateField("lifestyle", preferences.lifestyle).valid;
+      case 7:
+        return validateField("maintenance", preferences.maintenance).valid;
+      case 8:
+        return !!preferences.styling_maintenance;
+      case 9:
+        return !!preferences.styling_preference;
+      case 10:
+        return preferences.occasions && preferences.occasions.length > 0;
+      case 11:
+        return validateField("hair_color", preferences.hair_color).valid;
+      case 12:
+        return true;
+      default:
+        return false;
     }
+  };
+
+  const getCurrentStepValidationMessage = () => {
+    // Simplified validation message logic
+    if (!isCurrentStepValid()) return "Please complete the selection";
+    return "";
   };
 
   const isFormValid = () => {
-    const basicFieldsValid = preferences.hair_type && 
-           preferences.hair_length && 
-           preferences.lifestyle && 
-           preferences.maintenance && 
-           preferences.occasions.length > 0;
-    
-    // If compatibility check is enabled, require either dropdown selection or custom input
-    if (preferences.check_compatibility) {
-      const compatibilityFieldsValid = preferences.target_hairstyle || preferences.custom_hairstyle.trim();
-      return basicFieldsValid && compatibilityFieldsValid;
-    }
-    
-    return basicFieldsValid;
+    return (
+      preferences.gender &&
+      preferences.hair_type &&
+      preferences.hair_length &&
+      preferences.volume &&
+      preferences.hair_thickness &&
+      preferences.hair_texture_detail &&
+      preferences.lifestyle &&
+      preferences.maintenance &&
+      preferences.styling_maintenance &&
+      preferences.styling_preference &&
+      preferences.occasions.length > 0 &&
+      preferences.hair_color
+    );
   };
 
-  // Step definitions
   const steps = [
-    { number: 1, title: 'Hair Type', description: 'What\'s your current hair type?' },
-    { number: 2, title: 'Hair Length', description: 'What length are you considering?' },
-    { number: 3, title: 'Lifestyle', description: 'What\'s your lifestyle like?' },
-    { number: 4, title: 'Maintenance', description: 'How much maintenance do you prefer?' },
-    { number: 5, title: 'Occasions', description: 'What occasions do you style for?' },
-    { number: 6, title: 'Compatibility', description: 'Check specific hairstyle compatibility' }
+    {
+      number: 0,
+      title: "About You",
+      description: "",
+    },
+    {
+      number: 1,
+      title: "Hair Type",
+      description: "What's your current hair type?",
+    },
+    {
+      number: 2,
+      title: "Hair Length",
+      description: "What length are you considering?",
+    },
+    {
+      number: 3,
+      title: "Volume",
+      description: "How much volume do you prefer?",
+    },
+    {
+      number: 4,
+      title: "Hair Thickness",
+      description: "How thick is your hair?",
+    },
+    {
+      number: 5,
+      title: "Hair Texture",
+      description: "What's your hair texture like?",
+    },
+    {
+      number: 6,
+      title: "Lifestyle",
+      description: "What's your lifestyle like?",
+    },
+    {
+      number: 7,
+      title: "Overall Maintenance",
+      description: "How much overall maintenance do you prefer?",
+    },
+    {
+      number: 8,
+      title: "Daily Styling",
+      description: "How much time for daily styling?",
+    },
+    {
+      number: 9,
+      title: "Styling Preference",
+      description: "What's your styling preference?",
+    },
+    {
+      number: 10,
+      title: "Occasions",
+      description: "What occasions do you style for?",
+    },
+    {
+      number: 11,
+      title: "Hair Color",
+      description: "What's your current hair color?",
+    },
+    {
+      number: 12,
+      title: "Hair Condition",
+      description: "What's your current hair health?",
+    },
   ];
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-800 to-blue-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-400"></div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   if (!uploadResponse) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-800 to-blue-900 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-semibold text-white mb-6">
+          <h2 className="text-2xl font-heading font-bold text-white mb-6">
             No image found
           </h2>
-          <button
-            onClick={() => navigate('/upload')}
-            className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-8 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg"
+          <Button
+            onClick={() => navigate("/upload")}
+            variant="primary"
+            size="lg"
           >
             Upload Photo
-          </button>
+          </Button>
         </div>
       </div>
     );
   }
 
+  // Helper to render selection cards
+  const SelectionCard = ({
+    label,
+    description,
+    value,
+    selected,
+    onClick,
+    multi = false,
+  }) => (
+    <div
+      onClick={onClick}
+      className={`
+        cursor-pointer rounded-xl p-4 border transition-all duration-300 flex flex-col items-center justify-center text-center gap-2 h-full
+        ${
+          selected
+            ? "bg-primary/20 border-primary shadow-lg shadow-primary/10 transform scale-105"
+            : "bg-surface/50 border-white/5 hover:bg-surface/80 hover:border-white/20"
+        }
+      `}
+    >
+      <div
+        className={`
+        w-6 h-6 rounded-full flex items-center justify-center border shrink-0
+        ${
+          selected
+            ? "bg-primary border-primary text-white"
+            : "border-gray-500 text-transparent"
+        }
+      `}
+      >
+        {selected && "✓"}
+      </div>
+      <div className="flex flex-col gap-1">
+        <span
+          className={`font-medium ${selected ? "text-white" : "text-gray-300"}`}
+        >
+          {label}
+        </span>
+        {description && (
+          <span className="text-xs text-gray-400 font-light">
+            {description}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-800 to-blue-900">
-      <Navbar 
-        transparent={true} 
-        user={user} 
+    <div className="min-h-screen bg-background">
+      <Navbar
+        transparent={true}
+        user={user}
         onLogout={handleLogout}
         showBackButton={true}
         backPath="/upload"
       />
-      
-      <div className="pt-20 pb-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto">
+
+      <div className="pt-24 pb-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+        {/* Background Elements */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl opacity-30 pointer-events-none"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-secondary/10 rounded-full blur-3xl opacity-30 pointer-events-none"></div>
+
+        <div className="max-w-4xl mx-auto relative z-10">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
+            <h1 className="text-4xl md:text-5xl font-heading font-bold text-white mb-4">
               Tell us about your preferences
             </h1>
             {previewUrl && (
               <div className="flex justify-center mb-6">
-                <img
-                  src={previewUrl}
-                  alt="Your photo"
-                  className="h-32 w-32 object-cover rounded-full border-4 border-purple-400/30 shadow-2xl"
-                />
+                <div className="relative">
+                  <img
+                    src={previewUrl}
+                    alt="Uploaded profile"
+                    className="h-32 w-32 object-cover rounded-full border-4 border-primary/30 shadow-2xl"
+                  />
+                  <div className="absolute bottom-0 right-0 bg-surface border border-white/10 rounded-full px-3 py-1 text-xs font-bold text-white shadow-lg">
+                    Step {currentStep + 1}/{totalSteps}
+                  </div>
+                </div>
               </div>
             )}
           </div>
 
-          {/* Breadcrumb Navigation */}
+          {/* Segmented Progress Bar */}
           <div className="mb-8">
-            <div className="flex items-center justify-center space-x-2 mb-4">
-              {steps.map((step) => (
-                <React.Fragment key={step.number}>
+            <div className="flex gap-1 mb-2 overflow-x-auto scrollbar-hide">
+              {steps.map((step, index) => {
+                const isCompleted =
+                  index < currentStep || isStepCompleted(index);
+                const isActive = index === currentStep;
+                const canNavigate =
+                  index <= currentStep || isStepCompleted(index - 1); // Can go to next if previous is done
+
+                return (
                   <div
-                    onClick={() => goToStep(step.number)}
-                    className={`flex items-center justify-center w-10 h-10 rounded-full text-sm font-bold cursor-pointer transition-all duration-300 ${
-                      currentStep === step.number
-                        ? 'bg-purple-500 text-white scale-110 shadow-lg shadow-purple-500/30'
-                        : currentStep > step.number
-                        ? 'bg-green-500 text-white hover:scale-105'
-                        : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                    key={index}
+                    onClick={() => canNavigate && goToStep(index)}
+                    className={`flex-1 min-w-[20px] h-3 rounded-full transition-all duration-300 relative group ${
+                      canNavigate
+                        ? "cursor-pointer"
+                        : "cursor-not-allowed opacity-30"
+                    } ${
+                      isActive
+                        ? "bg-primary shadow-[0_0_10px_rgba(37,99,235,0.5)]"
+                        : isCompleted
+                        ? "bg-primary/60 hover:bg-primary/80"
+                        : "bg-surface border border-white/5"
                     }`}
                   >
-                    {currentStep > step.number ? (
-                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    ) : (
-                      step.number
-                    )}
+                    {/* Tooltip */}
+                    <div className="hidden md:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-surface border border-white/10 rounded text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-20">
+                      {step.title}
+                    </div>
                   </div>
-                  {step.number < totalSteps && (
-                    <div className={`h-1 w-8 transition-colors duration-300 ${
-                      currentStep > step.number ? 'bg-green-500' : 'bg-gray-600'
-                    }`}></div>
-                  )}
-                </React.Fragment>
-              ))}
+                );
+              })}
             </div>
-            
-            {/* Step Title and Description */}
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-white mb-2">
-                Step {currentStep}: {steps[currentStep - 1].title}
-              </h2>
-              <p className="text-lg text-gray-300">
-                {steps[currentStep - 1].description}
-              </p>
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-primary">
+                Step {currentStep + 1} of {totalSteps}
+              </span>
+              <span className="text-sm text-gray-400 font-medium">
+                {steps[currentStep].title}
+              </span>
             </div>
           </div>
 
           {/* Step Content */}
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-8 md:p-12 shadow-xl mb-8">
-            {/* Step 1: Hair Type */}
-            {currentStep === 1 && (
+          <Card className="p-6 md:p-12 mb-8 animate-fade-in">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-heading font-bold text-white mb-2">
+                {steps[currentStep].title}
+              </h2>
+              <p className="text-gray-400">{steps[currentStep].description}</p>
+            </div>
+
+            {/* Step 0: Gender & Quick Start */}
+            {currentStep === 0 && (
               <div className="space-y-8">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {['straight', 'wavy', 'curly', 'coily'].map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => handlePreferenceChange('hair_type', type)}
-                      className={`p-8 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
-                        preferences.hair_type === type
-                          ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
-                          : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
-                      }`}
-                    >
-                      <div className="text-4xl mb-4">
-                        {type === 'straight' && '📏'}
-                        {type === 'wavy' && '🌊'}
-                        {type === 'curly' && '🌀'}
-                        {type === 'coily' && '🔗'}
-                      </div>
-                      <div className="font-medium text-lg">{type.charAt(0).toUpperCase() + type.slice(1)}</div>
-                    </button>
+                <div className="bg-primary/10 border border-primary/20 p-6 rounded-xl text-center">
+                  <p className="text-sm text-gray-300 mb-2">
+                    ✨ Detected Face Shape
+                  </p>
+                  <p className="text-2xl font-bold text-primary mb-1 capitalize">
+                    {uploadResponse?.face_shape?.shape || "Not detected"}
+                  </p>
+                  {uploadResponse?.face_shape?.confidence && (
+                    <p className="text-xs text-gray-400 hidden">
+                      {(uploadResponse.face_shape.confidence * 100).toFixed(0)}%
+                      confident
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md mx-auto">
+                  {validationRules.gender.options.map((opt) => (
+                    <SelectionCard
+                      key={opt}
+                      label={opt.charAt(0).toUpperCase() + opt.slice(1)}
+                      description={validationRules.gender.descriptions[opt]}
+                      value={opt}
+                      selected={preferences.gender === opt}
+                      onClick={() => handlePreferenceChange("gender", opt)}
+                    />
                   ))}
                 </div>
+
+                {/* Quick Start Section - Moved Below Gender */}
+                {preferenceProfiles.length > 0 && (
+                  <div className="mt-12 pt-8 border-t border-white/10">
+                    <div className="text-center mb-6">
+                      <span className="bg-surface px-4 py-1 rounded-full text-xs font-bold text-gray-400 uppercase tracking-wider border border-white/5">
+                        OR
+                      </span>
+                    </div>
+                    <h3 className="text-xl font-heading font-bold text-white mb-4 text-center">
+                      ⚡ Quick Start with Saved Profile
+                    </h3>
+                    <p className="text-gray-400 text-center text-sm mb-6">
+                      Select a profile to auto-fill all preferences
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {preferenceProfiles.map((profile) => (
+                        <Card
+                          key={profile.id}
+                          className="p-4 cursor-pointer hover:border-primary/50 transition-all group bg-surface/40"
+                          onClick={() => handleApplyProfile(profile)}
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                            <h4 className="font-bold text-white group-hover:text-primary transition-colors">
+                              {profile.profile_name}
+                            </h4>
+                            <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full capitalize">
+                              {profile.gender}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-400 line-clamp-2 mb-3">
+                            {profile.description || "No description"}
+                          </p>
+                          <div className="text-xs text-primary font-medium flex items-center gap-1">
+                            <span>Apply & Skip Inputs</span>
+                            <span>→</span>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step 1: Hair Type */}
+            {currentStep === 1 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                {validationRules.hair_type.options.map((opt) => (
+                  <SelectionCard
+                    key={opt}
+                    label={opt.charAt(0).toUpperCase() + opt.slice(1)}
+                    description={validationRules.hair_type.descriptions[opt]}
+                    value={opt}
+                    selected={preferences.hair_type === opt}
+                    onClick={() => handlePreferenceChange("hair_type", opt)}
+                  />
+                ))}
               </div>
             )}
 
             {/* Step 2: Hair Length */}
             {currentStep === 2 && (
-              <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                  {['pixie', 'short', 'medium', 'long', 'extra-long'].map((length) => (
-                    <button
-                      key={length}
-                      onClick={() => handlePreferenceChange('hair_length', length)}
-                      className={`p-8 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
-                        preferences.hair_length === length
-                          ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
-                          : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
-                      }`}
-                    >
-                      <div className="text-4xl mb-4">
-                        {length === 'pixie' && '✂️'}
-                        {length === 'short' && '💇‍♀️'}
-                        {length === 'medium' && '👩‍🦰'}
-                        {length === 'long' && '🧚‍♀️'}
-                        {length === 'extra-long' && '👸'}
-                      </div>
-                      <div className="font-medium text-lg">{length.charAt(0).toUpperCase() + length.slice(1).replace('-', ' ')}</div>
-                    </button>
-                  ))}
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {validationRules.hair_length.options.map((opt) => (
+                  <SelectionCard
+                    key={opt}
+                    label={opt.charAt(0).toUpperCase() + opt.slice(1)}
+                    description={validationRules.hair_length.descriptions[opt]}
+                    value={opt}
+                    selected={preferences.hair_length === opt}
+                    onClick={() => handlePreferenceChange("hair_length", opt)}
+                  />
+                ))}
               </div>
             )}
 
-            {/* Step 3: Lifestyle */}
+            {/* Step 3: Volume */}
             {currentStep === 3 && (
-              <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {[
-                    { value: 'active', emoji: '🏃‍♀️', description: 'Always on the go, love sports and outdoor activities' },
-                    { value: 'moderate', emoji: '🚶‍♀️', description: 'Balanced lifestyle with some activities and relaxation' },
-                    { value: 'relaxed', emoji: '🧘‍♀️', description: 'Prefer calm, low-key activities and plenty of downtime' }
-                  ].map((lifestyle) => (
-                    <button
-                      key={lifestyle.value}
-                      onClick={() => handlePreferenceChange('lifestyle', lifestyle.value)}
-                      className={`p-8 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 text-left ${
-                        preferences.lifestyle === lifestyle.value
-                          ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
-                          : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
-                      }`}
-                    >
-                      <div className="text-4xl mb-4">{lifestyle.emoji}</div>
-                      <div className="font-medium text-xl mb-2">{lifestyle.value.charAt(0).toUpperCase() + lifestyle.value.slice(1)}</div>
-                      <div className="text-sm opacity-80">{lifestyle.description}</div>
-                    </button>
-                  ))}
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {validationRules.volume.options.map((opt) => (
+                  <SelectionCard
+                    key={opt}
+                    label={opt.charAt(0).toUpperCase() + opt.slice(1)}
+                    description={validationRules.volume.descriptions[opt]}
+                    value={opt}
+                    selected={preferences.volume === opt}
+                    onClick={() => handlePreferenceChange("volume", opt)}
+                  />
+                ))}
               </div>
             )}
 
-            {/* Step 4: Maintenance */}
+            {/* Step 4: Hair Thickness */}
             {currentStep === 4 && (
-              <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {[
-                    { value: 'low', emoji: '⚡', description: 'Minimal styling time, wash and go styles' },
-                    { value: 'medium', emoji: '🎯', description: 'Some styling effort, occasional salon visits' },
-                    { value: 'high', emoji: '💎', description: 'Love detailed styling, frequent salon appointments' }
-                  ].map((maintenance) => (
-                    <button
-                      key={maintenance.value}
-                      onClick={() => handlePreferenceChange('maintenance', maintenance.value)}
-                      className={`p-8 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 text-left ${
-                        preferences.maintenance === maintenance.value
-                          ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
-                          : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
-                      }`}
-                    >
-                      <div className="text-4xl mb-4">{maintenance.emoji}</div>
-                      <div className="font-medium text-xl mb-2">{maintenance.value.charAt(0).toUpperCase() + maintenance.value.slice(1)} Maintenance</div>
-                      <div className="text-sm opacity-80">{maintenance.description}</div>
-                    </button>
-                  ))}
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                {validationRules.hair_thickness.options.map((opt) => (
+                  <SelectionCard
+                    key={opt}
+                    label={opt
+                      .split("_")
+                      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                      .join(" ")}
+                    description={
+                      validationRules.hair_thickness.descriptions[opt]
+                    }
+                    value={opt}
+                    selected={preferences.hair_thickness === opt}
+                    onClick={() =>
+                      handlePreferenceChange("hair_thickness", opt)
+                    }
+                  />
+                ))}
               </div>
             )}
 
-            {/* Step 5: Occasions */}
+            {/* Step 5: Texture */}
             {currentStep === 5 && (
-              <div className="space-y-8">
-                <p className="text-center text-gray-300 text-lg mb-6">Select all that apply</p>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {occasions.map((occasion) => (
-                    <button
-                      key={occasion.value}
-                      onClick={() => handlePreferenceChange('occasions', occasion.value)}
-                      className={`p-6 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
-                        preferences.occasions.includes(occasion.value)
-                          ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
-                          : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
-                      }`}
-                    >
-                      <div className="font-medium text-lg">{occasion.label}</div>
-                      {preferences.occasions.includes(occasion.value) && (
-                        <div className="mt-2">
-                          <svg className="w-5 h-5 text-purple-400 mx-auto" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-                {preferences.occasions.length > 0 && (
-                  <div className="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4 mt-6">
-                    <p className="text-purple-300 text-center">
-                      Selected {preferences.occasions.length} occasion{preferences.occasions.length !== 1 ? 's' : ''}
-                    </p>
-                  </div>
-                )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                {validationRules.hair_texture_detail.options.map((opt) => (
+                  <SelectionCard
+                    key={opt}
+                    label={opt.charAt(0).toUpperCase() + opt.slice(1)}
+                    description={
+                      validationRules.hair_texture_detail.descriptions[opt]
+                    }
+                    value={opt}
+                    selected={preferences.hair_texture_detail === opt}
+                    onClick={() =>
+                      handlePreferenceChange("hair_texture_detail", opt)
+                    }
+                  />
+                ))}
               </div>
             )}
 
-            {/* Step 6: Compatibility Check */}
+            {/* Step 6: Lifestyle */}
             {currentStep === 6 && (
-              <div className="space-y-8">
-                {/* Toggle for compatibility check */}
-                <div className="text-center">
-                  <button
-                    onClick={() => {
-                      const newValue = !preferences.check_compatibility;
-                      handlePreferenceChange('check_compatibility', newValue);
-                      if (!newValue) {
-                        handlePreferenceChange('target_hairstyle', '');
-                        handlePreferenceChange('custom_hairstyle', '');
-                      }
-                    }}
-                    className={`inline-flex items-center px-8 py-4 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
-                      preferences.check_compatibility
-                        ? 'border-purple-400 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/25'
-                        : 'border-gray-600 hover:border-gray-500 bg-gray-700/30 text-gray-300 hover:text-white hover:bg-gray-600/30'
-                    }`}
-                  >
-                    <div className={`w-6 h-6 rounded border-2 mr-4 flex items-center justify-center transition-all duration-300 ${
-                      preferences.check_compatibility
-                        ? 'border-purple-400 bg-purple-500/20'
-                        : 'border-gray-600'
-                    }`}>
-                      {preferences.check_compatibility && (
-                        <svg className="w-4 h-4 text-purple-300" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                    </div>
-                    <div className="text-left">
-                      <div className="font-bold text-xl">Check Hairstyle Compatibility</div>
-                      <div className="text-sm opacity-80">Want to test if a specific hairstyle suits your face shape?</div>
-                    </div>
-                  </button>
-                </div>
-
-                {/* Compatibility options */}
-                {preferences.check_compatibility && (
-                  <div className="space-y-6 max-w-2xl mx-auto">
-                    {/* Dropdown for common hairstyles */}
-                    <div>
-                      <label className="block text-lg font-semibold text-white mb-3 text-center">
-                        Choose from popular hairstyles:
-                      </label>
-                      <select
-                        value={preferences.target_hairstyle}
-                        onChange={(e) => {
-                          handlePreferenceChange('target_hairstyle', e.target.value);
-                          if (e.target.value) {
-                            handlePreferenceChange('custom_hairstyle', '');
-                          }
-                        }}
-                        className="w-full p-4 rounded-xl bg-gray-700/50 border border-gray-600 text-white focus:border-purple-400 focus:outline-none transition-colors duration-300 text-lg"
-                      >
-                        <option value="">Select a hairstyle...</option>
-                        <option value="bob">Bob Cut</option>
-                        <option value="pixie">Pixie Cut</option>
-                        <option value="lob">Long Bob (Lob)</option>
-                        <option value="layers">Layered Cut</option>
-                        <option value="bangs">Straight Bangs</option>
-                        <option value="curtain_bangs">Curtain Bangs</option>
-                        <option value="shag">Shag Cut</option>
-                        <option value="wolf_cut">Wolf Cut</option>
-                        <option value="undercut">Undercut</option>
-                        <option value="buzz_cut">Buzz Cut</option>
-                        <option value="beach_waves">Beach Waves</option>
-                        <option value="straight_long">Long Straight Hair</option>
-                        <option value="curly_short">Short Curly Hair</option>
-                        <option value="curly_long">Long Curly Hair</option>
-                        <option value="asymmetrical">Asymmetrical Cut</option>
-                        <option value="side_part">Side Part</option>
-                        <option value="middle_part">Middle Part</option>
-                        <option value="braids">Braided Styles</option>
-                        <option value="updo">Updo Styles</option>
-                        <option value="ponytail">Ponytail</option>
-                      </select>
-                    </div>
-
-                    {/* Divider */}
-                    <div className="flex items-center">
-                      <div className="flex-1 border-t border-gray-600"></div>
-                      <span className="px-4 text-gray-400 text-sm">OR</span>
-                      <div className="flex-1 border-t border-gray-600"></div>
-                    </div>
-
-                    {/* Custom hairstyle input */}
-                    <div>
-                      <label className="block text-lg font-semibold text-white mb-3 text-center">
-                        Describe your specific hairstyle:
-                      </label>
-                      <textarea
-                        value={preferences.custom_hairstyle}
-                        onChange={(e) => {
-                          handlePreferenceChange('custom_hairstyle', e.target.value);
-                          if (e.target.value.trim()) {
-                            handlePreferenceChange('target_hairstyle', '');
-                          }
-                        }}
-                        placeholder="e.g., Shoulder-length hair with side-swept bangs and subtle layers..."
-                        rows="4"
-                        className="w-full p-4 rounded-xl bg-gray-700/50 border border-gray-600 text-white placeholder-gray-400 focus:border-purple-400 focus:outline-none transition-colors duration-300 resize-none text-lg"
-                      />
-                      <p className="mt-2 text-sm text-gray-400 text-center">
-                        Be as specific as possible about the cut, length, layers, bangs, etc.
-                      </p>
-                    </div>
-
-                    {/* Selected hairstyle display */}
-                    {(preferences.target_hairstyle || preferences.custom_hairstyle.trim()) && (
-                      <div className="bg-purple-900/20 border border-purple-500/30 rounded-xl p-6">
-                        <div className="flex items-center justify-center">
-                          <svg className="w-6 h-6 text-purple-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                          </svg>
-                          <div className="text-center">
-                            <div className="text-purple-300 font-medium mb-1">
-                              Compatibility check selected for:
-                            </div>
-                            <div className="text-white text-lg font-bold">
-                              {preferences.target_hairstyle 
-                                ? preferences.target_hairstyle.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
-                                : preferences.custom_hairstyle.trim()
-                              }
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Skip option */}
-                {!preferences.check_compatibility && (
-                  <div className="text-center">
-                    <p className="text-gray-400 text-lg">
-                      You can skip this step and proceed with general recommendations.
-                    </p>
-                  </div>
-                )}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {validationRules.lifestyle.options.map((opt) => (
+                  <SelectionCard
+                    key={opt}
+                    label={opt.charAt(0).toUpperCase() + opt.slice(1)}
+                    description={validationRules.lifestyle.descriptions[opt]}
+                    value={opt}
+                    selected={preferences.lifestyle === opt}
+                    onClick={() => handlePreferenceChange("lifestyle", opt)}
+                  />
+                ))}
               </div>
             )}
-          </div>
+
+            {/* Step 7: Overall Maintenance */}
+            {currentStep === 7 && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {validationRules.maintenance.options.map((opt) => (
+                  <SelectionCard
+                    key={opt}
+                    label={opt.charAt(0).toUpperCase() + opt.slice(1)}
+                    description={validationRules.maintenance.descriptions[opt]}
+                    value={opt}
+                    selected={preferences.maintenance === opt}
+                    onClick={() => handlePreferenceChange("maintenance", opt)}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Step 8: Daily Styling */}
+            {currentStep === 8 && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {validationRules.styling_maintenance.options.map((opt) => (
+                  <SelectionCard
+                    key={opt}
+                    label={opt.charAt(0).toUpperCase() + opt.slice(1)}
+                    description={
+                      validationRules.styling_maintenance.descriptions[opt]
+                    }
+                    value={opt}
+                    selected={preferences.styling_maintenance === opt}
+                    onClick={() =>
+                      handlePreferenceChange("styling_maintenance", opt)
+                    }
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Step 9: Styling Preference */}
+            {currentStep === 9 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                {validationRules.styling_preference.options.map((opt) => (
+                  <SelectionCard
+                    key={opt}
+                    label={opt.charAt(0).toUpperCase() + opt.slice(1)}
+                    description={
+                      validationRules.styling_preference.descriptions[opt]
+                    }
+                    value={opt}
+                    selected={preferences.styling_preference === opt}
+                    onClick={() =>
+                      handlePreferenceChange("styling_preference", opt)
+                    }
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Step 10: Occasions */}
+            {currentStep === 10 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {occasions.map((occ) => (
+                  <SelectionCard
+                    key={occ.value}
+                    label={occ.label}
+                    value={occ.value}
+                    selected={preferences.occasions.includes(occ.value)}
+                    onClick={() =>
+                      handlePreferenceChange("occasions", occ.value)
+                    }
+                    multi={true}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Step 11: Hair Color */}
+            {currentStep === 11 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {validationRules.hair_color.options.map((opt) => (
+                  <SelectionCard
+                    key={opt}
+                    label={opt.charAt(0).toUpperCase() + opt.slice(1)}
+                    description={validationRules.hair_color.descriptions[opt]}
+                    value={opt}
+                    selected={preferences.hair_color === opt}
+                    onClick={() => handlePreferenceChange("hair_color", opt)}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Step 12: Hair Condition */}
+            {currentStep === 12 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {validationRules.hair_condition.options.map((opt) => (
+                  <SelectionCard
+                    key={opt}
+                    label={opt
+                      .split("_")
+                      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                      .join(" ")}
+                    description={
+                      validationRules.hair_condition.descriptions[opt]
+                    }
+                    value={opt}
+                    selected={preferences.hair_condition.includes(opt)}
+                    onClick={() =>
+                      handlePreferenceChange("hair_condition", opt)
+                    }
+                    multi={true}
+                  />
+                ))}
+              </div>
+            )}
+          </Card>
 
           {/* Navigation Buttons */}
-          <div className="flex justify-between items-center">
-            <button
+          <div className="flex justify-between gap-4">
+            <Button
               onClick={prevStep}
-              disabled={currentStep === 1}
-              className={`px-8 py-3 rounded-xl font-medium transition-all duration-300 ${
-                currentStep === 1
-                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                  : 'bg-gray-700 hover:bg-gray-600 text-white'
-              }`}
+              disabled={currentStep === 0}
+              variant="secondary"
+              className="w-1/3"
             >
-              ← Previous
-            </button>
-
-            <div className="text-center">
-              <div className="text-white text-sm">
-                Step {currentStep} of {totalSteps}
-              </div>
-              <div className="text-gray-400 text-xs">
-                {Math.round((currentStep / totalSteps) * 100)}% Complete
-              </div>
-            </div>
-
-            <button
+              Back
+            </Button>
+            <Button
               onClick={nextStep}
-              disabled={!isCurrentStepValid() || isSubmitting}
-              className={`px-8 py-3 rounded-xl font-medium transition-all duration-300 transform ${
-                !isCurrentStepValid() || isSubmitting
-                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                  : currentStep === totalSteps
-                  ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white hover:scale-105 shadow-lg'
-                  : 'bg-purple-600 hover:bg-purple-700 text-white hover:scale-105'
-              }`}
+              variant="primary"
+              className="w-2/3"
+              isLoading={isSubmitting}
             >
-              {isSubmitting ? 'Getting Recommendations...' : currentStep === totalSteps ? 'Get My Recommendations' : 'Next →'}
-            </button>
+              {currentStep === totalSteps - 1
+                ? "Get Recommendations"
+                : "Next Step"}
+            </Button>
           </div>
         </div>
       </div>
