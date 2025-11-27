@@ -1,8 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import APIService from '../services/api';
-import AuthService from '../services/AuthService';
-import Navbar from '../components/Navbar';
+import React, { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import APIService from "../services/api";
+import AuthService from "../services/AuthService";
+import Navbar from "../components/Navbar";
+import Button from "../components/ui/Button";
+import Card from "../components/ui/Card";
 
 const PhotoUpload = () => {
   const [dragActive, setDragActive] = useState(false);
@@ -13,7 +15,7 @@ const PhotoUpload = () => {
   const [user, setUser] = useState(null);
   const [showCamera, setShowCamera] = useState(false);
   const [stream, setStream] = useState(null);
-  
+
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
@@ -29,7 +31,7 @@ const PhotoUpload = () => {
         const currentUser = await AuthService.getCurrentUser();
         setUser(currentUser);
       } catch (error) {
-        console.error('Authentication check failed:', error);
+        console.error("Authentication check failed:", error);
         setUser(null);
       }
     };
@@ -41,24 +43,24 @@ const PhotoUpload = () => {
     try {
       await AuthService.logout();
       setUser(null);
-      navigate('/');
+      navigate("/");
     } catch (error) {
-      console.error('Logout failed:', error);
+      console.error("Logout failed:", error);
     }
   };
 
   const startCamera = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: 'user',
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "user",
           width: { ideal: 1280 },
-          height: { ideal: 720 }
-        } 
+          height: { ideal: 720 },
+        },
       });
       setStream(mediaStream);
       setShowCamera(true);
-      
+
       // Wait for videoRef to be available
       setTimeout(() => {
         if (videoRef.current) {
@@ -66,14 +68,16 @@ const PhotoUpload = () => {
         }
       }, 100);
     } catch (error) {
-      console.error('Error accessing camera:', error);
-      alert('Could not access camera. Please make sure you have granted camera permissions.');
+      console.error("Error accessing camera:", error);
+      alert(
+        "Could not access camera. Please make sure you have granted camera permissions."
+      );
     }
   };
 
   const stopCamera = () => {
     if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+      stream.getTracks().forEach((track) => track.stop());
       setStream(null);
     }
     setShowCamera(false);
@@ -83,19 +87,25 @@ const PhotoUpload = () => {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      
+
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      
-      const context = canvas.getContext('2d');
+
+      const context = canvas.getContext("2d");
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      canvas.toBlob((blob) => {
-        const file = new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' });
-        setSelectedFile(file);
-        setPreviewUrl(URL.createObjectURL(file));
-        stopCamera();
-      }, 'image/jpeg', 0.95);
+
+      canvas.toBlob(
+        (blob) => {
+          const file = new File([blob], "camera-photo.jpg", {
+            type: "image/jpeg",
+          });
+          setSelectedFile(file);
+          setPreviewUrl(URL.createObjectURL(file));
+          stopCamera();
+        },
+        "image/jpeg",
+        0.95
+      );
     }
   };
 
@@ -103,18 +113,18 @@ const PhotoUpload = () => {
   useEffect(() => {
     return () => {
       if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach((track) => track.stop());
       }
     };
   }, [stream]);
 
   const handleFiles = (files) => {
     const file = files[0];
-    if (file && file.type.startsWith('image/')) {
+    if (file && file.type.startsWith("image/")) {
       setSelectedFile(file);
       setPreviewUrl(URL.createObjectURL(file));
     } else {
-      alert('Please select a valid image file');
+      alert("Please select a valid image file");
     }
   };
 
@@ -126,7 +136,7 @@ const PhotoUpload = () => {
 
   const handleAnalyze = async () => {
     if (!selectedFile) {
-      alert('Please select an image first');
+      alert("Please select an image first");
       return;
     }
 
@@ -136,78 +146,93 @@ const PhotoUpload = () => {
     try {
       // Upload image to backend
       const response = await APIService.uploadImage(selectedFile);
-      
-      console.log('Upload response:', response);
+
+      console.log("Upload response:", response);
 
       // Check if face was detected
       if (response.face_detected) {
-        setAnalysisResult('success');
-        
+        setAnalysisResult("success");
+
         // Navigate directly to preferences form after 1.5 seconds
         setTimeout(() => {
-          navigate('/preferences', { 
-            state: { 
+          navigate("/preferences", {
+            state: {
               imageFile: selectedFile,
               previewUrl: previewUrl,
-              uploadResponse: response
-            }
+              uploadResponse: response,
+            },
           });
         }, 1500);
       } else {
-        setAnalysisResult('failed');
+        setAnalysisResult("failed");
       }
-      
     } catch (error) {
-      console.error('Error analyzing image:', error);
-      setAnalysisResult('failed');
+      console.error("Error analyzing image:", error);
+      setAnalysisResult("failed");
     } finally {
       setIsAnalyzing(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-900">
-      <Navbar 
-        transparent={true} 
-        user={user} 
-        onLogout={handleLogout} 
-      />
-      
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-800 to-blue-900 pt-20 md:pt-24">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-background">
+      <Navbar transparent={true} user={user} onLogout={handleLogout} />
+
+      <div className="min-h-screen bg-background pt-20 md:pt-24 relative overflow-hidden">
+        {/* Background Elements */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/20 rounded-full blur-3xl opacity-30 animate-pulse-slow pointer-events-none"></div>
+        <div
+          className="absolute bottom-0 left-0 w-96 h-96 bg-secondary/20 rounded-full blur-3xl opacity-30 animate-pulse-slow pointer-events-none"
+          style={{ animationDelay: "1s" }}
+        ></div>
+
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
           {/* Header */}
-          <div className="text-center mb-8 md:mb-12">
-            <div className="mb-4">
-              <span className="inline-block bg-blue-500/20 text-blue-300 px-4 py-2 rounded-full text-sm font-medium border border-blue-500/30 backdrop-blur-sm">
+          <div className="text-center mb-8 md:mb-12 animate-fade-in">
+            <div className="mb-6 animate-slide-up">
+              <span className="inline-block bg-primary/10 text-primary-foreground px-4 py-1.5 rounded-full text-sm font-medium border border-primary/20 backdrop-blur-md">
                 Step 1: Photo Analysis
               </span>
             </div>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 md:mb-6 bg-gradient-to-r from-white via-blue-100 to-purple-200 bg-clip-text text-transparent">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-heading font-bold mb-4 md:mb-6 text-white">
               Upload Your Photo
             </h1>
-            <p className="text-lg md:text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
-              Upload a clear photo of your face or use your camera to get personalized hairstyle recommendations
+            <p className="text-lg md:text-xl text-gray-400 max-w-3xl mx-auto leading-relaxed">
+              Upload a clear photo of your face or use your camera to get
+              personalized hairstyle recommendations
             </p>
           </div>
 
           {/* Camera Modal */}
           {showCamera && (
             <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-4xl w-full border border-white/10 shadow-2xl">
+              <div className="bg-surface border border-white/10 rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden">
                 <div className="flex items-center justify-between p-4 md:p-6 border-b border-white/10">
-                  <h2 className="text-xl md:text-2xl font-bold text-white">Take a Photo</h2>
+                  <h2 className="text-xl md:text-2xl font-heading font-bold text-white">
+                    Take a Photo
+                  </h2>
                   <button
                     onClick={stopCamera}
                     className="text-gray-400 hover:text-white transition-colors duration-300 p-2 hover:bg-white/10 rounded-lg"
                   >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    <svg
+                      className="w-6 h-6"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
                     </svg>
                   </button>
                 </div>
-                
+
                 <div className="p-4 md:p-6">
-                  <div className="relative bg-black rounded-xl overflow-hidden mb-4 md:mb-6">
+                  <div className="relative bg-black rounded-xl overflow-hidden mb-4 md:mb-6 border border-white/10">
                     <video
                       ref={videoRef}
                       autoPlay
@@ -215,20 +240,19 @@ const PhotoUpload = () => {
                       className="w-full h-auto max-h-[60vh] object-contain"
                     />
                   </div>
-                  
+
                   <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                    <button
+                    <Button
                       onClick={capturePhoto}
-                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg border border-blue-500/30"
+                      variant="primary"
+                      size="lg"
+                      className="shadow-lg shadow-primary/20"
                     >
                       📸 Capture Photo
-                    </button>
-                    <button
-                      onClick={stopCamera}
-                      className="bg-white/10 hover:bg-white/20 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 backdrop-blur-sm border border-white/20 hover:border-white/40"
-                    >
+                    </Button>
+                    <Button onClick={stopCamera} variant="ghost" size="lg">
                       Cancel
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -237,187 +261,193 @@ const PhotoUpload = () => {
           )}
 
           {/* Upload Area */}
-          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6 md:p-8 mb-8 shadow-xl">
+          <Card
+            className="p-6 md:p-8 mb-8 animate-slide-up"
+            style={{ animationDelay: "0.1s" }}
+          >
             <div
               className={`border-2 border-dashed rounded-xl p-8 md:p-12 text-center transition-all duration-300 ${
                 dragActive
-                  ? 'border-blue-400 bg-blue-500/10 transform scale-105'
+                  ? "border-primary bg-primary/10 transform scale-105"
                   : selectedFile
-                  ? 'border-green-400 bg-green-500/10'
-                  : 'border-white/20 hover:border-white/30 hover:bg-white/5'
+                  ? "border-green-500/50 bg-green-500/5"
+                  : "border-white/10 hover:border-primary/50 hover:bg-white/5"
               }`}
-              onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
-              onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
-              onDragOver={(e) => { e.preventDefault(); }}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                setDragActive(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                setDragActive(false);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+              }}
               onDrop={handleDrop}
             >
-            {previewUrl ? (
-              <div className="space-y-6">
-                <img
-                  src={previewUrl}
-                  alt="Preview"
-                  className="mx-auto h-48 w-48 md:h-64 md:w-64 object-cover rounded-xl shadow-lg border-2 border-blue-400/30"
-                />
-                <div className="text-green-400 font-medium text-base md:text-lg flex items-center justify-center space-x-2">
-                  <span className="text-xl md:text-2xl">✓</span>
-                  <span>Photo selected successfully</span>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="text-blue-400 hover:text-blue-300 font-medium transition-colors duration-300 px-4 py-2 rounded-lg hover:bg-white/5"
-                  >
-                    Choose a different photo
-                  </button>
-                  <button
-                    onClick={startCamera}
-                    className="text-purple-400 hover:text-purple-300 font-medium transition-colors duration-300 px-4 py-2 rounded-lg hover:bg-white/5"
-                  >
-                    📸 Use Camera Instead
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <div className="relative inline-block">
-                  <svg
-                    className="mx-auto h-12 w-12 md:h-16 md:w-16 text-gray-400"
-                    stroke="currentColor"
-                    fill="none"
-                    viewBox="0 0 48 48"
-                  >
-                    <path
-                      d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+              {previewUrl ? (
+                <div className="space-y-8">
+                  <div className="relative inline-block group">
+                    <img
+                      src={previewUrl}
+                      alt="Preview"
+                      className="mx-auto h-48 w-48 md:h-64 md:w-64 object-cover rounded-2xl shadow-2xl border-2 border-primary/30 transition-transform duration-500 group-hover:scale-105"
                     />
-                  </svg>
-                  <div className="absolute -inset-2 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full opacity-20 blur-md"></div>
+                    <div className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 bg-green-500/90 backdrop-blur-md text-white px-4 py-1 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 whitespace-nowrap">
+                      <span>✓</span> Photo Selected
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
+                    <Button
+                      onClick={() => fileInputRef.current?.click()}
+                      variant="outline"
+                    >
+                      Choose different photo
+                    </Button>
+                    <Button onClick={startCamera} variant="secondary">
+                      📸 Use Camera Instead
+                    </Button>
+                  </div>
                 </div>
-                <div className="text-gray-300">
-                  <p className="text-xl md:text-2xl font-medium mb-3">Drop your photo here</p>
-                  <p className="text-base md:text-lg text-gray-400">or choose an option below</p>
+              ) : (
+                <div className="space-y-8">
+                  <div className="relative inline-block">
+                    <div className="w-20 h-20 md:w-24 md:h-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary/20">
+                      <svg
+                        className="h-10 w-10 md:h-12 md:w-12 text-primary"
+                        stroke="currentColor"
+                        fill="none"
+                        viewBox="0 0 48 48"
+                      >
+                        <path
+                          d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="text-gray-300">
+                    <p className="text-xl md:text-2xl font-heading font-bold text-white mb-2">
+                      Drop your photo here
+                    </p>
+                    <p className="text-base md:text-lg text-gray-400">
+                      or choose an option below
+                    </p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center items-center max-w-md mx-auto">
+                    <Button
+                      onClick={() => fileInputRef.current?.click()}
+                      variant="primary"
+                      className="w-full sm:w-auto flex-1 shadow-lg shadow-primary/20"
+                      size="lg"
+                    >
+                      📁 Browse Files
+                    </Button>
+                    <Button
+                      onClick={startCamera}
+                      variant="secondary"
+                      className="w-full sm:w-auto flex-1"
+                      size="lg"
+                    >
+                      📸 Use Camera
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 md:px-8 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg border border-blue-500/30"
-                  >
-                    📁 Browse Files
-                  </button>
-                  <button
-                    onClick={startCamera}
-                    className="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white px-6 md:px-8 py-3 rounded-xl font-semibold transition-all duration-300 backdrop-blur-sm border border-white/20 hover:border-white/40"
-                  >
-                    📸 Use Camera
-                  </button>
-                </div>
-              </div>
-            )}
+              )}
             </div>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={(e) => handleFiles(e.target.files)}
-            className="hidden"
-          />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleFiles(e.target.files)}
+              className="hidden"
+            />
 
-          {/* Photo Tips */}
-          <div className="mt-6 md:mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 text-sm md:text-base">
-            <div className="flex items-center space-x-3 text-gray-300 bg-white/5 rounded-lg p-3 border border-white/10">
-              <span className="text-green-400 text-lg md:text-xl">✓</span>
-              <span>Good lighting</span>
+            {/* Photo Tips */}
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
+              {[
+                { icon: "✓", text: "Good lighting" },
+                { icon: "✓", text: "Clear face view" },
+                { icon: "✓", text: "No sunglasses" },
+              ].map((tip, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center justify-center space-x-3 text-gray-300 bg-surface/50 rounded-xl p-4 border border-white/5"
+                >
+                  <span className="text-green-400 font-bold text-lg bg-green-400/10 w-8 h-8 rounded-full flex items-center justify-center">
+                    {tip.icon}
+                  </span>
+                  <span className="font-medium">{tip.text}</span>
+                </div>
+              ))}
             </div>
-            <div className="flex items-center space-x-3 text-gray-300 bg-white/5 rounded-lg p-3 border border-white/10">
-              <span className="text-green-400 text-lg md:text-xl">✓</span>
-              <span>Clear face view</span>
-            </div>
-            <div className="flex items-center space-x-3 text-gray-300 bg-white/5 rounded-lg p-3 border border-white/10">
-              <span className="text-green-400 text-lg md:text-xl">✓</span>
-              <span>No sunglasses or hats</span>
-            </div>
-          </div>
-        </div>
+          </Card>
 
-        {/* Analyze Button */}
-        <div className="text-center mb-8 md:mb-12">
-          <button
-            onClick={handleAnalyze}
-            disabled={!selectedFile || isAnalyzing}
-            className={`w-full sm:w-auto px-8 md:px-12 py-3 md:py-4 rounded-xl font-bold text-lg md:text-xl transition-all duration-300 transform ${
-              !selectedFile || isAnalyzing
-                ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed border border-gray-600'
-                : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white hover:scale-105 shadow-lg hover:shadow-2xl border border-blue-500/30'
-            }`}
+          {/* Analyze Button */}
+          <div
+            className="text-center mb-8 md:mb-12 animate-slide-up"
+            style={{ animationDelay: "0.2s" }}
           >
-            {isAnalyzing ? (
-              <span className="flex items-center justify-center">
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Analyzing Face...
-              </span>
-            ) : (
-              'Analyze My Face'
-            )}
-          </button>
-        </div>
-
-        {/* Analysis Status */}
-        {isAnalyzing && (
-          <div className="bg-white/5 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 md:p-8 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mx-auto mb-6"></div>
-            <p className="text-purple-300 font-medium text-base md:text-lg">
-              Analyzing your facial features...
-            </p>
+            <Button
+              onClick={handleAnalyze}
+              disabled={!selectedFile || isAnalyzing}
+              variant="primary"
+              size="lg"
+              className="px-12 py-4 text-xl shadow-xl shadow-primary/25"
+              isLoading={isAnalyzing}
+              loadingText="Analyzing Face..."
+            >
+              Analyze My Face
+            </Button>
           </div>
-        )}
 
-        {analysisResult === 'success' && (
-          <div className="bg-white/5 backdrop-blur-sm border border-green-500/30 rounded-xl p-6 md:p-8 text-center">
-            <div className="text-green-400 text-5xl md:text-7xl mb-6">✓</div>
-            <p className="text-green-300 font-medium text-lg md:text-xl mb-2">
-              Face detected successfully!
-            </p>
-            <p className="text-gray-400 text-sm md:text-base">
-              Redirecting to preferences...
-            </p>
-          </div>
-        )}
+          {/* Analysis Status */}
+          {analysisResult === "success" && (
+            <Card className="border-green-500/30 bg-green-500/5 text-center animate-fade-in p-8">
+              <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <div className="text-green-400 text-4xl font-bold">✓</div>
+              </div>
+              <p className="text-green-300 font-heading font-bold text-2xl mb-2">
+                Face detected successfully!
+              </p>
+              <p className="text-gray-400">Redirecting to preferences...</p>
+            </Card>
+          )}
 
-        {analysisResult === 'failed' && (
-          <div className="bg-white/5 backdrop-blur-sm border border-red-500/30 rounded-xl p-6 md:p-8 text-center">
-            <div className="text-red-400 text-5xl md:text-7xl mb-6">✗</div>
-            <p className="text-red-300 font-medium text-lg md:text-xl mb-4">
-              Could not detect a face in this image
-            </p>
-            <p className="text-red-400 text-sm md:text-base">
-              Please try again with a clearer photo where your face is clearly visible
-            </p>
-            <div className="mt-6 flex flex-col sm:flex-row gap-4 justify-center">
-              <button
-                onClick={() => {
-                  setSelectedFile(null);
-                  setPreviewUrl(null);
-                  setAnalysisResult(null);
-                }}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg border border-blue-500/30"
-              >
-                Try Another Photo
-              </button>
-              <button
-                onClick={startCamera}
-                className="bg-white/10 hover:bg-white/20 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 backdrop-blur-sm border border-white/20 hover:border-white/40"
-              >
-                📸 Use Camera
-              </button>
-            </div>
-          </div>
-        )}
+          {analysisResult === "failed" && (
+            <Card className="border-red-500/30 bg-red-500/5 text-center animate-fade-in p-8">
+              <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <div className="text-red-400 text-4xl font-bold">✗</div>
+              </div>
+              <p className="text-red-300 font-heading font-bold text-2xl mb-4">
+                Could not detect a face
+              </p>
+              <p className="text-red-400/80 mb-8 max-w-md mx-auto">
+                Please try again with a clearer photo where your face is clearly
+                visible and well-lit.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Button
+                  onClick={() => {
+                    setSelectedFile(null);
+                    setPreviewUrl(null);
+                    setAnalysisResult(null);
+                  }}
+                  variant="primary"
+                >
+                  Try Another Photo
+                </Button>
+                <Button onClick={startCamera} variant="secondary">
+                  📸 Use Camera
+                </Button>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     </div>
