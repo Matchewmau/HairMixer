@@ -112,7 +112,9 @@ const Dashboard = () => {
                 style={{ animationDelay: "0.2s" }}
               >
                 <Button
-                  onClick={() => navigate("/upload")}
+                  onClick={() =>
+                    navigate("/upload", { state: { showGuide: true } })
+                  }
                   variant="primary"
                   size="lg"
                   className="px-10 py-5 text-xl"

@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import APIService from "../services/api";
 import AuthService from "../services/AuthService";
 import Navbar from "../components/Navbar";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
+import Modal from "../components/ui/Modal";
 
 const PhotoUpload = () => {
   const [dragActive, setDragActive] = useState(false);
@@ -14,9 +15,11 @@ const PhotoUpload = () => {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [user, setUser] = useState(null);
   const [showCamera, setShowCamera] = useState(false);
+  const [showGuideModal, setShowGuideModal] = useState(false);
   const [stream, setStream] = useState(null);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -37,7 +40,14 @@ const PhotoUpload = () => {
     };
 
     checkAuth();
-  }, []);
+
+    // Check if we should show the guide modal (passed from Dashboard)
+    if (location.state?.showGuide) {
+      setShowGuideModal(true);
+      // Clear the state so it doesn't reopen on refresh/navigation
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const handleLogout = async () => {
     try {
@@ -134,7 +144,7 @@ const PhotoUpload = () => {
     handleFiles(e.dataTransfer.files);
   };
 
-  const handleAnalyze = async () => {
+  const performAnalysis = async () => {
     if (!selectedFile) {
       alert("Please select an image first");
       return;
@@ -174,6 +184,15 @@ const PhotoUpload = () => {
     }
   };
 
+  const handleAnalyzeClick = () => {
+    if (!selectedFile) {
+      // If no file selected, show guide modal instead of alert
+      setShowGuideModal(true);
+      return;
+    }
+    performAnalysis();
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar transparent={true} user={user} onLogout={handleLogout} />
@@ -197,10 +216,17 @@ const PhotoUpload = () => {
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-heading font-bold mb-4 md:mb-6 text-white">
               Upload Your Photo
             </h1>
-            <p className="text-lg md:text-xl text-gray-400 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-lg md:text-xl text-gray-400 max-w-3xl mx-auto leading-relaxed mb-6">
               Upload a clear photo of your face or use your camera to get
               personalized hairstyle recommendations
             </p>
+            <Button
+              onClick={() => setShowGuideModal(true)}
+              variant="outline"
+              className="gap-2"
+            >
+              <span>ℹ️</span> View Photo Guidelines
+            </Button>
           </div>
 
           {/* Camera Modal */}
@@ -394,7 +420,7 @@ const PhotoUpload = () => {
             style={{ animationDelay: "0.2s" }}
           >
             <Button
-              onClick={handleAnalyze}
+              onClick={handleAnalyzeClick}
               disabled={!selectedFile || isAnalyzing}
               variant="primary"
               size="lg"
@@ -450,6 +476,73 @@ const PhotoUpload = () => {
           )}
         </div>
       </div>
+      {/* Photo Guide Modal */}
+      <Modal
+        isOpen={showGuideModal}
+        onClose={() => setShowGuideModal(false)}
+        title="Photo Tips for Best Results"
+        size="lg"
+      >
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div className="bg-black/20 rounded-xl p-4 border border-white/10 h-full flex flex-col">
+                <p className="text-sm text-gray-400 mb-3 text-center font-medium">
+                  Ideal Photo Example
+                </p>
+                <div className="flex-1 flex items-center justify-center bg-black/40 rounded-lg overflow-hidden">
+                  <img
+                    src="/upload/pic_guide.png"
+                    alt="Good photo guide"
+                    className="w-full h-auto object-contain max-h-[300px]"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div className="bg-black/20 rounded-xl p-4 border border-white/10 h-full flex flex-col">
+                <p className="text-sm text-gray-400 mb-3 text-center font-medium">
+                  What to Avoid (Accessories)
+                </p>
+                <div className="flex-1 flex items-center justify-center bg-black/40 rounded-lg overflow-hidden">
+                  <img
+                    src="/upload/remove_guide.png"
+                    alt="Remove accessories guide"
+                    className="w-full h-auto object-contain max-h-[300px]"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-surface/50 rounded-xl p-5 border border-white/5">
+            <h3 className="text-lg font-bold text-white mb-4">
+              Checklist for Success
+            </h3>
+            <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {[
+                "Look straight at the camera",
+                "Avoid a side profile of your face",
+                "Find the best spot with good lighting",
+                "Keep your face fully visible",
+                "Remove glasses, mask, and hat",
+                "Make sure hair does not cover the face",
+              ].map((tip, idx) => (
+                <li key={idx} className="flex items-start gap-3 text-gray-300">
+                  <span className="text-primary mt-0.5 font-bold">✓</span>
+                  <span>{tip}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="flex justify-end pt-2 border-t border-white/10">
+            <Button onClick={() => setShowGuideModal(false)} variant="primary">
+              Got it, I'm ready!
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
