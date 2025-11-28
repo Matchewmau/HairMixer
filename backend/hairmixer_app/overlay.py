@@ -26,7 +26,7 @@ class AdvancedOverlayProcessor:
         self.ai_enabled = getattr(settings, 'OVERLAY_AI_ENABLED', False)
         self.gemini_sid = getattr(settings, 'GEMINI_SECURE_1PSID', '')
         self.gemini_sidts = getattr(settings, 'GEMINI_SECURE_1PSIDTS', '')
-        self.gemini_model = getattr(settings, 'GEMINI_MODEL', 'G_2_5_FLASH')
+        self.gemini_model = getattr(settings, 'GEMINI_MODEL', 'G_2_0_FLASH')
         self.gemini_timeout = int(getattr(settings, 'GEMINI_TIMEOUT', 120))
         # Basic overlay parameters
         self.basic_width_ratio = float(
@@ -59,28 +59,6 @@ class AdvancedOverlayProcessor:
             )
             
             # Calculate position (centered horizontally, positioned at top)
-            x_offset = int((base_width - new_width) / 2)
-            y_offset = max(0, int(base_height * self.y_offset_ratio))
-            
-            # Create result image
-            result = base.copy()
-            
-            # Apply blend modes for more natural appearance
-            hairstyle_blurred = hairstyle_resized.filter(
-                ImageFilter.GaussianBlur(radius=self.blur_radius)
-            )
-            
-            hairstyle_with_opacity = Image.new("RGBA", hairstyle_blurred.size)
-            hairstyle_with_opacity.paste(hairstyle_blurred, (0, 0))
-            
-            # Apply alpha composite
-            result.alpha_composite(
-                hairstyle_with_opacity, (x_offset, y_offset)
-            )
-            
-            # Save result
-            result.save(output_path, "PNG")
-            logger.info(f"Basic overlay created: {output_path}")
             
             return str(output_path)
             
@@ -257,23 +235,5 @@ class AdvancedOverlayProcessor:
             )
     
     def download_style_image(self, image_url, style_id):
-        """Download hairstyle image from URL"""
-        try:
-            response = requests.get(image_url, timeout=10)
-            response.raise_for_status()
-            
-            # Create temporary file
-            temp_file = self.temp_dir / f"style_{style_id}.jpg"
-            
-            with open(temp_file, 'wb') as f:
-                f.write(response.content)
-            
-            logger.info(f"Downloaded style image: {temp_file}")
-            return temp_file
-            
-        except Exception as e:
-            logger.error(
-                f"Error downloading style image from {image_url}: {str(e)}"
-            )
             raise
         

@@ -384,12 +384,12 @@ GEMINI_SECURE_1PSIDTS = (
     or ''
 )
 # Model string as per gemini_webapi.constants.Model (e.g., G_2_5_FLASH)
-GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'G_2_5_FLASH')
+GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'G_2_0_FLASH')
 GEMINI_TIMEOUT = int(os.getenv('GEMINI_TIMEOUT', '120'))
 
 # Gemini API for AI-generated content
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
-GEMINI_MODEL_NAME = os.getenv('GEMINI_MODEL_NAME', 'gemini-pro')
+GEMINI_MODEL_NAME = os.getenv('GEMINI_MODEL_NAME', 'gemini-2.5-pro')
 
 # Basic overlay tuning
 OVERLAY_BASIC_WIDTH_RATIO = float(

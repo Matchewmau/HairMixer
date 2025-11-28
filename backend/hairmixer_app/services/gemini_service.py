@@ -24,7 +24,7 @@ class GeminiHairstyleService:
         """Initialize Gemini API with credentials from settings"""
         api_key_env = os.environ.get('GEMINI_API_KEY')
         self.api_key = getattr(settings, 'GEMINI_API_KEY', api_key_env)
-        default_model = 'gemini-1.5-flash'
+        default_model = 'gemini-2.5-pro'
         self.model_name = getattr(settings, 'GEMINI_MODEL_NAME', default_model)
         self.enabled = bool(self.api_key)
         
