@@ -9,11 +9,11 @@ import traceback
 
 from ..models import (
     UserPreference, PreferenceProfile, RecommendationLog, Hairstyle, Feedback,
-    SavedHairstyle
+    SavedHairstyle, HairstyleLike
 )
 from ..serializers import (
     UserPreferenceSerializer, FeedbackSerializer, RecommendationLogSerializer,
-    PreferenceProfileSerializer, SavedHairstyleSerializer
+    PreferenceProfileSerializer, SavedHairstyleSerializer, HairstyleLikeSerializer
 )
 from ..services.analytics_utils import track_event_safe
 from ..services.analytics import AnalyticsService
@@ -486,3 +486,186 @@ class SavedHairstyleDetailView(APIView):
             )
         saved.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class HairstyleLikeView(APIView):
+    """
+    POST: Like or dislike a hairstyle
+    GET: Get user's reaction for a specific hairstyle
+    DELETE: Remove reaction from a hairstyle
+    
+    Note: Likes/dislikes do NOT affect the recommendation order.
+    They are for user feedback tracking only.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """Like or dislike a hairstyle"""
+        serializer = HairstyleLikeSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+        if serializer.is_valid():
+            like = serializer.save()
+            
+            track_event_safe(
+                analytics_service,
+                user=request.user,
+                event_type='hairstyle_reaction',
+                event_data={
+                    'like_id': str(like.id),
+                    'hairstyle_id': str(like.hairstyle.id),
+                    'reaction': like.reaction
+                },
+                request=request
+            )
+            
+            return Response({
+                'id': str(like.id),
+                'hairstyle_id': str(like.hairstyle.id),
+                'hairstyle_name': like.hairstyle.name,
+                'reaction': like.reaction,
+                'message': f'Successfully {like.reaction}d hairstyle'
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request):
+        """Remove reaction from a hairstyle"""
+        hairstyle_id = request.data.get('hairstyle_id')
+        if not hairstyle_id:
+            return Response(
+                {'error': 'hairstyle_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            like = HairstyleLike.objects.get(
+                user=request.user,
+                hairstyle_id=hairstyle_id
+            )
+            like.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except HairstyleLike.DoesNotExist:
+            return Response(
+                {'error': 'Reaction not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+class HairstyleLikeStatsView(APIView):
+    """
+    GET: Get like/dislike stats for a hairstyle
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, hairstyle_id):
+        """Get like/dislike counts for a specific hairstyle"""
+        try:
+            hairstyle = Hairstyle.objects.get(id=hairstyle_id)
+        except Hairstyle.DoesNotExist:
+            return Response(
+                {'error': 'Hairstyle not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        likes_count = HairstyleLike.objects.filter(
+            hairstyle=hairstyle,
+            reaction='like'
+        ).count()
+        
+        dislikes_count = HairstyleLike.objects.filter(
+            hairstyle=hairstyle,
+            reaction='dislike'
+        ).count()
+        
+        # Get user's reaction if authenticated
+        user_reaction = None
+        if request.user.is_authenticated:
+            user_like = HairstyleLike.objects.filter(
+                user=request.user,
+                hairstyle=hairstyle
+            ).first()
+            if user_like:
+                user_reaction = user_like.reaction
+        
+        return Response({
+            'hairstyle_id': str(hairstyle.id),
+            'hairstyle_name': hairstyle.name,
+            'likes_count': likes_count,
+            'dislikes_count': dislikes_count,
+            'user_reaction': user_reaction
+        })
+
+
+class HairstyleLikeBulkStatsView(APIView):
+    """
+    POST: Get like/dislike stats for multiple hairstyles at once
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        """Get like/dislike counts for multiple hairstyles"""
+        hairstyle_ids = request.data.get('hairstyle_ids', [])
+        
+        if not hairstyle_ids:
+            return Response(
+                {'error': 'hairstyle_ids is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        stats = []
+        hairstyles = Hairstyle.objects.filter(id__in=hairstyle_ids)
+        
+        for hairstyle in hairstyles:
+            likes_count = HairstyleLike.objects.filter(
+                hairstyle=hairstyle,
+                reaction='like'
+            ).count()
+            
+            dislikes_count = HairstyleLike.objects.filter(
+                hairstyle=hairstyle,
+                reaction='dislike'
+            ).count()
+            
+            user_reaction = None
+            if request.user.is_authenticated:
+                user_like = HairstyleLike.objects.filter(
+                    user=request.user,
+                    hairstyle=hairstyle
+                ).first()
+                if user_like:
+                    user_reaction = user_like.reaction
+            
+            stats.append({
+                'hairstyle_id': str(hairstyle.id),
+                'hairstyle_name': hairstyle.name,
+                'likes_count': likes_count,
+                'dislikes_count': dislikes_count,
+                'user_reaction': user_reaction
+            })
+        
+        return Response({'stats': stats})
+
+
+class UserLikedHairstylesView(APIView):
+    """
+    GET: Get all hairstyles liked by the authenticated user
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Get list of user's liked/disliked hairstyles"""
+        reaction_filter = request.query_params.get('reaction', None)
+        
+        likes = HairstyleLike.objects.filter(
+            user=request.user
+        ).select_related('hairstyle')
+        
+        if reaction_filter in ['like', 'dislike']:
+            likes = likes.filter(reaction=reaction_filter)
+        
+        serializer = HairstyleLikeSerializer(likes, many=True)
+        return Response({
+            'likes': serializer.data,
+            'count': likes.count()
+        })

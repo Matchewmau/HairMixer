@@ -697,6 +697,49 @@ class CachedRecommendation(models.Model):
         return timezone.now() > self.expires_at
 
 
+class HairstyleLike(models.Model):
+    """
+    Track likes and dislikes for hairstyles.
+    
+    This model stores user reactions (like/dislike) for hairstyles.
+    Each user can have one reaction per hairstyle. The reaction can be
+    updated from like to dislike or vice versa, or removed entirely.
+    
+    Note: Likes/dislikes are for user feedback tracking only and do NOT
+    affect the order of hairstyle recommendations from the ML model.
+    """
+    REACTION_CHOICES = [
+        ('like', 'Like'),
+        ('dislike', 'Dislike'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='hairstyle_likes'
+    )
+    hairstyle = models.ForeignKey(
+        Hairstyle,
+        on_delete=models.CASCADE,
+        related_name='user_likes'
+    )
+    reaction = models.CharField(max_length=10, choices=REACTION_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['user', 'hairstyle']
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'hairstyle']),
+            models.Index(fields=['hairstyle', 'reaction']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.email} {self.reaction}d {self.hairstyle.name}"
+
+
 class SavedHairstyle(models.Model):
     """
     Saved hairstyle recommendations with user preferences tracking.

@@ -258,6 +258,44 @@ class APIService {
     });
   }
 
+  // Hairstyle Likes/Dislikes
+  async likeHairstyle(hairstyleId, reaction) {
+    return this.request('/hairstyle-likes/', {
+      method: 'POST',
+      body: JSON.stringify({
+        hairstyle_id: hairstyleId,
+        reaction: reaction, // 'like' or 'dislike'
+      }),
+    });
+  }
+
+  async removeHairstyleLike(hairstyleId) {
+    return this.request('/hairstyle-likes/', {
+      method: 'DELETE',
+      body: JSON.stringify({
+        hairstyle_id: hairstyleId,
+      }),
+    });
+  }
+
+  async getHairstyleLikeStats(hairstyleId) {
+    return this.request(`/hairstyle-likes/stats/${hairstyleId}/`);
+  }
+
+  async getHairstyleLikeBulkStats(hairstyleIds) {
+    return this.request('/hairstyle-likes/bulk-stats/', {
+      method: 'POST',
+      body: JSON.stringify({
+        hairstyle_ids: hairstyleIds,
+      }),
+    });
+  }
+
+  async getUserLikedHairstyles(reaction = null) {
+    const query = reaction ? `?reaction=${reaction}` : '';
+    return this.request(`/hairstyle-likes/user/${query}`);
+  }
+
   // User Profile
   async getUserProfile() {
     return this.request('/auth/profile/');
