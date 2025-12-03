@@ -208,16 +208,38 @@ class AdvancedOverlayProcessor:
                     filename=Path(output_path).name,
                 )
 
-            # Run the async flow
+            # Run the async flow with retry logic
             # If already in an event loop, use nested loop fallback
-            try:
-                asyncio.run(_run())
-            except RuntimeError:
-                # Likely running inside loop; use nested loop policy
-                import nest_asyncio
-                nest_asyncio.apply()
-                loop = asyncio.get_event_loop()
-                loop.run_until_complete(_run())
+            max_retries = 3
+            base_delay = 2
+            
+            for attempt in range(max_retries):
+                try:
+                    try:
+                        asyncio.run(_run())
+                    except RuntimeError:
+                        # Likely running inside loop; use nested loop policy
+                        import nest_asyncio
+                        nest_asyncio.apply()
+                        loop = asyncio.get_event_loop()
+                        loop.run_until_complete(_run())
+                    
+                    # If successful, break the loop
+                    break
+                    
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        logger.error(f"Gemini overlay generation failed after {max_retries} attempts: {e}")
+                        raise e
+                    
+                    import time
+                    import random
+                    delay = (base_delay * (2 ** attempt)) + (random.random() * 1.0)
+                    logger.warning(
+                        f"Gemini overlay generation failed (attempt {attempt + 1}/{max_retries}). "
+                        f"Retrying in {delay:.2f}s. Error: {e}"
+                    )
+                    time.sleep(delay)
 
             logger.info(f"Advanced overlay created via Gemini: {output_path}")
             return str(output_path)
@@ -236,4 +258,3 @@ class AdvancedOverlayProcessor:
     
     def download_style_image(self, image_url, style_id):
             raise
-        

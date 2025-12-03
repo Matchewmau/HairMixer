@@ -249,6 +249,13 @@ Provide 3 professional, technique-focused styling tips.
 *   Use the exact section headers with double asterisks (e.g., **1. PERSONALIZED_DESCRIPTION**).
 *   Ensure ALL 5 sections are present.
 *   **IMPORTANT:** The section **2. PREFERENCE_MATCH** is frequently missed. You MUST include it.
+*   **IMPORTANT:** The section **5. STYLING_TIPS** is frequently missed. You MUST include it.
+*   **VERIFY:** Before outputting, check that you have exactly 5 sections:
+    1. PERSONALIZED_DESCRIPTION
+    2. PREFERENCE_MATCH
+    3. RECOMMENDED_PRODUCTS
+    4. MAINTENANCE_GUIDE
+    5. STYLING_TIPS
 *   Keep the tone professional, encouraging, and expert.
 """
 
