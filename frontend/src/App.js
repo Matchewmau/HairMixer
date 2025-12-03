@@ -4,7 +4,7 @@ import "./App.css";
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
-import Dashboard from "./pages/Dashboard";
+import Analyze from "./pages/Analyze";
 import PhotoUpload from "./pages/PhotoUpload";
 import UserPreferences from "./pages/UserPreferences";
 import Results from "./pages/Results";
@@ -28,10 +28,10 @@ function App() {
           <Route path="/preferences" element={<UserPreferences />} />
           <Route path="/results" element={<Results />} />
           <Route
-            path="/dashboard"
+            path="/analyze"
             element={
               <ProtectedRoute>
-                <Dashboard />
+                <Analyze />
               </ProtectedRoute>
             }
           />

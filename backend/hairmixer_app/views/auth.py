@@ -112,7 +112,7 @@ def login(request):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Authenticate user
-        user = authenticate(username=email, password=password)
+        user = authenticate(request=request, username=email, password=password)
         
         if user:
             # Log analytics event

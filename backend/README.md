@@ -10,96 +10,56 @@ This backend powers the HairMixer API (Django + DRF + drf-spectacular).
 
 ```powershell
 # Activate venv
-D:/CODING/Python/HairMixer/venv/Scripts/Activate.ps1
-
-# Install deps (use consolidated root file)
-D:/CODING/Python/HairMixer/venv/Scripts/python.exe -m pip install -r requirements.txt
+D:/CODING/Python/HairMixer/venv311/Scripts/Activate.ps1
 
 # Migrate DB
-D:/CODING/Python/HairMixer/venv/Scripts/python.exe backend/manage.py migrate --noinput
+python manage.py migrate
+
+# Create Superuser
+python manage.py createsuperuser
+
+# Populate Database (Optional)
+python populate_all_hairstyles.py
 
 # Run server
-D:/CODING/Python/HairMixer/venv/Scripts/python.exe backend/manage.py runserver
+python manage.py runserver
 ```
 
 Open Swagger UI: http://localhost:8000/api/docs/
 
+## AI Configuration (Gemini)
+
+To enable AI features (styling tips, overlays), configure your `.env` file:
+
+```env
+GEMINI_API_KEY=your_api_key_here
+OVERLAY_AI_ENABLED=true
+# Optional: Gemini WebAPI cookies for image generation
+GEMINI_SECURE_1PSID=...
+GEMINI_SECURE_1PSIDTS=...
+```
+
 ## Tests
 
 ```powershell
-# Run smoke tests (recommended quick check)
-D:/CODING/Python/HairMixer/venv/Scripts/python.exe backend/manage.py test hairmixer_app.tests.test_smoke -v 2 --noinput
+# Run smoke tests
+python manage.py test hairmixer_app.tests.test_smoke -v 2
 
 # Run all app tests
-D:/CODING/Python/HairMixer/venv/Scripts/python.exe backend/manage.py test hairmixer_app -v 2 --noinput
+python manage.py test hairmixer_app -v 2
 ```
-
-Note: Using PowerShell pipelines with `Tee-Object` may cause a non-zero exit code even when tests pass. Prefer running directly to rely on Django’s exit code.
 
 ## Logging
 
-The backend now minimizes noisy logs:
-- TensorFlow/absl/mediapipe verbosity suppressed where applicable
-- Internal debug logs use the `logging` module (no prints)
-- Default console output is concise
-
-Enable debug logs while developing:
+The backend minimizes noisy logs. Enable debug logs via env var:
 
 ```powershell
 $env:DJANGO_LOG_LEVEL = 'DEBUG'
-D:/CODING/Python/HairMixer/venv/Scripts/python.exe backend/manage.py runserver
-
-Stop debug logs (revert to default)
-Remove-Item Env:DJANGO_LOG_LEVEL
-
-Or explicitly set a quieter level:
-$env:DJANGO_LOG_LEVEL = 'INFO'
-
-Set to show only warnings and errors
-$env:DJANGO_LOG_LEVEL = 'WARNING'
-
+python manage.py runserver
 ```
 
 ## Face Analysis Pipeline
 
-- Detection: MediaPipe (primary). FaceNet (MTCNN) is an optional fallback if installed.
-- Face Shape: MobileNetV3 or ResNet50 classifier.
-- Image Processing: PIL + NumPy, OpenCV not required.
-
-## File Paths
-
-- Analyzer: `backend/hairmixer_app/ml/face_analyzer.py`
-- MobileNet Loader: `backend/hairmixer_app/ml/mobilenet_classifier.py`
-- ResNet Loader: `backend/hairmixer_app/ml/resnet_classifier.py`
-- Face Shapes: `backend/hairmixer_app/ml/model.py`
-- Tests: `backend/hairmixer_app/tests/`
-
-## Overlay Feature
-
-See `backend/OVERLAY_SETUP.md` for advanced overlay (Gemini) configuration. Falls back to basic PIL overlay when AI is disabled.
-
-## Switching Classifier Models
-
-You can now choose which face shape classifier to use:
-
-- `FACE_CLASSIFIER_MODEL`: `mobilenet_v3` (default) or `resnet50`
-- `FACE_CLASSIFIER_MOBILENET_PATH`: optional path to MobileNet weights
-- `FACE_CLASSIFIER_RESNET_PATH`: optional path to ResNet weights
-- `FACE_CLASSIFIER_WEIGHTS`: optional generic path used by either model if specific one not set
-
-Example (PowerShell):
-
-```powershell
-$env:FACE_CLASSIFIER_MODEL = 'resnet50'
-$env:FACE_CLASSIFIER_RESNET_PATH = 'backend/hairmixer_app/ml/models/resnet50_80epoch.pth'
-D:/CODING/Python/HairMixer/venv/Scripts/python.exe backend/manage.py runserver
-```
-
-To switch back to MobileNetV3 (default path `backend/hairmixer_app/ml/models/mobilenetv3_small.pth`):
-
-```powershell
-$env:FACE_CLASSIFIER_MODEL = 'mobilenet_v3'
-# optionally override path
-# $env:FACE_CLASSIFIER_MOBILENET_PATH = 'backend/hairmixer_app/ml/models/mobilenetv3_small.pth'
-D:/CODING/Python/HairMixer/venv/Scripts/python.exe backend/manage.py runserver
-```
+- **Detection**: MediaPipe (primary).
+- **Face Shape**: ResNet50 (default)
+- **Image Processing**: PIL + NumPy.

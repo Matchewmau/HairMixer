@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Dict
 from rest_framework.views import exception_handler
-from rest_framework.exceptions import APIException, ValidationError, NotAuthenticated, PermissionDenied
+from rest_framework.exceptions import APIException, ValidationError, NotAuthenticated, PermissionDenied, Throttled
 from rest_framework import status
 
 logger = logging.getLogger(__name__)
@@ -41,6 +41,9 @@ def drf_exception_handler(exc: Exception, context: Dict[str, Any]):
         elif isinstance(exc, PermissionDenied):
             message = "You do not have permission to perform this action"
             code = "permission_denied"
+        elif isinstance(exc, Throttled):
+            message = "Request limit exceeded"
+            code = "throttled"
         else:
             message = detail.get("detail", "An error occurred") if isinstance(detail, dict) else "An error occurred"
             code = getattr(exc, 'default_code', 'error')

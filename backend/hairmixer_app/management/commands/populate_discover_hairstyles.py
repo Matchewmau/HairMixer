@@ -55,7 +55,7 @@ class Command(BaseCommand):
                 "difficulty": "easy"
             },
             {
-                "name": "Wash-and-Go",
+                "name": "Wash-and-Go-Curls",
                 "category": "natural",
                 "gender": "female",
                 "length": "medium",

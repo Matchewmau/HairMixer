@@ -196,7 +196,7 @@ class HairstyleModelRecommender:
         
         # Hair type
         hair_type = str(user_preferences.get('hair_type', 'straight')).lower()
-        features['hair_type'] = hair_type if hair_type in ['straight', 'wavy', 'curly'] else 'straight'
+        features['hair_type'] = hair_type if hair_type in ['straight', 'wavy', 'curly', 'coily'] else 'straight'
         
         # Hair length
         hair_length = str(user_preferences.get('hair_length', 'medium')).lower()
@@ -209,11 +209,24 @@ class HairstyleModelRecommender:
         
         # Hair condition (can be multiple, comma-separated)
         condition = user_preferences.get('hair_condition', 'none')
+        
+        # Map legacy/unknown values
+        condition_mapping = {
+            'fair': 'normal',
+            'good': 'healthy',
+            'poor': 'damaged'
+        }
+        
         if isinstance(condition, list):
-            # Join multiple conditions with comma
-            features['hair_condition'] = ','.join(sorted(condition))
+            # Map and filter conditions
+            mapped_conditions = []
+            for c in condition:
+                c_str = str(c).lower()
+                mapped_conditions.append(condition_mapping.get(c_str, c_str))
+            features['hair_condition'] = ','.join(sorted(set(mapped_conditions)))
         else:
-            features['hair_condition'] = str(condition).lower()
+            c_str = str(condition).lower()
+            features['hair_condition'] = condition_mapping.get(c_str, c_str)
         
         # Lifestyle
         lifestyle = str(user_preferences.get('lifestyle', 'casual')).lower()

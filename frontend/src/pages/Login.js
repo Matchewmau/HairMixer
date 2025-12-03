@@ -55,7 +55,7 @@ const Login = () => {
     try {
       const response = await AuthService.login(formData);
       if (response.success) {
-        navigate("/dashboard");
+        navigate("/analyze");
       }
     } catch (error) {
       setErrors({

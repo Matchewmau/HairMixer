@@ -85,6 +85,8 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'rest_framework_simplejwt',
     'corsheaders',
+    'axes',  # Brute force protection
+    'csp',   # Content Security Policy
     'hairmixer_app',
 ]
 
@@ -92,12 +94,14 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'csp.middleware.CSPMiddleware',  # CSP before other content modifiers
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'axes.middleware.AxesMiddleware',  # Axes after auth
     # Request ID/structured logging middleware (env-gated)
     'hairmixer_app.middleware.RequestIDMiddleware',
 ]
@@ -244,8 +248,9 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle'
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/hour',
-        'user': '1000/hour'
+        'anon': '20/hour',
+        'user': '200/hour',
+        'uploads': '10/hour',  # Specific scope for image uploads
     },
     'EXCEPTION_HANDLER': 'hairmixer_app.exceptions.drf_exception_handler',
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
@@ -253,6 +258,11 @@ REST_FRAMEWORK = {
 
 # Custom User Model
 AUTH_USER_MODEL = 'hairmixer_app.CustomUser'
+
+AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesStandaloneBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
 
 # JWT Settings
 SIMPLE_JWT = {
@@ -347,6 +357,8 @@ RECOMMENDATION_CACHE_TIMEOUT = int(
 )
 
 # Security settings (harden in production)
+# Security settings (harden in production)
+SECURE_SSL_REDIRECT = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SAMESITE = os.getenv(
@@ -363,6 +375,23 @@ SECURE_HSTS_SECONDS = 0 if DEBUG else int(
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 SECURE_HSTS_PRELOAD = not DEBUG
 X_FRAME_OPTIONS = 'DENY'
+
+# Content Security Policy (CSP)
+CSP_DEFAULT_SRC = ("'self'",)
+CSP_STYLE_SRC = ("'self'", "'unsafe-inline'")  # unsafe-inline for some admin widgets/react
+CSP_SCRIPT_SRC = ("'self'",)
+CSP_IMG_SRC = ("'self'", "data:", "https:")  # Allow images from https and data URIs
+CSP_FONT_SRC = ("'self'", "https:", "data:")
+CSP_CONNECT_SRC = ("'self'",)
+CSP_FRAME_ANCESTORS = ("'none'",)
+
+# Axes (Brute Force Protection)
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = 1  # Hour
+AXES_RESET_ON_SUCCESS = True
+AXES_LOCKOUT_TEMPLATE = None  # Return 403 JSON response instead of template
+AXES_USERNAME_FORM_FIELD = 'username'  # or 'email' depending on auth backend
+# If using DRF, we might need specific config, but middleware handles basic protection
 
 # ==========================
 # Overlay / Gemini AI config

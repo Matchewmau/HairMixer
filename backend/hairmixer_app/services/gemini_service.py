@@ -89,8 +89,28 @@ class GeminiHairstyleService:
                 hairstyle_occasions
             )
             
-            # Generate content
-            response = self.model.generate_content(prompt)
+            # Generate content with retry logic
+            import time
+            import random
+            
+            max_retries = 3
+            base_delay = 1
+            response = None
+            
+            for attempt in range(max_retries):
+                try:
+                    response = self.model.generate_content(prompt)
+                    break
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        raise e
+                    
+                    delay = (base_delay * (2 ** attempt)) + (random.random() * 0.5)
+                    logger.warning(
+                        f"Gemini API call failed (attempt {attempt + 1}/{max_retries}). "
+                        f"Retrying in {delay:.2f}s. Error: {e}"
+                    )
+                    time.sleep(delay)
             
             # Parse response
             result = self._parse_response(response.text)
@@ -228,6 +248,7 @@ Provide 3 professional, technique-focused styling tips.
 **CRITICAL OUTPUT RULES:**
 *   Use the exact section headers with double asterisks (e.g., **1. PERSONALIZED_DESCRIPTION**).
 *   Ensure ALL 5 sections are present.
+*   **IMPORTANT:** The section **2. PREFERENCE_MATCH** is frequently missed. You MUST include it.
 *   Keep the tone professional, encouraging, and expert.
 """
 

@@ -41,7 +41,7 @@ const PhotoUpload = () => {
 
     checkAuth();
 
-    // Check if we should show the guide modal (passed from Dashboard)
+    // Check if we should show the guide modal (passed from Analyze)
     if (location.state?.showGuide) {
       setShowGuideModal(true);
       // Clear the state so it doesn't reopen on refresh/navigation

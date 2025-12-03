@@ -6,7 +6,7 @@ import Navbar from "../components/Navbar";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 
-const Dashboard = () => {
+const Analyze = () => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
@@ -123,95 +123,79 @@ const Dashboard = () => {
                 </Button>
               </div>
 
-              {/* Stats or features */}
+              {/* How It Works Section - Moved to Hero */}
               <div
                 className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 text-center animate-slide-up"
                 style={{ animationDelay: "0.3s" }}
               >
-                <Card className="p-6">
-                  <div className="text-3xl md:text-4xl font-bold text-blue-400 mb-2">
-                    10K+
+                <div className="text-center group">
+                  <div className="relative mb-6">
+                    <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-full w-20 h-20 flex items-center justify-center mx-auto shadow-lg group-hover:shadow-purple-500/25 transition-all duration-300 group-hover:scale-110">
+                      <span className="text-3xl">📸</span>
+                    </div>
                   </div>
-                  <div className="text-gray-300">Happy Users</div>
-                </Card>
-                <Card className="p-6">
-                  <div className="text-3xl md:text-4xl font-bold text-purple-400 mb-2">
-                    500+
-                  </div>
-                  <div className="text-gray-300">Hairstyles</div>
-                </Card>
-                <Card className="p-6">
-                  <div className="text-3xl md:text-4xl font-bold text-indigo-400 mb-2">
-                    98%
-                  </div>
-                  <div className="text-gray-300">Satisfaction</div>
-                </Card>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Content Sections */}
-      <div className="bg-background py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          {/* How It Works Section */}
-          <div className="mb-20">
-            <div className="text-center mb-16">
-              <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-                How It Works
-              </h2>
-              <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-                Get personalized hairstyle recommendations in three simple steps
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-              <div className="text-center group">
-                <div className="relative mb-8">
-                  <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-full w-24 h-24 flex items-center justify-center mx-auto shadow-lg group-hover:shadow-purple-500/25 transition-all duration-300 group-hover:scale-110">
-                    <span className="text-4xl">📸</span>
-                  </div>
-                  <div className="absolute -inset-1 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full opacity-20 blur-sm group-hover:opacity-40 transition-opacity duration-300"></div>
+                  <h3 className="text-xl font-bold text-white mb-2 group-hover:text-purple-400 transition-colors duration-300">
+                    Upload Photo
+                  </h3>
+                  <p className="text-gray-300 text-sm leading-relaxed">
+                    Simply upload your photo to get started with our AI analysis
+                  </p>
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-4 group-hover:text-purple-400 transition-colors duration-300">
-                  Upload Photo
-                </h3>
-                <p className="text-gray-300 text-lg leading-relaxed">
-                  Simply upload your photo to get started with our AI analysis
-                </p>
+
+                <div className="text-center group">
+                  <div className="relative mb-6">
+                    <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full w-20 h-20 flex items-center justify-center mx-auto shadow-lg group-hover:shadow-blue-500/25 transition-all duration-300 group-hover:scale-110">
+                      <span className="text-3xl">🤖</span>
+                    </div>
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2 group-hover:text-blue-400 transition-colors duration-300">
+                    AI Analysis
+                  </h3>
+                  <p className="text-gray-300 text-sm leading-relaxed">
+                    Our AI analyzes your face shape and features to find the
+                    best match
+                  </p>
+                </div>
+
+                <div className="text-center group">
+                  <div className="relative mb-6">
+                    <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-full w-20 h-20 flex items-center justify-center mx-auto shadow-lg group-hover:shadow-indigo-500/25 transition-all duration-300 group-hover:scale-110">
+                      <span className="text-3xl">✨</span>
+                    </div>
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2 group-hover:text-indigo-400 transition-colors duration-300">
+                    Get Results
+                  </h3>
+                  <p className="text-gray-300 text-sm leading-relaxed">
+                    Receive personalized hairstyle recommendations tailored for
+                    you
+                  </p>
+                </div>
               </div>
 
-              <div className="text-center group">
-                <div className="relative mb-8">
-                  <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full w-24 h-24 flex items-center justify-center mx-auto shadow-lg group-hover:shadow-blue-500/25 transition-all duration-300 group-hover:scale-110">
-                    <span className="text-4xl">🤖</span>
-                  </div>
-                  <div className="absolute -inset-1 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full opacity-20 blur-sm group-hover:opacity-40 transition-opacity duration-300"></div>
+              {/* Scroll Down Indicator */}
+              <div className="mt-10 flex flex-col items-center animate-bounce hidden md:flex">
+                <div className="text-gray-400 text-sm mb-2">
+                  Scroll to explore
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-4 group-hover:text-blue-400 transition-colors duration-300">
-                  AI Analysis
-                </h3>
-                <p className="text-gray-300 text-lg leading-relaxed">
-                  Our AI analyzes your face shape and features to find the best
-                  match
-                </p>
-              </div>
-
-              <div className="text-center group">
-                <div className="relative mb-8">
-                  <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-full w-24 h-24 flex items-center justify-center mx-auto shadow-lg group-hover:shadow-indigo-500/25 transition-all duration-300 group-hover:scale-110">
-                    <span className="text-4xl">✨</span>
+                <div className="flex flex-col items-center">
+                  <div className="w-6 h-10 border-2 border-gray-400 rounded-full flex items-start justify-center p-2">
+                    <div className="w-1.5 h-2 bg-gray-400 rounded-full animate-scroll"></div>
                   </div>
-                  <div className="absolute -inset-1 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-full opacity-20 blur-sm group-hover:opacity-40 transition-opacity duration-300"></div>
+                  <svg
+                    className="w-6 h-6 text-gray-400 mt-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                    />
+                  </svg>
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-4 group-hover:text-indigo-400 transition-colors duration-300">
-                  Get Results
-                </h3>
-                <p className="text-gray-300 text-lg leading-relaxed">
-                  Receive personalized hairstyle recommendations tailored for
-                  you
-                </p>
               </div>
             </div>
           </div>
@@ -228,4 +212,4 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard;
+export default Analyze;
