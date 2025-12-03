@@ -18,8 +18,15 @@ python manage.py migrate
 # Create Superuser
 python manage.py createsuperuser
 
-# Populate Database (Optional)
-python populate_all_hairstyles.py
+# Populate Database (Important)
+D:\CODING\Python\HairMixer\backend\scripts\repopulate_hairstyles.py
+D:\CODING\Python\HairMixer\backend\hairmixer_app\management\commands\populate_discover_hairstyles.py
+
+#Models upload (Important)
+https://drive.google.com/drive/folders/1TFjWz9Yq-ZZBFaJNr25ZeJUTaqf1TcX8?usp=drive_link
+#add the models here: 
+D:\CODING\Python\HairMixer\backend\hairmixer_app\ml\models\resnet50_best_model.pth
+D:\CODING\Python\HairMixer\backend\hairmixer_app\ml\models\hairstyle_model -> all hairstyle joblib files
 
 # Run server
 python manage.py runserver
