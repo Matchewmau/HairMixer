@@ -74,6 +74,7 @@ npm-cache/
 # Environment variables
 .env
 *.env
+!.env.example
 
 # Temporary files
 tmp/
@@ -98,4 +99,8 @@ backend/uploads/
 # ML and model files
 backend/hairmixer_app/ml/models/
 *.pth
+
+# Markdown (except deployment docs)
 *.md
+!.do/*.md
+!DEPLOYMENT.md
