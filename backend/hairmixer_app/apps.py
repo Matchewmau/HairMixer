@@ -11,9 +11,19 @@ class HairmixerAppConfig(AppConfig):
 
     def ready(self):
         """Initialize app when Django starts"""
+        import os
+        
         try:
             # Import signals if you have any
             # import hairmixer_app.signals
+
+            # Download models from Google Drive if they don't exist (production)
+            if os.environ.get("DJANGO_DEBUG", "true").lower() == "false":
+                try:
+                    from .ml.model_downloader import download_models_on_startup
+                    download_models_on_startup()
+                except Exception as e:
+                    logger.warning(f"Could not check/download models: {e}")
 
             # Initialize ML models
             # self.initialize_ml_models()
