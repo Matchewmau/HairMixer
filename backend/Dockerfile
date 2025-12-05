@@ -8,14 +8,14 @@ ENV PYTHONUNBUFFERED=1
 # Set work directory
 WORKDIR /app
 
-# Install system dependencies for ML libraries
-RUN apt-get update && apt-get install -y \
+# Install system dependencies for ML libraries (MediaPipe, OpenCV)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
-    libxrender-dev \
+    libxrender1 \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
