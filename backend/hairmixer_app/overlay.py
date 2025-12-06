@@ -137,7 +137,7 @@ class AdvancedOverlayProcessor:
                 prompt = (
                     f"Edit the person's hair to {desired_style} with "
                     f"{attributes_str}. Add hair texture and maintain "
-                    "realistic appearance. Preserve image lighting, face "
+                    "realistic appearance. Preserve face imperfections, image lighting, face "
                     "features, face angle, and proportions."
                 )
             else:
@@ -145,7 +145,7 @@ class AdvancedOverlayProcessor:
                 prompt = (
                     f"Edit the person's hair to {desired_style}. "
                     "Add natural hair texture and maintain realistic "
-                    "appearance. Preserve image lighting, face features, "
+                    "appearance. Preserve face imperfections, image lighting, face features, "
                     "face angle, and proportions."
                 )
 
