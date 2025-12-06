@@ -132,21 +132,21 @@ class AdvancedOverlayProcessor:
             
             # Build prompt with available attributes
             if hair_attributes:
-                # Include user's hair attributes in prompt (Results page)
+                # Include user's hair attributes in prompt (Results page) natural lighting
                 attributes_str = ", ".join(hair_attributes)
                 prompt = (
                     f"Edit the person's hair to {desired_style} with "
                     f"{attributes_str}. Add hair texture and maintain "
-                    "realistic appearance. Preserve natural lighting, face "
-                    "features, and proportions."
+                    "realistic appearance. Preserve image lighting, face "
+                    "features, face angle, and proportions."
                 )
             else:
                 # Let AI determine natural attributes (Discover page)
                 prompt = (
                     f"Edit the person's hair to {desired_style}. "
                     "Add natural hair texture and maintain realistic "
-                    "appearance. Preserve natural lighting, face features, "
-                    "and proportions."
+                    "appearance. Preserve image lighting, face features, "
+                    "face angle, and proportions."
                 )
 
             # Initialize Gemini client

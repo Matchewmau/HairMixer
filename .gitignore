@@ -103,3 +103,8 @@ backend/hairmixer_app/ml/models/
 *.md
 !.do/*.md
 !DEPLOYMENT.md
+.do/
+
+# Keys
+*.pub
+hairmixer
