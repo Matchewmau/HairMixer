@@ -137,8 +137,10 @@ class AdvancedOverlayProcessor:
                 prompt = (
                     f"Edit the person's hair to {desired_style} with "
                     f"{attributes_str}. Add hair texture and maintain "
-                    "realistic appearance. Preserve face imperfections, image lighting, face "
-                    "features, face angle, and proportions."
+                    "realistic appearance. Preserve image lighting, face features, and proportions. "
+                    "Remove labels. Keep the background the same."
+                    "Add a sideview perspective of the generated image with hairstyle recommendation, the flow will become like this:"
+                    "[original user image] -> generate image with hairstyle recommendation frontview -> [image front view with hairstyle] -> generate right-side based on the image front view with hairstyle -> [image right-side perspective with hairstyle recommendation]-> return front perspective and right-side perspective side by side"
                 )
             else:
                 # Let AI determine natural attributes (Discover page)
