@@ -6,6 +6,7 @@ import apiService from "../services/api";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Modal from "../components/ui/Modal";
+import { getHairstyleImageUrl } from "../utils/hairstyleImages";
 
 const Results = () => {
   const location = useLocation();
@@ -94,11 +95,11 @@ const Results = () => {
       const response = await apiService.getHairstyleLikeBulkStats(hairstyleIds);
       if (response.stats) {
         const statsMap = {};
-        response.stats.forEach(stat => {
+        response.stats.forEach((stat) => {
           statsMap[stat.hairstyle_id] = {
             likes_count: stat.likes_count,
             dislikes_count: stat.dislikes_count,
-            user_reaction: stat.user_reaction
+            user_reaction: stat.user_reaction,
           };
         });
         setLikeStats(statsMap);
@@ -111,7 +112,7 @@ const Results = () => {
   // Load like stats when recommendations change
   useEffect(() => {
     if (recommendations?.recommendations?.length > 0) {
-      const hairstyleIds = recommendations.recommendations.map(r => r.id);
+      const hairstyleIds = recommendations.recommendations.map((r) => r.id);
       loadLikeStats(hairstyleIds);
     }
   }, [recommendations]);
@@ -124,49 +125,63 @@ const Results = () => {
     }
 
     // Add to loading set
-    setLikeLoading(prev => new Set(prev).add(hairstyleId));
+    setLikeLoading((prev) => new Set(prev).add(hairstyleId));
 
     try {
-      const currentStats = likeStats[hairstyleId] || { likes_count: 0, dislikes_count: 0, user_reaction: null };
+      const currentStats = likeStats[hairstyleId] || {
+        likes_count: 0,
+        dislikes_count: 0,
+        user_reaction: null,
+      };
       const currentReaction = currentStats.user_reaction;
 
       if (currentReaction === reaction) {
         // If clicking the same reaction, remove it
         await apiService.removeHairstyleLike(hairstyleId);
-        setLikeStats(prev => ({
+        setLikeStats((prev) => ({
           ...prev,
           [hairstyleId]: {
             ...currentStats,
-            likes_count: reaction === 'like' ? currentStats.likes_count - 1 : currentStats.likes_count,
-            dislikes_count: reaction === 'dislike' ? currentStats.dislikes_count - 1 : currentStats.dislikes_count,
-            user_reaction: null
-          }
+            likes_count:
+              reaction === "like"
+                ? currentStats.likes_count - 1
+                : currentStats.likes_count,
+            dislikes_count:
+              reaction === "dislike"
+                ? currentStats.dislikes_count - 1
+                : currentStats.dislikes_count,
+            user_reaction: null,
+          },
         }));
       } else {
         // Add or change reaction
         await apiService.likeHairstyle(hairstyleId, reaction);
-        setLikeStats(prev => ({
+        setLikeStats((prev) => ({
           ...prev,
           [hairstyleId]: {
-            likes_count: reaction === 'like' 
-              ? currentStats.likes_count + 1 
-              : currentStats.likes_count - (currentReaction === 'like' ? 1 : 0),
-            dislikes_count: reaction === 'dislike' 
-              ? currentStats.dislikes_count + 1 
-              : currentStats.dislikes_count - (currentReaction === 'dislike' ? 1 : 0),
-            user_reaction: reaction
-          }
+            likes_count:
+              reaction === "like"
+                ? currentStats.likes_count + 1
+                : currentStats.likes_count -
+                  (currentReaction === "like" ? 1 : 0),
+            dislikes_count:
+              reaction === "dislike"
+                ? currentStats.dislikes_count + 1
+                : currentStats.dislikes_count -
+                  (currentReaction === "dislike" ? 1 : 0),
+            user_reaction: reaction,
+          },
         }));
       }
     } catch (error) {
       console.error("Failed to update like/dislike:", error);
       // Reload stats on error to get correct state
       if (recommendations?.recommendations?.length > 0) {
-        const hairstyleIds = recommendations.recommendations.map(r => r.id);
+        const hairstyleIds = recommendations.recommendations.map((r) => r.id);
         loadLikeStats(hairstyleIds);
       }
     } finally {
-      setLikeLoading(prev => {
+      setLikeLoading((prev) => {
         const newSet = new Set(prev);
         newSet.delete(hairstyleId);
         return newSet;
@@ -568,12 +583,34 @@ const Results = () => {
                   hover
                   className="group flex flex-col h-full overflow-hidden border-white/5 bg-surface/40"
                 >
+                  {/* Hairstyle Preview Image */}
+                  {getHairstyleImageUrl(style.name) && (
+                    <div className="relative aspect-[4/3] overflow-hidden bg-surface/60">
+                      <img
+                        src={getHairstyleImageUrl(style.name)}
+                        alt={`${style.name} hairstyle preview`}
+                        className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-110"
+                        onError={(e) => {
+                          e.target.style.display = "none";
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent opacity-60"></div>
+                      {style.match_score > 0 &&
+                        Math.round(style.match_score * 100) >= 50 && (
+                          <div className="absolute top-3 right-3 bg-green-500/90 backdrop-blur-sm text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg">
+                            {Math.round(style.match_score * 100)}% Match
+                          </div>
+                        )}
+                    </div>
+                  )}
                   <div className="p-6 flex-1 flex flex-col">
                     <div className="flex justify-between items-start mb-4">
                       <h3 className="font-heading font-bold text-2xl text-white group-hover:text-primary transition-colors">
                         {style.name}
                       </h3>
-                      {style.match_score > 0 &&
+                      {/* Show badge here only if no image (image has its own badge) */}
+                      {!getHairstyleImageUrl(style.name) &&
+                        style.match_score > 0 &&
                         Math.round(style.match_score * 100) >= 50 && (
                           <span className="bg-green-500/20 text-green-400 border border-green-500/30 text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
                             Top Match
@@ -590,37 +627,77 @@ const Results = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleLikeDislike(style.id, 'like');
+                          handleLikeDislike(style.id, "like");
                         }}
                         disabled={likeLoading.has(style.id)}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 ${
-                          likeStats[style.id]?.user_reaction === 'like'
-                            ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                            : 'bg-surface/50 text-gray-400 border border-white/10 hover:bg-green-500/10 hover:text-green-400 hover:border-green-500/30'
-                        } ${likeLoading.has(style.id) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          likeStats[style.id]?.user_reaction === "like"
+                            ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                            : "bg-surface/50 text-gray-400 border border-white/10 hover:bg-green-500/10 hover:text-green-400 hover:border-green-500/30"
+                        } ${
+                          likeLoading.has(style.id)
+                            ? "opacity-50 cursor-not-allowed"
+                            : ""
+                        }`}
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill={likeStats[style.id]?.user_reaction === 'like' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill={
+                            likeStats[style.id]?.user_reaction === "like"
+                              ? "currentColor"
+                              : "none"
+                          }
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
                           <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
                         </svg>
-                        <span className="font-medium">{likeStats[style.id]?.likes_count || 0}</span>
+                        <span className="font-medium">
+                          {likeStats[style.id]?.likes_count || 0}
+                        </span>
                       </button>
-                      
+
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleLikeDislike(style.id, 'dislike');
+                          handleLikeDislike(style.id, "dislike");
                         }}
                         disabled={likeLoading.has(style.id)}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 ${
-                          likeStats[style.id]?.user_reaction === 'dislike'
-                            ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                            : 'bg-surface/50 text-gray-400 border border-white/10 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30'
-                        } ${likeLoading.has(style.id) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          likeStats[style.id]?.user_reaction === "dislike"
+                            ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                            : "bg-surface/50 text-gray-400 border border-white/10 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30"
+                        } ${
+                          likeLoading.has(style.id)
+                            ? "opacity-50 cursor-not-allowed"
+                            : ""
+                        }`}
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill={likeStats[style.id]?.user_reaction === 'dislike' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill={
+                            likeStats[style.id]?.user_reaction === "dislike"
+                              ? "currentColor"
+                              : "none"
+                          }
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
                           <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
                         </svg>
-                        <span className="font-medium">{likeStats[style.id]?.dislikes_count || 0}</span>
+                        <span className="font-medium">
+                          {likeStats[style.id]?.dislikes_count || 0}
+                        </span>
                       </button>
                     </div>
 
@@ -711,46 +788,114 @@ const Results = () => {
                 {/* Like/Dislike counts display */}
                 <div className="flex items-center gap-2 text-sm">
                   <span className="flex items-center gap-1 text-green-400">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
                       <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
                     </svg>
-                    {likeStats[recommendations.recommendations[currentHairstyleIndex].id]?.likes_count || 0}
+                    {likeStats[
+                      recommendations.recommendations[currentHairstyleIndex].id
+                    ]?.likes_count || 0}
                   </span>
                   <span className="text-gray-500">|</span>
                   <span className="flex items-center gap-1 text-red-400">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
                       <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
                     </svg>
-                    {likeStats[recommendations.recommendations[currentHairstyleIndex].id]?.dislikes_count || 0}
+                    {likeStats[
+                      recommendations.recommendations[currentHairstyleIndex].id
+                    ]?.dislikes_count || 0}
                   </span>
                 </div>
               </div>
               <div className="flex gap-3 w-full sm:w-auto">
                 {/* Like/Dislike buttons in modal */}
                 <button
-                  onClick={() => handleLikeDislike(recommendations.recommendations[currentHairstyleIndex].id, 'like')}
-                  disabled={likeLoading.has(recommendations.recommendations[currentHairstyleIndex].id)}
+                  onClick={() =>
+                    handleLikeDislike(
+                      recommendations.recommendations[currentHairstyleIndex].id,
+                      "like"
+                    )
+                  }
+                  disabled={likeLoading.has(
+                    recommendations.recommendations[currentHairstyleIndex].id
+                  )}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 ${
-                    likeStats[recommendations.recommendations[currentHairstyleIndex].id]?.user_reaction === 'like'
-                      ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                      : 'bg-surface/50 text-gray-400 border border-white/10 hover:bg-green-500/10 hover:text-green-400'
+                    likeStats[
+                      recommendations.recommendations[currentHairstyleIndex].id
+                    ]?.user_reaction === "like"
+                      ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                      : "bg-surface/50 text-gray-400 border border-white/10 hover:bg-green-500/10 hover:text-green-400"
                   }`}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill={likeStats[recommendations.recommendations[currentHairstyleIndex].id]?.user_reaction === 'like' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill={
+                      likeStats[
+                        recommendations.recommendations[currentHairstyleIndex]
+                          .id
+                      ]?.user_reaction === "like"
+                        ? "currentColor"
+                        : "none"
+                    }
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
                     <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
                   </svg>
                   Like
                 </button>
                 <button
-                  onClick={() => handleLikeDislike(recommendations.recommendations[currentHairstyleIndex].id, 'dislike')}
-                  disabled={likeLoading.has(recommendations.recommendations[currentHairstyleIndex].id)}
+                  onClick={() =>
+                    handleLikeDislike(
+                      recommendations.recommendations[currentHairstyleIndex].id,
+                      "dislike"
+                    )
+                  }
+                  disabled={likeLoading.has(
+                    recommendations.recommendations[currentHairstyleIndex].id
+                  )}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 ${
-                    likeStats[recommendations.recommendations[currentHairstyleIndex].id]?.user_reaction === 'dislike'
-                      ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                      : 'bg-surface/50 text-gray-400 border border-white/10 hover:bg-red-500/10 hover:text-red-400'
+                    likeStats[
+                      recommendations.recommendations[currentHairstyleIndex].id
+                    ]?.user_reaction === "dislike"
+                      ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                      : "bg-surface/50 text-gray-400 border border-white/10 hover:bg-red-500/10 hover:text-red-400"
                   }`}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill={likeStats[recommendations.recommendations[currentHairstyleIndex].id]?.user_reaction === 'dislike' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill={
+                      likeStats[
+                        recommendations.recommendations[currentHairstyleIndex]
+                          .id
+                      ]?.user_reaction === "dislike"
+                        ? "currentColor"
+                        : "none"
+                    }
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
                     <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
                   </svg>
                   Dislike
