@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser, UserProfile, SavedHairstyle
+from .models import CustomUser, UserProfile, SavedHairstyle, HairstyleLike, Hairstyle, HairstyleCategory
 
 class UserProfileInline(admin.StackedInline):
     model = UserProfile
@@ -50,6 +50,63 @@ class UserProfileAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at', 'updated_at')
 
 
+# Hairstyle Category Admin
+class HairstyleCategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'parent', 'sort_order', 'is_active', 'created_at')
+    list_filter = ('is_active', 'created_at')
+    search_fields = ('name', 'description')
+    ordering = ('sort_order', 'name')
+
+
+# Hairstyle Admin
+class HairstyleAdmin(admin.ModelAdmin):
+    list_display = (
+        'name', 
+        'category', 
+        'gender_display',
+        'difficulty', 
+        'trend_score', 
+        'popularity_score', 
+        'is_active', 
+        'is_featured'
+    )
+    list_filter = (
+        'is_active', 
+        'is_featured', 
+        'category', 
+        'difficulty', 
+        'suitable_gender'
+    )
+    search_fields = ('name', 'description', 'seo_keywords')
+    readonly_fields = ('created_at', 'updated_at', 'popularity_score')
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('name', 'description', 'category', 'suitable_gender')
+        }),
+        ('Media', {
+            'fields': ('image', 'thumbnail', 'image_url', 'tutorial_video_url', 'before_after_images')
+        }),
+        ('Matching Attributes', {
+            'fields': ('face_shapes', 'hair_types', 'hair_lengths', 'occasions', 'tags'),
+            'classes': ('collapse',)
+        }),
+        ('Details', {
+            'fields': ('maintenance', 'difficulty', 'estimated_time', 'styling_tips', 'products_needed')
+        }),
+        ('Metrics & SEO', {
+            'fields': ('trend_score', 'popularity_score', 'seo_keywords', 'is_active', 'is_featured')
+        }),
+        ('Meta', {
+            'fields': ('created_by', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+
+    def gender_display(self, obj):
+        return obj.get_suitable_gender_display()
+    gender_display.short_description = 'Gender'
+
+
 # Saved Hairstyle Admin
 class SavedHairstyleAdmin(admin.ModelAdmin):
     list_display = (
@@ -69,10 +126,32 @@ class SavedHairstyleAdmin(admin.ModelAdmin):
     ordering = ('-saved_at',)
 
 
+# Hairstyle Like Admin
+class HairstyleLikeAdmin(admin.ModelAdmin):
+    list_display = (
+        'user',
+        'hairstyle',
+        'reaction',
+        'created_at',
+        'updated_at'
+    )
+    list_filter = ('reaction', 'created_at')
+    search_fields = (
+        'user__email',
+        'hairstyle__name'
+    )
+    readonly_fields = ('created_at', 'updated_at')
+    date_hierarchy = 'created_at'
+    ordering = ('-created_at',)
+
+
 # Register your models here
 admin.site.register(CustomUser, CustomUserAdmin)
 admin.site.register(UserProfile, UserProfileAdmin)
+admin.site.register(HairstyleCategory, HairstyleCategoryAdmin)
+admin.site.register(Hairstyle, HairstyleAdmin)
 admin.site.register(SavedHairstyle, SavedHairstyleAdmin)
+admin.site.register(HairstyleLike, HairstyleLikeAdmin)
 
 # Customize admin site header and title
 admin.site.site_header = "HairMixer Admin"

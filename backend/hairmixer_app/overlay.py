@@ -26,7 +26,7 @@ class AdvancedOverlayProcessor:
         self.ai_enabled = getattr(settings, 'OVERLAY_AI_ENABLED', False)
         self.gemini_sid = getattr(settings, 'GEMINI_SECURE_1PSID', '')
         self.gemini_sidts = getattr(settings, 'GEMINI_SECURE_1PSIDTS', '')
-        self.gemini_model = getattr(settings, 'GEMINI_MODEL', 'G_2_5_FLASH')
+        self.gemini_model = getattr(settings, 'GEMINI_MODEL', 'G_2_0_FLASH')
         self.gemini_timeout = int(getattr(settings, 'GEMINI_TIMEOUT', 120))
         # Basic overlay parameters
         self.basic_width_ratio = float(
@@ -59,28 +59,6 @@ class AdvancedOverlayProcessor:
             )
             
             # Calculate position (centered horizontally, positioned at top)
-            x_offset = int((base_width - new_width) / 2)
-            y_offset = max(0, int(base_height * self.y_offset_ratio))
-            
-            # Create result image
-            result = base.copy()
-            
-            # Apply blend modes for more natural appearance
-            hairstyle_blurred = hairstyle_resized.filter(
-                ImageFilter.GaussianBlur(radius=self.blur_radius)
-            )
-            
-            hairstyle_with_opacity = Image.new("RGBA", hairstyle_blurred.size)
-            hairstyle_with_opacity.paste(hairstyle_blurred, (0, 0))
-            
-            # Apply alpha composite
-            result.alpha_composite(
-                hairstyle_with_opacity, (x_offset, y_offset)
-            )
-            
-            # Save result
-            result.save(output_path, "PNG")
-            logger.info(f"Basic overlay created: {output_path}")
             
             return str(output_path)
             
@@ -154,21 +132,23 @@ class AdvancedOverlayProcessor:
             
             # Build prompt with available attributes
             if hair_attributes:
-                # Include user's hair attributes in prompt (Results page)
+                # Include user's hair attributes in prompt (Results page) natural lighting
                 attributes_str = ", ".join(hair_attributes)
                 prompt = (
                     f"Edit the person's hair to {desired_style} with "
                     f"{attributes_str}. Add hair texture and maintain "
-                    "realistic appearance. Preserve natural lighting, face "
-                    "features, and proportions."
+                    "realistic appearance. Preserve image lighting, face features, and proportions. "
+                    "Remove labels. Keep the background the same."
+                    "Add a sideview perspective of the generated image with hairstyle recommendation, the flow will become like this:"
+                    "[original user image] -> generate image with hairstyle recommendation frontview -> [image front view with hairstyle] -> generate right-side based on the image front view with hairstyle -> [image right-side perspective with hairstyle recommendation]-> return front perspective and right-side perspective side by side"
                 )
             else:
                 # Let AI determine natural attributes (Discover page)
                 prompt = (
                     f"Edit the person's hair to {desired_style}. "
                     "Add natural hair texture and maintain realistic "
-                    "appearance. Preserve natural lighting, face features, "
-                    "and proportions."
+                    "appearance. Preserve face imperfections, image lighting, face features, "
+                    "face angle, and proportions."
                 )
 
             # Initialize Gemini client
@@ -230,16 +210,38 @@ class AdvancedOverlayProcessor:
                     filename=Path(output_path).name,
                 )
 
-            # Run the async flow
+            # Run the async flow with retry logic
             # If already in an event loop, use nested loop fallback
-            try:
-                asyncio.run(_run())
-            except RuntimeError:
-                # Likely running inside loop; use nested loop policy
-                import nest_asyncio
-                nest_asyncio.apply()
-                loop = asyncio.get_event_loop()
-                loop.run_until_complete(_run())
+            max_retries = 3
+            base_delay = 2
+            
+            for attempt in range(max_retries):
+                try:
+                    try:
+                        asyncio.run(_run())
+                    except RuntimeError:
+                        # Likely running inside loop; use nested loop policy
+                        import nest_asyncio
+                        nest_asyncio.apply()
+                        loop = asyncio.get_event_loop()
+                        loop.run_until_complete(_run())
+                    
+                    # If successful, break the loop
+                    break
+                    
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        logger.error(f"Gemini overlay generation failed after {max_retries} attempts: {e}")
+                        raise e
+                    
+                    import time
+                    import random
+                    delay = (base_delay * (2 ** attempt)) + (random.random() * 1.0)
+                    logger.warning(
+                        f"Gemini overlay generation failed (attempt {attempt + 1}/{max_retries}). "
+                        f"Retrying in {delay:.2f}s. Error: {e}"
+                    )
+                    time.sleep(delay)
 
             logger.info(f"Advanced overlay created via Gemini: {output_path}")
             return str(output_path)
@@ -257,23 +259,4 @@ class AdvancedOverlayProcessor:
             )
     
     def download_style_image(self, image_url, style_id):
-        """Download hairstyle image from URL"""
-        try:
-            response = requests.get(image_url, timeout=10)
-            response.raise_for_status()
-            
-            # Create temporary file
-            temp_file = self.temp_dir / f"style_{style_id}.jpg"
-            
-            with open(temp_file, 'wb') as f:
-                f.write(response.content)
-            
-            logger.info(f"Downloaded style image: {temp_file}")
-            return temp_file
-            
-        except Exception as e:
-            logger.error(
-                f"Error downloading style image from {image_url}: {str(e)}"
-            )
             raise
-        

@@ -24,7 +24,7 @@ class GeminiHairstyleService:
         """Initialize Gemini API with credentials from settings"""
         api_key_env = os.environ.get('GEMINI_API_KEY')
         self.api_key = getattr(settings, 'GEMINI_API_KEY', api_key_env)
-        default_model = 'gemini-1.5-flash'
+        default_model = 'gemini-2.5-pro'
         self.model_name = getattr(settings, 'GEMINI_MODEL_NAME', default_model)
         self.enabled = bool(self.api_key)
         
@@ -89,8 +89,28 @@ class GeminiHairstyleService:
                 hairstyle_occasions
             )
             
-            # Generate content
-            response = self.model.generate_content(prompt)
+            # Generate content with retry logic
+            import time
+            import random
+            
+            max_retries = 3
+            base_delay = 1
+            response = None
+            
+            for attempt in range(max_retries):
+                try:
+                    response = self.model.generate_content(prompt)
+                    break
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        raise e
+                    
+                    delay = (base_delay * (2 ** attempt)) + (random.random() * 0.5)
+                    logger.warning(
+                        f"Gemini API call failed (attempt {attempt + 1}/{max_retries}). "
+                        f"Retrying in {delay:.2f}s. Error: {e}"
+                    )
+                    time.sleep(delay)
             
             # Parse response
             result = self._parse_response(response.text)
@@ -171,7 +191,7 @@ class GeminiHairstyleService:
         bangs_str = 'Yes' if wants_bangs else 'No'
         confidence_pct = int(face_shape_confidence * 100)
         
-        prompt = f"""You are an Expert AI Hairstylist and Beauty Consultant. Your goal is to provide a highly personalized, professional, and convincing analysis of why a specific hairstyle is perfect for the user, based on their unique physical attributes and preferences.
+        prompt = f"""You are an Expert Hairstylist and Beauty Consultant. Your goal is to provide a highly personalized, professional, and convincing analysis of why a specific hairstyle is perfect for the user, based on their unique physical attributes and preferences.
 
 **Target Hairstyle:**
 *   **Name:** {hairstyle_name}
@@ -209,7 +229,7 @@ Provide 2 specific bullet points on how this style fits their lifestyle and pref
 *   Connect the style's vibe to their **{lifestyle}** lifestyle.
 
 **3. RECOMMENDED_PRODUCTS**
-List 2 essential products to achieve and maintain this look.
+List 2 essential products to achieve and maintain this look and the current hair condition "{condition_str}".
 *   **Format:** `Product Type - Key Ingredients: [Ingredients] - [Specific Usage]`
 *   *Example:* "Volumizing Mousse - Key Ingredients: Rice Protein, Biotin - Apply a golf-ball-sized amount to damp roots before blow-drying for lift."
 
@@ -221,13 +241,21 @@ Provide 3 distinct, actionable steps for maintenance.
 *   **Format:** `1. [Title]: [Instruction]`
 
 **5. STYLING_TIPS**
-Provide 3 professional, technique-focused styling tips.
+Provide 3 professional, technique-focused styling tips that are specific to this hairstyle.
 *   Focus on tools, heat settings, or specific hand motions.
 *   **Format:** Bullet points starting with "•"
 
 **CRITICAL OUTPUT RULES:**
 *   Use the exact section headers with double asterisks (e.g., **1. PERSONALIZED_DESCRIPTION**).
 *   Ensure ALL 5 sections are present.
+*   **IMPORTANT:** The section **2. PREFERENCE_MATCH** is frequently missed. You MUST include it.
+*   **IMPORTANT:** The section **5. STYLING_TIPS** is frequently missed. You MUST include it.
+*   **VERIFY:** Before outputting, check that you have exactly 5 sections:
+    1. PERSONALIZED_DESCRIPTION
+    2. PREFERENCE_MATCH
+    3. RECOMMENDED_PRODUCTS
+    4. MAINTENANCE_GUIDE
+    5. STYLING_TIPS
 *   Keep the tone professional, encouraging, and expert.
 """
 

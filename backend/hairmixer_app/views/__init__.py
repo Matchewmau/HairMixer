@@ -9,7 +9,9 @@ from .user import (
     SetPreferencesView, FeedbackView, UserRecommendationsView,
     UserFavoritesView, UserHistoryView, PreferenceProfileListCreateView,
     PreferenceProfileDetailView, PreferenceProfileSetDefaultView,
-    SavedHairstyleListCreateView, SavedHairstyleDetailView
+    SavedHairstyleListCreateView, SavedHairstyleDetailView,
+    HairstyleLikeView, HairstyleLikeStatsView, HairstyleLikeBulkStatsView,
+    UserLikedHairstylesView
 )
 from .system import (
     health_check, api_root, AnalyticsEventView, CacheStatsView,

@@ -6,7 +6,7 @@ import json
 from .models import (
     CustomUser, UserProfile, PreferenceProfile, UploadedImage, UserPreference,
     Hairstyle, HairstyleCategory, RecommendationLog, Feedback,
-    AnalyticsEvent, SavedHairstyle
+    AnalyticsEvent, SavedHairstyle, HairstyleLike
 )
 from drf_spectacular.utils import extend_schema_field
 
@@ -418,3 +418,53 @@ class SavedHairstyleSerializer(serializers.ModelSerializer):
         # Set user from request context
         validated_data['user'] = self.context['request'].user
         return super().create(validated_data)
+
+
+class HairstyleLikeSerializer(serializers.ModelSerializer):
+    """Serializer for hairstyle likes/dislikes"""
+    hairstyle_id = serializers.UUIDField(write_only=True)
+    hairstyle_name = serializers.CharField(source='hairstyle.name', read_only=True)
+    
+    class Meta:
+        model = HairstyleLike
+        fields = [
+            'id', 'hairstyle_id', 'hairstyle_name', 'reaction',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'hairstyle_name', 'created_at', 'updated_at']
+    
+    def create(self, validated_data):
+        hairstyle_id = validated_data.pop('hairstyle_id')
+        try:
+            hairstyle = Hairstyle.objects.get(id=hairstyle_id)
+            validated_data['hairstyle'] = hairstyle
+        except Hairstyle.DoesNotExist:
+            raise serializers.ValidationError(
+                {"hairstyle_id": "Hairstyle not found"}
+            )
+        
+        # Set user from request context
+        validated_data['user'] = self.context['request'].user
+        
+        # Check if user already has a reaction for this hairstyle
+        existing = HairstyleLike.objects.filter(
+            user=validated_data['user'],
+            hairstyle=hairstyle
+        ).first()
+        
+        if existing:
+            # Update existing reaction
+            existing.reaction = validated_data['reaction']
+            existing.save()
+            return existing
+        
+        return super().create(validated_data)
+
+
+class HairstyleLikeStatsSerializer(serializers.Serializer):
+    """Serializer for hairstyle like/dislike statistics"""
+    hairstyle_id = serializers.UUIDField()
+    hairstyle_name = serializers.CharField()
+    likes_count = serializers.IntegerField()
+    dislikes_count = serializers.IntegerField()
+    user_reaction = serializers.CharField(allow_null=True)

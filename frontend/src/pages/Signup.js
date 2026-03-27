@@ -74,7 +74,7 @@ const Signup = () => {
         password: formData.password,
       });
       if (response.success) {
-        navigate("/dashboard");
+        navigate("/analyze");
       }
     } catch (error) {
       setErrors({

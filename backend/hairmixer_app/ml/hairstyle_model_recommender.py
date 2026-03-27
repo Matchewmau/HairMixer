@@ -27,7 +27,9 @@ import joblib
 import logging
 import numpy as np
 import pandas as pd
+import warnings
 from pathlib import Path
+from sklearn.exceptions import InconsistentVersionWarning
 from typing import Dict, Any, List, Optional
 from django.conf import settings
 
@@ -63,7 +65,9 @@ class HairstyleModelRecommender:
                 logger.error(f"Model file not found: {model_file}")
                 return
                 
-            self.rf_model = joblib.load(model_file)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
+                self.rf_model = joblib.load(model_file)
             logger.info(f"✓ Loaded Random Forest model with {self.rf_model.n_estimators} estimators")
             
             # Load model columns (one-hot encoded feature names)
@@ -73,7 +77,9 @@ class HairstyleModelRecommender:
                 self.rf_model = None
                 return
                 
-            self.model_columns = joblib.load(columns_file)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
+                self.model_columns = joblib.load(columns_file)
             logger.info(f"✓ Loaded {len(self.model_columns)} one-hot encoded features")
             
             # Load label encoder for target classes
@@ -83,7 +89,9 @@ class HairstyleModelRecommender:
                 self.rf_model = None
                 return
                 
-            self.label_encoder = joblib.load(encoder_file)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
+                self.label_encoder = joblib.load(encoder_file)
             logger.info(f"✓ Loaded label encoder with {len(self.label_encoder.classes_)} hairstyle classes")
             
         except Exception as e:
@@ -188,7 +196,7 @@ class HairstyleModelRecommender:
         
         # Hair type
         hair_type = str(user_preferences.get('hair_type', 'straight')).lower()
-        features['hair_type'] = hair_type if hair_type in ['straight', 'wavy', 'curly'] else 'straight'
+        features['hair_type'] = hair_type if hair_type in ['straight', 'wavy', 'curly', 'coily'] else 'straight'
         
         # Hair length
         hair_length = str(user_preferences.get('hair_length', 'medium')).lower()
@@ -201,11 +209,24 @@ class HairstyleModelRecommender:
         
         # Hair condition (can be multiple, comma-separated)
         condition = user_preferences.get('hair_condition', 'none')
+        
+        # Map legacy/unknown values
+        condition_mapping = {
+            'fair': 'normal',
+            'good': 'healthy',
+            'poor': 'damaged'
+        }
+        
         if isinstance(condition, list):
-            # Join multiple conditions with comma
-            features['hair_condition'] = ','.join(sorted(condition))
+            # Map and filter conditions
+            mapped_conditions = []
+            for c in condition:
+                c_str = str(c).lower()
+                mapped_conditions.append(condition_mapping.get(c_str, c_str))
+            features['hair_condition'] = ','.join(sorted(set(mapped_conditions)))
         else:
-            features['hair_condition'] = str(condition).lower()
+            c_str = str(condition).lower()
+            features['hair_condition'] = condition_mapping.get(c_str, c_str)
         
         # Lifestyle
         lifestyle = str(user_preferences.get('lifestyle', 'casual')).lower()

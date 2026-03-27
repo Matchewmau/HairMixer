@@ -92,7 +92,7 @@ const Discover = () => {
         },
         {
           id: 3,
-          name: "Wash-and-Go",
+          name: "Wash-and-Go-Curls",
           category: "natural",
           gender: "female",
           length: "Short to Long (depends on curl type)",

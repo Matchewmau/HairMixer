@@ -58,7 +58,7 @@ except ImportError as e:
 
 
 class ImageUploadThrottle(UserRateThrottle):
-    rate = '10/hour'
+    scope = 'uploads'
 
 class UploadImageView(APIView):
     parser_classes = (MultiPartParser, FormParser)
@@ -107,6 +107,15 @@ class UploadImageView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
+            # Validate extension
+            import os
+            ext = os.path.splitext(image_file.name)[1].lower()
+            if ext not in ['.jpg', '.jpeg', '.png', '.webp']:
+                return Response(
+                    {"error": "Unsupported file extension. Use JPG, PNG, or WEBP."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             if image_file.size > 10 * 1024 * 1024:  # 10MB limit
                 return Response(
                     {"error": "File too large"},

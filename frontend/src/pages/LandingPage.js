@@ -78,11 +78,6 @@ const LandingPage = () => {
             </div>
 
             <div className="text-center text-white p-6 md:p-12 max-w-5xl mx-auto relative z-10 flex flex-col items-center justify-center min-h-[80vh] md:min-h-0">
-              <div className="mb-6 animate-slide-up">
-                <span className="inline-block bg-blue-500/20 text-blue-300 px-4 py-2 rounded-full text-sm font-medium border border-blue-500/30 backdrop-blur-sm">
-                  AI-Powered Hair Analysis
-                </span>
-              </div>
               <h1
                 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 bg-gradient-to-r from-white via-blue-100 to-purple-200 bg-clip-text text-transparent animate-slide-up leading-tight"
                 style={{ animationDelay: "0.1s" }}
@@ -94,15 +89,15 @@ const LandingPage = () => {
                 className="text-lg md:text-2xl mb-8 max-w-4xl mx-auto leading-relaxed text-gray-300 animate-slide-up px-4"
                 style={{ animationDelay: "0.2s" }}
               >
-                Upload your photo and discover the perfect hairstyle for you.
-                Powered by advanced AI technology trusted by thousands
-                worldwide.
+                Upload your photo, customize your preferences with our detailed
+                wizard, and virtually try on hairstyles. Our system is trusted
+                and validated by professional hairstylists and salons.
               </p>
               <div
                 className="flex flex-col sm:flex-row gap-4 justify-center items-center animate-slide-up w-full sm:w-auto px-4"
                 style={{ animationDelay: "0.3s" }}
               >
-                <Link to="/upload" className="w-full sm:w-auto">
+                <Link to="/analyze" className="w-full sm:w-auto">
                   <Button
                     variant="primary"
                     size="lg"
@@ -137,10 +132,10 @@ const LandingPage = () => {
                     </div>
                   </div>
                   <h3 className="text-lg md:text-xl font-bold text-white mb-2">
-                    Upload Photo
+                    1. Upload Photo
                   </h3>
                   <p className="text-sm md:text-base text-gray-300">
-                    Simply upload your photo to get started
+                    Our AI instantly analyzes your face shape and features
                   </p>
                 </Card>
 
@@ -150,14 +145,14 @@ const LandingPage = () => {
                 >
                   <div className="relative mb-4">
                     <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full w-14 h-14 md:w-16 md:h-16 flex items-center justify-center mx-auto shadow-lg group-hover:shadow-blue-500/25 transition-all duration-300 group-hover:scale-110">
-                      <span className="text-2xl md:text-3xl">🤖</span>
+                      <span className="text-2xl md:text-3xl">⚙️</span>
                     </div>
                   </div>
                   <h3 className="text-lg md:text-xl font-bold text-white mb-2">
-                    AI Analysis
+                    2. Customize
                   </h3>
                   <p className="text-sm md:text-base text-gray-300">
-                    Our AI analyzes your face shape and features
+                    Refine results with our 11-step preference wizard
                   </p>
                 </Card>
 
@@ -171,16 +166,16 @@ const LandingPage = () => {
                     </div>
                   </div>
                   <h3 className="text-lg md:text-xl font-bold text-white mb-2">
-                    Get Results
+                    3. Virtual Try-On
                   </h3>
                   <p className="text-sm md:text-base text-gray-300">
-                    Receive personalized hairstyle recommendations
+                    See hairstyles directly on your photo with AI
                   </p>
                 </Card>
               </div>
 
               {/* Scroll Down Indicator */}
-              <div className="mt-12 flex flex-col items-center animate-bounce hidden md:flex">
+              <div className="mt-10 flex flex-col items-center animate-bounce hidden md:flex">
                 <div className="text-gray-400 text-sm mb-2">
                   Scroll to explore
                 </div>
@@ -213,7 +208,7 @@ const LandingPage = () => {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12 md:mb-16">
             <h2 className="text-3xl md:text-5xl font-bold text-white mb-4 md:mb-6">
-              Trusted by Thousands
+              Trusted and Validated by Hairstylists and Salons
             </h2>
             <p className="text-lg md:text-xl text-gray-300 max-w-3xl mx-auto">
               See what our users are saying about their HairMixer experience
@@ -275,40 +270,6 @@ const LandingPage = () => {
               </p>
             </Card>
           </div>
-
-          <div className="text-center">
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl px-6 py-8 border border-white/10">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 divide-y sm:divide-y-0 sm:divide-x divide-white/10">
-                <div className="text-center pt-6 sm:pt-0 first:pt-0">
-                  <div className="text-3xl md:text-4xl font-bold text-white mb-1">
-                    4.9/5
-                  </div>
-                  <div className="text-sm md:text-base text-gray-400">
-                    Average Rating
-                  </div>
-                  <div className="flex justify-center text-yellow-400 mt-2 text-base">
-                    ★★★★★
-                  </div>
-                </div>
-                <div className="text-center pt-6 sm:pt-0">
-                  <div className="text-3xl md:text-4xl font-bold text-blue-400 mb-1">
-                    10K+
-                  </div>
-                  <div className="text-sm md:text-base text-gray-400">
-                    Happy Users
-                  </div>
-                </div>
-                <div className="text-center pt-6 sm:pt-0">
-                  <div className="text-3xl md:text-4xl font-bold text-purple-400 mb-1">
-                    50K+
-                  </div>
-                  <div className="text-sm md:text-base text-gray-400">
-                    Photos Analyzed
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -320,8 +281,8 @@ const LandingPage = () => {
               Why Choose HairMixer?
             </h2>
             <p className="text-lg md:text-xl text-gray-300 max-w-3xl mx-auto">
-              Powered by cutting-edge AI technology and trusted by thousands of
-              users worldwide
+              Powered by cutting-edge AI technology and trusted and validated by
+              professional hairstylists and salons worldwide
             </p>
           </div>
 
@@ -337,7 +298,7 @@ const LandingPage = () => {
                       Precision Face Analysis
                     </h3>
                     <p className="text-base text-gray-300 leading-relaxed">
-                      Advanced AI technology analyzes 68+ facial landmarks to
+                      Advanced AI technology analyzes facial landmarks to
                       determine your unique face shape with professional
                       accuracy.
                     </p>
@@ -350,11 +311,11 @@ const LandingPage = () => {
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-white mb-2 group-hover:text-blue-400 transition-colors duration-300">
-                      Lifestyle-Based Recommendations
+                      Detailed Preference Wizard
                     </h3>
                     <p className="text-base text-gray-300 leading-relaxed">
-                      Get suggestions tailored to your daily routine,
-                      maintenance preferences, and special occasions.
+                      Our 11-step wizard captures your hair type, lifestyle, and
+                      maintenance preferences for truly personalized results.
                     </p>
                   </div>
                 </Card>
@@ -365,11 +326,12 @@ const LandingPage = () => {
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-white mb-2 group-hover:text-green-400 transition-colors duration-300">
-                      Professional Quality
+                      Virtual Try-On
                     </h3>
                     <p className="text-base text-gray-300 leading-relaxed">
-                      Recommendations validated by professional stylists and
-                      based on proven beauty principles.
+                      Visualize your new look before you commit. Our AI overlays
+                      hairstyles directly onto your photo for a realistic
+                      preview.
                     </p>
                   </div>
                 </Card>
@@ -383,7 +345,7 @@ const LandingPage = () => {
               <div className="grid grid-cols-2 gap-4 md:gap-6">
                 <div className="text-center bg-white/5 rounded-lg p-4 md:p-6 border border-white/10">
                   <div className="text-2xl md:text-4xl font-bold text-purple-400 mb-2">
-                    10K+
+                    50+
                   </div>
                   <div className="text-xs md:text-sm text-gray-300">
                     Happy Users
@@ -391,7 +353,7 @@ const LandingPage = () => {
                 </div>
                 <div className="text-center bg-white/5 rounded-lg p-4 md:p-6 border border-white/10">
                   <div className="text-2xl md:text-4xl font-bold text-blue-400 mb-2">
-                    500+
+                    55+
                   </div>
                   <div className="text-xs md:text-sm text-gray-300">
                     Hairstyles
@@ -399,7 +361,7 @@ const LandingPage = () => {
                 </div>
                 <div className="text-center bg-white/5 rounded-lg p-4 md:p-6 border border-white/10">
                   <div className="text-2xl md:text-4xl font-bold text-indigo-400 mb-2">
-                    98%
+                    94%
                   </div>
                   <div className="text-xs md:text-sm text-gray-300">
                     Satisfaction
@@ -438,9 +400,9 @@ const LandingPage = () => {
               </h3>
               <p className="text-sm md:text-base text-gray-300 leading-relaxed">
                 Our AI technology has a 99% accuracy rate in face shape
-                detection and our recommendations are validated by professional
-                stylists. The system analyzes over 68 facial landmarks to ensure
-                precise results.
+                detection. We combine this with your detailed preferences from
+                our 11-step wizard to suggest styles that truly suit your
+                features and lifestyle.
               </p>
             </Card>
 
@@ -450,20 +412,20 @@ const LandingPage = () => {
               </h3>
               <p className="text-sm md:text-base text-gray-300 leading-relaxed">
                 Absolutely! Your photos are processed securely and are not
-                stored permanently on our servers. We use enterprise-grade
-                encryption and follow strict privacy protocols. You can delete
-                your data at any time.
+                stored permanently on our servers unless you choose to save
+                specific results. We use enterprise-grade encryption and follow
+                strict privacy protocols.
               </p>
             </Card>
 
             <Card hover className="p-6 group">
               <h3 className="text-lg md:text-xl font-bold text-white mb-3 group-hover:text-indigo-400 transition-colors duration-300">
-                Do I need to create an account to use HairMixer?
+                Can I see what the hairstyle looks like on me?
               </h3>
               <p className="text-sm md:text-base text-gray-300 leading-relaxed">
-                No account required for basic recommendations! You can upload a
-                photo and get instant results. Creating an account allows you to
-                save your preferences and access your recommendation history.
+                Yes! Our Virtual Try-On feature uses advanced generative AI to
+                overlay the recommended hairstyles onto your uploaded photo,
+                giving you a realistic preview of your new look.
               </p>
             </Card>
 

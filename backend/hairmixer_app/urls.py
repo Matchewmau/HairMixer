@@ -119,6 +119,28 @@ urlpatterns = [
         name='saved_hairstyle_detail',
     ),
     
+    # Hairstyle Like/Dislike endpoints
+    path(
+        'hairstyle-likes/',
+        views.HairstyleLikeView.as_view(),
+        name='hairstyle_likes',
+    ),
+    path(
+        'hairstyle-likes/stats/<uuid:hairstyle_id>/',
+        views.HairstyleLikeStatsView.as_view(),
+        name='hairstyle_like_stats',
+    ),
+    path(
+        'hairstyle-likes/bulk-stats/',
+        views.HairstyleLikeBulkStatsView.as_view(),
+        name='hairstyle_like_bulk_stats',
+    ),
+    path(
+        'hairstyle-likes/user/',
+        views.UserLikedHairstylesView.as_view(),
+        name='user_liked_hairstyles',
+    ),
+    
     # Search and filter endpoints
     path('search/', views.SearchView.as_view(), name='search'),
     path(

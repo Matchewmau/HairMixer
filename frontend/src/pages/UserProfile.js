@@ -27,16 +27,16 @@ const UserProfile = () => {
   const [profileForm, setProfileForm] = useState({
     profile_name: "",
     description: "",
-    gender: "female",
-    hair_type: "straight",
-    hair_length: "medium",
-    volume: "medium",
-    hair_thickness: "medium",
-    hair_texture_detail: "normal",
-    lifestyle: "casual",
-    maintenance: "medium",
-    styling_preference: "natural",
-    hair_color: "brown",
+    gender: "",
+    hair_type: "",
+    hair_length: "",
+    volume: "",
+    hair_thickness: "",
+    hair_texture_detail: "",
+    lifestyle: "",
+    maintenance: "",
+    styling_preference: "",
+    hair_color: "",
     hair_condition: [],
     occasions: [],
   });
@@ -190,7 +190,36 @@ const UserProfile = () => {
     setIsEditing(false);
   };
 
+  const validateProfileForm = () => {
+    const requiredFields = [
+      "profile_name",
+      "gender",
+      "hair_type",
+      "hair_length",
+      "volume",
+      "hair_thickness",
+      "hair_texture_detail",
+      "lifestyle",
+      "maintenance",
+      "styling_preference",
+      "hair_color",
+    ];
+
+    const missingFields = requiredFields.filter((field) => !profileForm[field]);
+
+    if (missingFields.length > 0) {
+      const formattedFields = missingFields
+        .map((f) => f.replace(/_/g, " "))
+        .join(", ");
+      alert(`Please fill in the following required fields: ${formattedFields}`);
+      return false;
+    }
+    return true;
+  };
+
   const handleCreateProfile = async () => {
+    if (!validateProfileForm()) return;
+
     try {
       await apiService.createPreferenceProfile(profileForm);
       await loadPreferenceProfiles();
@@ -198,16 +227,16 @@ const UserProfile = () => {
       setProfileForm({
         profile_name: "",
         description: "",
-        gender: "female",
-        hair_type: "straight",
-        hair_length: "medium",
-        volume: "medium",
-        hair_thickness: "medium",
-        hair_texture_detail: "normal",
-        lifestyle: "casual",
-        maintenance: "medium",
-        styling_preference: "natural",
-        hair_color: "brown",
+        gender: "",
+        hair_type: "",
+        hair_length: "",
+        volume: "",
+        hair_thickness: "",
+        hair_texture_detail: "",
+        lifestyle: "",
+        maintenance: "",
+        styling_preference: "",
+        hair_color: "",
         hair_condition: [],
         occasions: [],
       });
@@ -218,6 +247,8 @@ const UserProfile = () => {
   };
 
   const handleEditProfile = async () => {
+    if (!validateProfileForm()) return;
+
     try {
       await apiService.updatePreferenceProfile(selectedProfile.id, profileForm);
       await loadPreferenceProfiles();
@@ -390,6 +421,9 @@ const UserProfile = () => {
               onChange={handleProfileFormChange}
               className="w-full bg-surface/50 border border-white/10 rounded-lg px-4 py-2 text-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary capitalize"
             >
+              <option value="" disabled>
+                Select...
+              </option>
               {field.options.map((opt) => (
                 <option key={opt} value={opt} className="bg-surface text-white">
                   {opt.replace("_", " ")}
@@ -624,7 +658,25 @@ const UserProfile = () => {
                 </p>
               </div>
               <Button
-                onClick={() => setShowCreateProfileModal(true)}
+                onClick={() => {
+                  setProfileForm({
+                    profile_name: "",
+                    description: "",
+                    gender: "",
+                    hair_type: "",
+                    hair_length: "",
+                    volume: "",
+                    hair_thickness: "",
+                    hair_texture_detail: "",
+                    lifestyle: "",
+                    maintenance: "",
+                    styling_preference: "",
+                    hair_color: "",
+                    hair_condition: [],
+                    occasions: [],
+                  });
+                  setShowCreateProfileModal(true);
+                }}
                 variant="primary"
                 size="sm"
               >

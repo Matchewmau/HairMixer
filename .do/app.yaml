@@ -1,0 +1,80 @@
+# DigitalOcean App Platform Specification
+# Deploy with: doctl apps create --spec .do/app.yaml
+# Or use the DigitalOcean dashboard to connect your GitHub repo
+
+name: hairmixer
+region: sgp # Singapore - change to your preferred region (nyc, sfo, ams, etc.)
+
+services:
+  # Django Backend API
+  - name: backend
+    github:
+      repo: YOUR_GITHUB_USERNAME/HairMixer
+      branch: main
+      deploy_on_push: true
+    source_dir: backend
+    dockerfile_path: backend/Dockerfile
+    http_port: 8000
+    instance_size_slug: basic-s # 1GB RAM - required for ML models
+    instance_count: 1
+
+    routes:
+      - path: /api
+      - path: /admin
+      - path: /static
+      - path: /media
+
+    envs:
+      - key: DJANGO_SECRET_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${DJANGO_SECRET_KEY}
+      - key: DJANGO_DEBUG
+        scope: RUN_TIME
+        value: "false"
+      - key: DJANGO_ALLOWED_HOSTS
+        scope: RUN_TIME
+        value: ${APP_DOMAIN}
+      - key: CORS_ALLOW_ALL
+        scope: RUN_TIME
+        value: "false"
+      - key: CORS_ALLOWED_ORIGINS
+        scope: RUN_TIME
+        value: https://${APP_DOMAIN}
+      - key: CSRF_TRUSTED_ORIGINS
+        scope: RUN_TIME
+        value: https://${APP_DOMAIN}
+      - key: GEMINI_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${GEMINI_API_KEY}
+      - key: GEMINI_MODEL_NAME
+        scope: RUN_TIME
+        value: "gemini-2.0-flash"
+
+    health_check:
+      http_path: /api/health/
+      initial_delay_seconds: 180
+      period_seconds: 30
+      timeout_seconds: 10
+
+static_sites:
+  # React Frontend
+  - name: frontend
+    github:
+      repo: YOUR_GITHUB_USERNAME/HairMixer
+      branch: main
+      deploy_on_push: true
+    source_dir: frontend
+    build_command: npm install && npm run build
+    output_dir: build
+
+    routes:
+      - path: /
+
+    envs:
+      - key: REACT_APP_API_URL
+        scope: BUILD_TIME
+        value: https://${APP_DOMAIN}/api
+
+    catchall_document: index.html # Required for React Router

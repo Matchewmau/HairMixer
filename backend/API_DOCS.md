@@ -23,30 +23,6 @@ Authorization header for protected endpoints:
 Authorization: Bearer <access_token>
 ```
 
-Example: Login
-
-```
-POST /api/auth/login/
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "password": "YourPassword123"
-}
-```
-
-Response:
-
-```
-200 OK
-{
-  "message": "Login successful",
-  "user": { "id": "...", "email": "user@example.com", ... },
-  "access_token": "<jwt>",
-  "refresh_token": "<jwt>"
-}
-```
-
 ## Core Endpoints
 
 ### Upload Image
@@ -55,13 +31,6 @@ Response:
 
 Request (multipart/form-data):
 - `image`: binary file (jpg/png), max 10MB
-
-cURL example:
-
-```
-curl -X POST http://localhost:8000/api/upload/ \
-  -F "image=@/path/to/photo.jpg"
-```
 
 Success response (abbreviated):
 
@@ -72,16 +41,8 @@ Success response (abbreviated):
   "image_id": "<uuid>",
   "face_detected": true,
   "face_shape": { "shape": "oval", "confidence": 0.93 },
-  "message": "Image uploaded and analyzed successfully",
-  "face_shape_description": "Balanced proportions - most hairstyles suit you!"
+  "message": "Image uploaded and analyzed successfully"
 }
-```
-
-Error response:
-
-```
-400 Bad Request
-{ "error": "No image provided" }
 ```
 
 ### Set Preferences
@@ -104,18 +65,6 @@ Body (JSON):
 }
 ```
 
-Response:
-
-```
-200 OK
-{
-  "success": true,
-  "preference_id": "<uuid>",
-  "message": "Preferences saved successfully",
-  "preferences": { ...validated fields... }
-}
-```
-
 ### Recommend
 - `POST /recommend/`
 - Open to all (throttled). Generates hairstyle recommendations given an uploaded image and preferences.
@@ -129,47 +78,6 @@ Body (JSON):
 }
 ```
 
-Example response (shape varies by engine):
-
-```
-200 OK
-{
-  "recommendations": [
-    { "id": "<uuid>", "name": "Layered Bob", "trend_score": 0.82, ... },
-    { "id": "<uuid>", "name": "Textured Pixie", "trend_score": 0.79, ... }
-  ],
-  "metadata": { "generated_at": "2025-09-21T22:11:00Z" }
-}
-```
-
-Errors:
-- 404 if `image_id` or `preference_id` not found
-- 500 if generation fails
-
-### Overlay
-- `POST /overlay/` (requires auth)
-- Generate an overlay for a selected hairstyle on the uploaded image.
-
-Body (JSON):
-
-```
-{
-  "image_id": "<uuid>",
-  "hairstyle_id": "<uuid>",
-  "overlay_type": "basic|advanced"
-}
-```
-
-Response:
-
-```
-200 OK
-{
-  "overlay_url": "/media/overlays/<image>_<style>_basic.png",
-  "overlay_type": "basic"
-}
-```
-
 ### Hairstyle Details with AI
 - `GET /hairstyles/<uuid:hairstyle_id>/details/` (open)
 - Get detailed hairstyle information with AI-generated personalized content
@@ -177,10 +85,31 @@ Response:
   - `preference_id`: UUID of user preferences (optional)
   - `image_id`: UUID of uploaded image (optional)
 
-Example:
+Response:
 
 ```
-GET /api/hairstyles/123e4567-e89b-12d3-a456-426614174000/details/?preference_id=<uuid>&image_id=<uuid>
+200 OK
+{
+  "hairstyle": { ... },
+  "ai_generated": true,
+  "personalized_description": "This layered bob will beautifully frame your oval face...",
+  "recommended_products": [ ... ],
+  "maintenance_guide": [ ... ],
+  "styling_tips": [ ... ]
+}
+```
+
+### Auto Overlay (AI)
+- `POST /overlay/auto/` (requires auth)
+- Generate an AI-powered overlay for a selected hairstyle on the uploaded image.
+
+Body (JSON):
+
+```
+{
+  "image_id": "<uuid>",
+  "hairstyle_id": "<uuid>"
+}
 ```
 
 Response:
@@ -188,143 +117,49 @@ Response:
 ```
 200 OK
 {
-  "hairstyle": {
-    "id": "<uuid>",
-    "name": "Layered Bob",
-    "description": "A versatile bob with layers...",
-    "image_url": "...",
-    "tags": ["modern", "versatile"],
-    "occasions": ["casual", "professional"]
-  },
-  "face_shape": "oval",
-  "face_shape_confidence": 0.92,
-  "ai_generated": true,
-  "personalized_description": "This layered bob will beautifully frame your oval face...",
-  "preference_match": [
-    "Matches your low maintenance preference",
-    "Perfect for your wavy hair type",
-    "Suits your casual lifestyle"
-  ],
-  "recommended_products": [
-    "Volumizing Mousse - Adds body and texture",
-    "Texturizing Spray - Creates wave definition",
-    "Heat Protectant - Protects from styling tools"
-  ],
-  "maintenance_guide": [
-    "Wash hair 2-3 times per week with sulfate-free shampoo",
-    "Apply styling products to damp hair",
-    "Blow dry with a round brush for volume",
-    "Schedule trims every 6-8 weeks"
-  ],
-  "styling_tips": [
-    "Work with your natural wave pattern",
-    "Use a diffuser attachment for added volume",
-    "Apply products section by section",
-    "Finish with a light hold spray"
-  ]
+  "overlay_url": "/media/overlays/ai_generated_....png",
+  "status": "success"
 }
 ```
 
-### Search
+## User Management Endpoints
+
+### Preference Profiles
+- `GET /preference-profiles/` - List all profiles
+- `POST /preference-profiles/` - Create new profile
+- `GET /preference-profiles/<id>/` - Get profile details
+- `POST /preference-profiles/<id>/set-default/` - Set as default profile
+
+### Saved Hairstyles
+- `GET /saved-hairstyles/` - List saved favorites
+- `POST /saved-hairstyles/` - Save a hairstyle
+- `GET /saved-hairstyles/<id>/` - Get details of saved style
+- `DELETE /saved-hairstyles/<id>/` - Remove from favorites
+
+### Hairstyle Likes
+- `POST /hairstyle-likes/` - Like or Dislike a hairstyle
+- `GET /hairstyle-likes/user/` - Get all liked hairstyles
+
+## Search & Filters
+
 - `GET /search/` (open)
-- Parameters:
-  - `q`: string (text search)
-  - `face_shape`: one of `oval, round, square, heart, diamond, oblong`
-  - `occasion`: one of `casual, formal, party, business, wedding, date, work`
-  - `hair_type`: one of `straight, wavy, curly, coily`
-  - `maintenance`: one of `low, medium, high`
-  - `page`: integer, default 1
-  - `per_page`: integer, default 20 (max 50)
-
-Example:
-
-```
-GET /api/search/?q=layered&face_shape=oval&per_page=12
-```
-
-Response (abbreviated):
-
-```
-200 OK
-{
-  "results": [ { "id": "<uuid>", "name": "Layered Bob", ... } ],
-  "search_query": "layered",
-  "filters_applied": { ... },
-  "pagination": {
-    "page": 1,
-    "per_page": 12,
-    "total_pages": 3,
-    "total_count": 36,
-    "has_next": true,
-    "has_previous": false
-  }
-}
-```
-
-## Hairstyle Endpoints
-
-- `GET /hairstyles/` — list (open; supports filters via query params similar to Search)
+- `GET /hairstyles/` — list (open)
 - `GET /hairstyles/featured/` — featured list (open)
 - `GET /hairstyles/trending/` — trending list (open)
-- `GET /hairstyles/<style_id>/` — detail (open)
 - `GET /hairstyles/categories/` — list categories (open)
-
-## User Endpoints
-
-- `GET /user/recommendations/` — user recommendation history (auth)
-- `GET /user/favorites/` — favorites (auth; placeholder)
-- `GET /user/history/` — activity history (auth; placeholder)
-
-## Filters
-
-- `GET /filter/face-shapes/` — available face shapes + guidance (open)
+- `GET /filter/face-shapes/` — available face shapes (open)
 - `GET /filter/occasions/` — available occasions (open)
 
 ## Analytics & Admin
 
-- `POST /analytics/event/` (auth):
-
-```
-{
-  "event_type": "overlay_generated",
-  "event_data": { "style_id": "<uuid>" },
-  "session_id": "abc-123"
-}
-```
-
+- `POST /analytics/event/` (auth)
 - `GET /admin/cache/stats/` (admin)
 - `POST /admin/cache/cleanup/` (admin)
 - `GET /admin/analytics/` (admin)
 
-Note: Admin-permission enforcement can be environment-gated; by default it requires authentication and may be tightened for production.
-
 ## Health Check
 
 - `GET /health/` — returns system status and feature flags.
-
-```
-200 OK
-{
-  "status": "ok",
-  "ml_available": true,
-  "preprocess_available": true,
-  ...
-}
-```
-
-## Errors & Status Codes
-
-- `400 Bad Request` — validation or malformed input
-- `401 Unauthorized` — missing/invalid token for protected routes
-- `404 Not Found` — resource not found
-- `429 Too Many Requests` — throttling (see rate limits)
-- `500 Internal Server Error` — server-side error
-
-Error format typically:
-
-```
-{ "error": "message", "details": "optional context" }
-```
 
 ## Rate Limits (Throttling)
 
@@ -345,9 +180,3 @@ D:/CODING/Python/HairMixer/venv/Scripts/python.exe backend/manage.py runserver
 # ReDoc:   http://localhost:8000/api/redoc/
 ```
 
-## Notes
-
-- For better request/response details, use the interactive docs. Some views use explicit schema annotations to ensure accurate examples and parameter enums.
-- Overlay requires a valid authenticated user. Obtain a JWT via login and set the `Authorization` header.
-- Image analysis happens at upload time; the upload response includes analysis metadata used by recommendations.
-- Logging: internal debug is suppressed by default; set `DJANGO_LOG_LEVEL=DEBUG` to see detailed analyzer output.
