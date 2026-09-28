@@ -351,15 +351,9 @@ git push origin feature/your-feature
 
 ---
 
-## 📄 License
-
-[Your License Here]
-
----
-
 ## 👥 Team
 
-[Your Team Information]
+HairMixer Team
 
 ---
 
@@ -368,7 +362,7 @@ git push origin feature/your-feature
 - **Documentation:** [SYSTEM_DOCUMENTATION.md](./SYSTEM_DOCUMENTATION.md)
 - **API Docs:** `http://localhost:8000/api/docs/`
 - **Issues:** GitHub Issues
-- **Email:** [your-email@domain.com]
+- **Email:** mauricio.johnmath@gmail.com
 
 ---
 
