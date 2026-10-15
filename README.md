@@ -382,7 +382,6 @@ HairMixer/
 
 - `docs/USER_MANUAL.md` - Installation-free user guide: account creation, menu tour, photo upload, 15-question form, results, details, try-on, saving, troubleshooting, reporting. Version 2.1.0, updated January 2026.
 - `SYSTEM_DOCUMENTATION.md` - Architecture diagram, core features, database and API summary. Version 2.1.0.
-- `thesis_preparation.md` - Model loading (singleton), ResNet50 and Random Forest flows, JWT/axes/throttling/validation explanations, ER diagram, reported accuracy numbers, defense Q&A.
 - `backend/API_DOCS.md` - Authoritative endpoint reference with payloads plus local Swagger/ReDoc URLs.
 - `backend/OVERLAY_SETUP.md` - Basic vs advanced overlay setup, including `gemini-webapi` install and cookie env vars.
 - `backend/README.md` - Backend-only quick start, tests, and logging notes.
