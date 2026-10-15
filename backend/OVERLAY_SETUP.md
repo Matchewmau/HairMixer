@@ -1,12 +1,14 @@
 # Overlay Feature Setup
 
+> Setup guide for both overlay modes: default local PIL compositing and optional Gemini AI hair editing.
+
 The backend supports two overlay modes:
 - basic: Local PIL-based compositing (default)
 - advanced: Gemini AI hair editing via gemini-webapi
 
 ## 1) Install dependencies
 
-In your virtual environment install project dependencies from the consolidated root file:
+In your virtual environment install project dependencies (run from the `backend/` directory):
 
 ```
 python -m pip install -r requirements.txt
@@ -28,19 +30,25 @@ Required for advanced overlay:
 - GEMINI_SECURE_1PSIDTS=...
 
 Optional:
-- GEMINI_MODEL=G_2_5_FLASH
+- GEMINI_MODEL_NAME=gemini-2.0-flash
 - GEMINI_TIMEOUT=120
 
 If credentials are missing or AI is disabled, advanced mode will fall back to basic overlay.
 
 ## 3) API usage
 
-POST /api/overlay/
+POST /api/overlay/ (basic or advanced in one call)
 
 Payload:
 - image_id: UUID of an `UploadedImage`
 - hairstyle_id: UUID of a `Hairstyle`
 - overlay_type: "basic" | "advanced"
+
+POST /api/overlay/auto/ (AI overlay, requires auth)
+
+Payload:
+- image_id: UUID of an `UploadedImage`
+- hairstyle_id: UUID of a `Hairstyle`
 
 The response contains `overlay_url` pointing to the saved PNG under `/media/overlays/...`.
 

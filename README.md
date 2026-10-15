@@ -202,7 +202,7 @@ RECOMMENDATION_CACHE_TIMEOUT=3600
 Notes:
 
 - `GEMINI_MODEL_NAME` default in `backend/backend/settings.py` is `gemini-2.5-pro` if unset; the shipped `.env.example` uses `gemini-2.0-flash`.
-- Production should set `DJANGO_DEBUG=false`, restrict `DJANGO_ALLOWED_HOSTS` / `CORS_ALLOWED_ORIGINS` / `CSRF_TRUSTED_ORIGINS`, and enable `SECURE_SSL_REDIRECT`, secure cookies, and HSTS (see `.env.example` and `thesis_preparation.md`).
+- Production should set `DJANGO_DEBUG=false`, restrict `DJANGO_ALLOWED_HOSTS` / `CORS_ALLOWED_ORIGINS` / `CSRF_TRUSTED_ORIGINS`, and enable `SECURE_SSL_REDIRECT`, secure cookies, and HSTS (see `.env.example` and `backend/backend/settings.py`).
 - JWT lifetimes: access 60 minutes, refresh 1 day with rotation. Brute-force lockout: 5 failures, 1 hour cooloff. Throttles: anon 20/hour, user 200/hour, uploads 10/hour.
 
 ### Frontend (.env)
@@ -265,14 +265,14 @@ Full request/response examples: `backend/API_DOCS.md`. Overlay modes: `backend/O
 - **Models:** MediaPipe face detection (primary) plus ResNet50 classifier (default, singleton-loaded once at server start).
 - **Classes (5):** Oval, Round, Square, Heart, Oblong.
 - **Pipeline:** Detect bounding box, crop with vertical padding, resize to 224x224, ImageNet normalize, ResNet50 inference, softmax, argmax plus confidence.
-- **Reported accuracy (see `thesis_preparation.md`):** ResNet50 approx 95 percent train / 91 percent test. Re-evaluate after retraining before citing externally.
+- **Reported accuracy (model training notes; re-verify after any retraining):** ResNet50 approx 95 percent train / 91 percent test.
 
 ### Hairstyle Recommendation
 
 - **Type:** Random Forest Classifier (`hairstyle_model.joblib` plus `hairstyle_family_label_encoder.joblib` plus `model_columns.joblib`).
 - **Inputs:** 15 logical fields (face shape auto-detected plus gender, hair type, hair length, hair color, volume, thickness, texture detail, hair condition, lifestyle, maintenance, styling time, style preference, occasions, bangs preference). One-hot encoded to 290 columns at inference.
 - **Output:** Probability distribution over 55 hairstyle classes (verified from the shipped label encoder), ranked to top 10 with `predict_proba` plus `argsort`, then mapped to `Hairstyle` database rows.
-- **Reported accuracy (see `thesis_preparation.md`):** 100 percent train / 80.94 percent test (5-fold cross-validation scripts in `backend/`). Treat as thesis-reported, not a live guarantee.
+- **Reported accuracy (model training notes; re-verify after any retraining):** 100 percent train / 80.94 percent test (5-fold cross-validation). Treat as training-time numbers, not a live guarantee.
 - **Serving:** Singleton recommender, result caching (`CachedRecommendation`, default TTL 3600 s), throttled recommend endpoint.
 
 ### Generative AI (Gemini)
@@ -336,7 +336,7 @@ Contingencies: offline means no analysis/recommendations/try-on; expired session
 - **Rate limiting (DRF throttles):** anon 20/hour, authenticated user 200/hour, uploads 10/hour.
 - **Input validation (serializers + Pillow):** File size, image validity (`verify()`), minimum dimensions, aspect ratio checks before ML inference.
 - **HTTP hardening:** `SECURE_SSL_REDIRECT`, HSTS (31536000 s), `X_FRAME_OPTIONS: DENY`, Content Security Policy via django-csp, CORS/CSRF allowlists for production.
-- See `thesis_preparation.md` Section 3 for panel-ready explanations and `backend/backend/settings.py` for exact values.
+- See `backend/backend/settings.py` for exact security values.
 
 ---
 
@@ -385,8 +385,6 @@ HairMixer/
 - `backend/API_DOCS.md` - Authoritative endpoint reference with payloads plus local Swagger/ReDoc URLs.
 - `backend/OVERLAY_SETUP.md` - Basic vs advanced overlay setup, including `gemini-webapi` install and cookie env vars.
 - `backend/README.md` - Backend-only quick start, tests, and logging notes.
-
-No PDF was found in the repository during this update, so the "PDF" analysis above refers to `docs/USER_MANUAL.md`, which is the print-ready manual source.
 
 ---
 

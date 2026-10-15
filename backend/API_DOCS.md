@@ -1,6 +1,6 @@
 # HairMixer API Documentation
 
-This document provides a practical reference for integrating with the HairMixer backend API. It complements the interactive docs powered by drf-spectacular.
+> Practical backend API reference with request/response payloads; interactive docs at `/api/docs/` (Swagger) and `/api/redoc/`.
 
 - Base URL: `http://<host>:<port>/api/`
 - Interactive Docs: `GET /api/docs/` (Swagger UI)
@@ -30,7 +30,7 @@ Authorization: Bearer <access_token>
 - Open to all (no auth). Multipart request.
 
 Request (multipart/form-data):
-- `image`: binary file (jpg/png), max 10MB
+- `image`: binary file (JPEG/PNG/WebP), max 10MB, min 200x200 px
 
 Success response (abbreviated):
 
@@ -53,15 +53,14 @@ Body (JSON):
 
 ```
 {
-  "hair_type": "wavy|straight|curly|coily",
-  "hair_length": "pixie|short|medium|long|extra_long",
+  "gender": "female|male",
+  "hair_type": "straight|wavy|curly|coily",
+  "hair_length": "short|medium|long",
+  "hair_color": "black|brown|blonde|red|gray|...",
   "maintenance": "low|medium|high",
-  "lifestyle": "casual|active|professional|glam|...",
-  "occasions": ["casual", "party"],
-  "gender": "male|female|nb|other",
-  "hair_color": "brown",
-  "color_preference": "warm",
-  "budget_range": "$$"
+  "lifestyle": "active|professional|creative|casual|moderate|relaxed",
+  "occasions": ["work", "casual", "formal", "party", "wedding", "birthday"],
+  "wants_bangs": false
 }
 ```
 
@@ -164,19 +163,21 @@ Response:
 ## Rate Limits (Throttling)
 
 - Uploads: 10 per hour per user/IP
-- Recommendations: 20 per hour per user/IP
+- Anonymous: 20 per hour per user/IP
+- Authenticated users: 200 per hour
 
 ## Running Locally
 
-```
-# activate env (PowerShell)
-D:/CODING/Python/HairMixer/venv/Scripts/Activate.ps1
-
-# run server (quiet logs by default)
-D:/CODING/Python/HairMixer/venv/Scripts/python.exe backend/manage.py runserver
+```powershell
+cd backend
+..\venv311\Scripts\Activate.ps1
+python manage.py runserver
 
 # open docs
 # Swagger: http://localhost:8000/api/docs/
 # ReDoc:   http://localhost:8000/api/redoc/
 ```
+
+---
+*HairMixer API docs v2.1.0. See the root `README.md` for setup and `docs/USER_MANUAL.md` for the end-user guide.*
 
